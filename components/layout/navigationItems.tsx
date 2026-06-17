@@ -15,26 +15,26 @@ export interface NavigationItem {
 
 export const navigationItems: NavigationItem[] = [
   {
-    label: "Visao Geral",
+    label: "Visão Geral",
     shortLabel: "Geral",
     href: "/dashboard",
     icon: LayoutDashboard,
   },
   {
-    label: "Transacoes",
-    shortLabel: "Transacoes",
+    label: "Transações",
+    shortLabel: "Transações",
     href: "/dashboard/transactions",
     icon: Receipt,
   },
   {
-    label: "Cartoes",
-    shortLabel: "Cartoes",
+    label: "Cartões",
+    shortLabel: "Cartões",
     href: "/dashboard/cards",
     icon: CreditCard,
   },
   {
-    label: "Configuracoes",
-    shortLabel: "Config",
+    label: "Configurações",
+    shortLabel: "Config.",
     href: "/dashboard/settings",
     icon: Settings,
   },

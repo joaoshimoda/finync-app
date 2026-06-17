@@ -17,10 +17,10 @@ export default function CardsPage() {
         <div>
           <p className="text-sm font-medium text-brand-300">Carteira</p>
           <h1 className="mt-2 text-3xl font-semibold tracking-tight text-white">
-            Meus Cartoes
+            Meus Cartões
           </h1>
           <p className="mt-3 max-w-2xl text-sm leading-6 text-zinc-400">
-            Gerencie seus cartoes, limites e faturas em um unico lugar.
+            Gerencie seus cartões, limites e faturas em um único lugar.
           </p>
         </div>
 
@@ -30,7 +30,7 @@ export default function CardsPage() {
           className="inline-flex h-11 items-center justify-center gap-2 rounded-2xl bg-brand-500 px-4 text-sm font-bold text-slate-950 shadow-[0_0_28px_rgba(16,185,129,0.14)] transition hover:bg-brand-400 hover:shadow-[0_0_36px_rgba(16,185,129,0.24)] focus:outline-none focus:ring-4 focus:ring-brand-500/30"
         >
           <Plus className="h-4 w-4" strokeWidth={2.5} />
-          Novo Cartao
+          Novo Cartão
         </button>
       </header>
 

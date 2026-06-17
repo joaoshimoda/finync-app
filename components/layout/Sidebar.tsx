@@ -23,12 +23,12 @@ export function Sidebar() {
 
     if (error) {
       console.error("Erro ao sair:", error);
-      toast.error("Nao foi possivel sair agora.");
+      toast.error("Não foi possível sair agora.");
       return;
     }
 
     clearFinanceState();
-    toast.success("Sessao encerrada. Ate logo!");
+    toast.success("Sessão encerrada. Até logo!");
     router.replace("/login");
   }
 
@@ -77,7 +77,7 @@ export function Sidebar() {
           <p className="text-xs font-medium uppercase tracking-wide text-brand-300">
             Plano atual
           </p>
-          <p className="mt-1 text-sm font-semibold text-white">Free</p>
+          <p className="mt-1 text-sm font-semibold text-white">Grátis</p>
         </div>
         <button
           type="button"

@@ -15,12 +15,12 @@ export default function TransactionsPage() {
     <div className="space-y-6">
       <header className="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
         <div>
-          <p className="text-sm font-medium text-brand-300">Movimentacoes</p>
+          <p className="text-sm font-medium text-brand-300">Movimentações</p>
           <h1 className="mt-2 text-3xl font-semibold tracking-tight text-white">
-            Historico de Transacoes
+            Histórico de Transações
           </h1>
           <p className="mt-3 max-w-2xl text-sm leading-6 text-zinc-400">
-            Consulte os lancamentos recentes e acompanhe o status das suas despesas.
+            Consulte os lançamentos recentes e acompanhe o status das suas despesas.
           </p>
         </div>
 

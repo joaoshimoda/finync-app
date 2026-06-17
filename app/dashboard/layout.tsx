@@ -2,6 +2,7 @@
 
 import { BottomNav } from "@/components/layout/BottomNav";
 import { Sidebar } from "@/components/layout/Sidebar";
+import { supabase } from "@/lib/supabaseClient";
 import { useFinanceStore } from "@/store/useFinanceStore";
 import { useRouter } from "next/navigation";
 import { useEffect } from "react";
@@ -25,10 +26,34 @@ export default function DashboardLayout({
   }, [initializeAuth]);
 
   useEffect(() => {
+    let isMounted = true;
+
+    async function verifySession() {
+      const {
+        data: { session },
+      } = await supabase.auth.getSession();
+
+      if (isMounted && !session) {
+        router.replace("/login");
+      }
+    }
+
+    verifySession();
+
+    return () => {
+      isMounted = false;
+    };
+  }, [router]);
+
+  useEffect(() => {
     if (isAuthReady && !authUser) {
       router.replace("/login");
     }
   }, [authUser, isAuthReady, router]);
+
+  if (!isAuthReady || !authUser) {
+    return <div className="min-h-screen bg-background" />;
+  }
 
   return (
     <div className="min-h-screen bg-background text-white">

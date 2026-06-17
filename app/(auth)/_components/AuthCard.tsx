@@ -17,18 +17,18 @@ function getAuthErrorMessage(message: string) {
   const normalizedMessage = message.toLowerCase();
 
   if (normalizedMessage.includes("invalid login credentials")) {
-    return "Email ou senha incorretos. Confira os dados e tente novamente.";
+    return "E-mail ou senha incorretos. Confira os dados e tente novamente.";
   }
 
   if (normalizedMessage.includes("password")) {
-    return "A senha precisa atender aos requisitos minimos de seguranca.";
+    return "A senha precisa atender aos requisitos mínimos de segurança.";
   }
 
   if (normalizedMessage.includes("already registered")) {
     return "Este email ja esta cadastrado. Entre na sua conta para continuar.";
   }
 
-  return "Nao foi possivel concluir a autenticacao agora. Tente novamente.";
+  return "Não foi possível concluir a autenticação agora. Tente novamente.";
 }
 
 export function AuthCard({ mode }: AuthCardProps) {
@@ -64,16 +64,16 @@ export function AuthCard({ mode }: AuthCardProps) {
 
       if (error) throw error;
 
-      toast.success(isSignup ? "Conta criada com sucesso!" : "Login realizado com sucesso!");
+      toast.success(isSignup ? "Conta criada com sucesso!" : "Acesso realizado com sucesso!");
       router.push("/dashboard");
       router.refresh();
     } catch (error) {
       const message =
         error instanceof Error
           ? getAuthErrorMessage(error.message)
-          : "Nao foi possivel concluir a autenticacao agora. Tente novamente.";
+          : "Não foi possível concluir a autenticação agora. Tente novamente.";
 
-      console.error("Erro de autenticacao:", error);
+      console.error("Erro de autenticação:", error);
       toast.error(message);
     } finally {
       setIsSubmitting(false);
@@ -95,7 +95,7 @@ export function AuthCard({ mode }: AuthCardProps) {
           </h1>
           <p className="mt-3 text-sm leading-6 text-zinc-300">
             {isSignup
-              ? "Organize cartoes, gastos e metas em um painel financeiro simples."
+              ? "Organize cartões, gastos e metas em um painel financeiro simples."
               : "Acesse seu painel e acompanhe seus gastos com clareza."}
           </p>
         </div>
@@ -119,14 +119,14 @@ export function AuthCard({ mode }: AuthCardProps) {
 
           <label className="block">
             <span className="mb-2 block text-sm font-medium text-zinc-200">
-              Email
+              E-mail
             </span>
             <input
               value={email}
               onChange={(event) => setEmail(event.target.value)}
               type="email"
               autoComplete="email"
-              placeholder="voce@email.com"
+              placeholder="seu@email.com"
               className="h-12 w-full rounded-2xl border border-white/[0.08] bg-white/[0.055] px-4 text-sm text-white outline-none transition placeholder:text-zinc-500 focus:border-brand-500/60 focus:bg-white/[0.1] focus:ring-4 focus:ring-brand-500/10"
               required
             />
@@ -167,7 +167,7 @@ export function AuthCard({ mode }: AuthCardProps) {
         </form>
 
         <div className="mt-6 border-t border-white/[0.08] pt-6 text-center text-sm text-zinc-300">
-          {isSignup ? "Ja tem uma conta?" : "Ainda nao tem conta?"}{" "}
+          {isSignup ? "Já tem uma conta?" : "Ainda não tem conta?"}{" "}
           <Link
             href={isSignup ? "/login" : "/signup"}
             className="font-semibold text-brand-300 transition hover:text-brand-100"

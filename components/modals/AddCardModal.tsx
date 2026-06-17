@@ -29,14 +29,14 @@ export function AddCardModal({ isOpen, onClose }: AddCardModalProps) {
         dueDay: Number(closingDay) || 0,
       });
 
-      toast.success("Cart\u00e3o adicionado!");
+      toast.success("Cartão adicionado!");
       setName("");
       setLimit("");
       setClosingDay("");
       onClose();
     } catch (error) {
-      console.error("Erro ao adicionar cart\u00e3o:", error);
-      toast.error("Erro ao adicionar cart\u00e3o");
+      console.error("Erro ao adicionar cartão:", error);
+      toast.error("Erro ao adicionar cartão");
     }
   }
 
@@ -48,13 +48,13 @@ export function AddCardModal({ isOpen, onClose }: AddCardModalProps) {
             <div>
               <p className="flex items-center gap-2 text-sm font-medium text-brand-300">
                 <CreditCard className="h-4 w-4 text-brand-500" strokeWidth={2} />
-                Novo cartao
+                Novo cartão
               </p>
               <h2 className="mt-2 text-2xl font-semibold tracking-tight">
-                Adicionar cartao
+                Adicionar cartão
               </h2>
               <p className="mt-2 text-sm leading-6 text-zinc-400">
-                Cadastre um cartao para acompanhar limite, vencimento e gastos por
+                Cadastre um cartão para acompanhar limite, vencimento e gastos por
                 fatura.
               </p>
             </div>
@@ -126,7 +126,7 @@ export function AddCardModal({ isOpen, onClose }: AddCardModalProps) {
                 type="submit"
                 className="h-12 rounded-2xl bg-brand-500 px-5 text-sm font-bold text-slate-950 shadow-[0_0_28px_rgba(16,185,129,0.14)] transition hover:bg-brand-400 hover:shadow-[0_0_36px_rgba(16,185,129,0.24)] focus:outline-none focus:ring-4 focus:ring-brand-500/30"
               >
-                Salvar cartao
+                Salvar cartão
               </button>
             </div>
           </form>

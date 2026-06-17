@@ -1,5 +1,13 @@
+"use client";
+
 import { formatCurrency } from "@/lib/financeUtils";
-import type { Card, Transaction, TransactionStatus } from "@/store/useFinanceStore";
+import { ConfirmDialog } from "@/components/ui/ConfirmDialog";
+import {
+  useFinanceStore,
+  type Card,
+  type Transaction,
+  type TransactionStatus,
+} from "@/store/useFinanceStore";
 import {
   BookOpen,
   Car,
@@ -9,9 +17,11 @@ import {
   ReceiptText,
   ShoppingBasket,
   Tag,
+  Trash2,
   Wallet,
   type LucideIcon,
 } from "lucide-react";
+import { toast } from "sonner";
 
 interface TransactionFeedProps {
   transactions?: Transaction[];
@@ -19,11 +29,11 @@ interface TransactionFeedProps {
 }
 
 const categoryMeta: Record<string, { color: string; icon: LucideIcon }> = {
-  Alimentacao: { color: "#fb923c", icon: ShoppingBasket },
+  Alimentação: { color: "#fb923c", icon: ShoppingBasket },
   Transporte: { color: "#38bdf8", icon: Car },
   Lazer: { color: "#a78bfa", icon: ReceiptText },
-  Saude: { color: "#34d399", icon: Dumbbell },
-  Educacao: { color: "#fbbf24", icon: BookOpen },
+  Saúde: { color: "#34d399", icon: Dumbbell },
+  Educação: { color: "#fbbf24", icon: BookOpen },
   Casa: { color: "#86efac", icon: Home },
   Assinatura: { color: "#f472b6", icon: CreditCard },
   Outros: { color: "#94a3b8", icon: Tag },
@@ -51,13 +61,24 @@ export function TransactionFeed({
   transactions = [],
   cards = [],
 }: TransactionFeedProps) {
+  const deleteTransaction = useFinanceStore((state) => state.deleteTransaction);
   const cardsById = new Map(cards.map((card) => [card.id, card]));
+
+  async function handleDeleteTransaction(transactionId: string) {
+    try {
+      await deleteTransaction(transactionId);
+      toast.success("Item removido com sucesso");
+    } catch (error) {
+      console.error("Erro ao remover transação:", error);
+      toast.error("Erro ao remover item");
+    }
+  }
 
   return (
     <section className="rounded-[2rem] border border-white/[0.08] bg-white/[0.045] p-5 shadow-2xl shadow-black/20 backdrop-blur-2xl sm:p-6">
       <div className="mb-6 flex items-end justify-between gap-4">
         <div>
-          <p className="text-sm font-medium text-brand-300">Movimentacoes</p>
+          <p className="text-sm font-medium text-brand-300">Movimentações</p>
           <h2 className="mt-1 text-2xl font-semibold tracking-tight text-white">
             Despesas recentes
           </h2>
@@ -71,7 +92,13 @@ export function TransactionFeed({
         <div className="space-y-3">
           {transactions.slice(0, 8).map((transaction) => {
             const card = transaction.cardId ? cardsById.get(transaction.cardId) : null;
-            const status = statusStyles[transaction.status || "confirmed"];
+            const isDebitPix = !transaction.cardId || transaction.type === "fixed";
+            const status = isDebitPix
+              ? {
+                  label: "Débito/PIX",
+                  className: "border-brand-300/20 bg-brand-300/10 text-brand-100",
+                }
+              : statusStyles[transaction.status || "confirmed"];
             const category = categoryMeta[transaction.category] || categoryMeta.Outros;
             const CategoryIcon = category.icon;
             const transactionDate = new Date(transaction.date);
@@ -116,7 +143,7 @@ export function TransactionFeed({
                   <div className="mt-2 flex flex-wrap items-center gap-2 text-xs text-zinc-400">
                     <span>{transaction.category || "Sem categoria"}</span>
                     <span className="h-1 w-1 rounded-full bg-zinc-600" />
-                    <span>{card?.name || "Dinheiro/Debito"}</span>
+                    <span>{card?.name || "Débito/PIX"}</span>
                     {transaction.owner ? (
                       <>
                         <span className="h-1 w-1 rounded-full bg-zinc-600" />
@@ -132,9 +159,25 @@ export function TransactionFeed({
                   >
                     {status.label}
                   </span>
-                  <strong className="text-sm font-semibold text-white sm:text-base">
-                    {formatCurrency(transaction.amount)}
-                  </strong>
+                  <div className="flex items-center gap-2">
+                    <strong className="text-sm font-semibold text-white sm:text-base">
+                      {formatCurrency(transaction.amount)}
+                    </strong>
+                    <ConfirmDialog
+                      title="Excluir transação"
+                      description="Esta ação remove a despesa da sua lista e não pode ser desfeita."
+                      confirmLabel="Excluir"
+                      onConfirm={() => handleDeleteTransaction(transaction.id)}
+                    >
+                      <button
+                        type="button"
+                        className="flex h-8 w-8 items-center justify-center rounded-xl border border-white/[0.08] bg-white/[0.045] text-zinc-500 transition hover:border-red-400/20 hover:bg-red-500/10 hover:text-red-200"
+                        aria-label="Excluir transação"
+                      >
+                        <Trash2 className="h-4 w-4" strokeWidth={2} />
+                      </button>
+                    </ConfirmDialog>
+                  </div>
                 </div>
               </article>
             );
@@ -148,7 +191,7 @@ export function TransactionFeed({
               Nenhuma despesa registrada ainda.
             </p>
             <p className="mt-2 text-xs text-zinc-500">
-              Suas transacoes recentes aparecerao aqui.
+              Suas transações recentes aparecerão aqui.
             </p>
           </div>
         </div>

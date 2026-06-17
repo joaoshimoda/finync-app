@@ -1,6 +1,10 @@
+"use client";
+
 import { formatCurrency } from "@/lib/financeUtils";
-import type { Card, Transaction } from "@/store/useFinanceStore";
-import { CreditCard } from "lucide-react";
+import { ConfirmDialog } from "@/components/ui/ConfirmDialog";
+import { useFinanceStore, type Card, type Transaction } from "@/store/useFinanceStore";
+import { CreditCard, Trash2 } from "lucide-react";
+import { toast } from "sonner";
 
 interface WalletSliderProps {
   cards?: Card[];
@@ -8,17 +12,29 @@ interface WalletSliderProps {
 }
 
 export function WalletSlider({ cards = [], transactions = [] }: WalletSliderProps) {
+  const deleteCard = useFinanceStore((state) => state.deleteCard);
+
+  async function handleDeleteCard(cardId: string) {
+    try {
+      await deleteCard(cardId);
+      toast.success("Item removido com sucesso");
+    } catch (error) {
+      console.error("Erro ao remover cartão:", error);
+      toast.error("Erro ao remover item");
+    }
+  }
+
   return (
     <section className="space-y-4">
       <div className="flex items-end justify-between gap-4">
         <div>
           <p className="text-sm font-medium text-brand-300">Carteira</p>
           <h2 className="mt-1 text-2xl font-semibold tracking-tight text-white">
-            Cartoes de credito
+            Cartões de crédito
           </h2>
         </div>
         <span className="rounded-full border border-white/[0.08] bg-white/[0.045] px-3 py-1 text-xs font-medium text-zinc-300">
-          {cards.length} {cards.length === 1 ? "cartao" : "cartoes"}
+          {cards.length} {cards.length === 1 ? "cartão" : "cartões"}
         </span>
       </div>
 
@@ -68,14 +84,30 @@ export function WalletSlider({ cards = [], transactions = [] }: WalletSliderProp
                       </div>
                       <p className="mt-2 text-xs font-medium text-zinc-400">
                         Vence dia {card.dueDay || "--"} {"\u00b7"}{" "}
-                        {cardTransactions.length} lancamentos
+                        {cardTransactions.length} lançamentos
                       </p>
                     </div>
-                    {isNearLimit ? (
-                      <span className="rounded-full border border-red-300/20 bg-red-300/10 px-2.5 py-1 text-xs font-semibold text-red-200">
-                        {usage.toFixed(0)}%
-                      </span>
-                    ) : null}
+                    <div className="flex items-center gap-2">
+                      {isNearLimit ? (
+                        <span className="rounded-full border border-red-300/20 bg-red-300/10 px-2.5 py-1 text-xs font-semibold text-red-200">
+                          {usage.toFixed(0)}%
+                        </span>
+                      ) : null}
+                      <ConfirmDialog
+                        title="Excluir cartão"
+                        description="Esta ação remove o cartão e as despesas locais vinculadas a ele da sua interface."
+                        confirmLabel="Excluir"
+                        onConfirm={() => handleDeleteCard(card.id)}
+                      >
+                        <button
+                          type="button"
+                          className="flex h-8 w-8 items-center justify-center rounded-xl border border-white/[0.08] bg-white/[0.045] text-zinc-500 transition hover:border-red-400/20 hover:bg-red-500/10 hover:text-red-200"
+                          aria-label="Excluir cartão"
+                        >
+                          <Trash2 className="h-4 w-4" strokeWidth={2} />
+                        </button>
+                      </ConfirmDialog>
+                    </div>
                   </div>
 
                   <div className="mt-8">
@@ -125,10 +157,10 @@ export function WalletSlider({ cards = [], transactions = [] }: WalletSliderProp
           <div>
             <CreditCard className="mx-auto h-8 w-8 text-zinc-500" strokeWidth={1.8} />
             <p className="mt-4 text-sm font-medium text-zinc-300">
-              Nenhum cart{"\u00e3"}o adicionado
+              Nenhum cartão adicionado
             </p>
             <p className="mt-2 text-xs text-zinc-500">
-              Adicione seu primeiro cartao para acompanhar limites e faturas.
+              Adicione seu primeiro cartão para acompanhar limites e faturas.
             </p>
           </div>
         </div>

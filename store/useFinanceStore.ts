@@ -4,7 +4,7 @@ import { supabase } from "@/lib/supabaseClient";
 import type { User } from "@supabase/supabase-js";
 import { create } from "zustand";
 
-export type TransactionType = "fixed" | "card";
+export type TransactionType = "income" | "fixed" | "card";
 export type TransactionStatus = "pending" | "confirmed" | "paid";
 
 export interface Card {
@@ -35,6 +35,13 @@ export interface Transaction {
   tagIds?: string[];
   createdAt?: string;
   updatedAt?: string;
+}
+
+export interface FinanceBalances {
+  totalIncome: number;
+  totalExpenseDebit: number;
+  totalCreditCardInvoice: number;
+  availableBalance: number;
 }
 
 export type CreateTransactionInput = Omit<
@@ -88,6 +95,7 @@ interface FinanceState {
   fetchTransactions: () => Promise<void>;
   addTransaction: (transaction: CreateTransactionInput) => Promise<void>;
   deleteTransaction: (transactionId: string) => Promise<void>;
+  calculateBalances: () => FinanceBalances;
   clearFinanceState: () => void;
 }
 
@@ -278,7 +286,7 @@ export const useFinanceStore = create<FinanceState>()((set, get) => ({
 
       set({ cards: (data as CardRow[]).map(mapCard) });
     } catch (error) {
-      console.error("Failed to fetch cards:", error);
+      console.error("Erro ao buscar cartões:", error);
     }
   },
 
@@ -290,7 +298,7 @@ export const useFinanceStore = create<FinanceState>()((set, get) => ({
       } = await supabase.auth.getUser();
 
       if (userError || !user) {
-        throw userError ?? new Error("Usuario nao autenticado.");
+        throw userError ?? new Error("Usuário não autenticado.");
       }
 
       const { error: profileError } = await supabase.from("users").upsert(
@@ -330,7 +338,7 @@ export const useFinanceStore = create<FinanceState>()((set, get) => ({
   deleteCard: async (cardId) => {
     try {
       const user = await getCurrentUser();
-      if (!user) return;
+      if (!user) throw new Error("Usuário não autenticado.");
 
       const { error } = await supabase
         .from("cards")
@@ -345,7 +353,8 @@ export const useFinanceStore = create<FinanceState>()((set, get) => ({
         transactions: get().transactions.filter((transaction) => transaction.cardId !== cardId),
       });
     } catch (error) {
-      console.error("Failed to delete card:", error);
+      console.error("Erro ao excluir cartão:", error);
+      throw error;
     }
   },
 
@@ -367,7 +376,7 @@ export const useFinanceStore = create<FinanceState>()((set, get) => ({
 
       set({ transactions: (data as TransactionRow[]).map(mapTransaction) });
     } catch (error) {
-      console.error("Failed to fetch transactions:", error);
+      console.error("Erro ao buscar transações:", error);
     }
   },
 
@@ -379,7 +388,7 @@ export const useFinanceStore = create<FinanceState>()((set, get) => ({
       } = await supabase.auth.getUser();
 
       if (userError || !user) {
-        throw userError ?? new Error("Usuario nao autenticado.");
+        throw userError ?? new Error("Usuário não autenticado.");
       }
 
       const { error: profileError } = await supabase.from("users").upsert(
@@ -416,7 +425,7 @@ export const useFinanceStore = create<FinanceState>()((set, get) => ({
         .single();
 
       if (error) throw error;
-      if (!data) throw new Error("Supabase nao retornou a transacao inserida.");
+      if (!data) throw new Error("Supabase não retornou a transação inserida.");
 
       const persistedTagIds = (transaction.tagIds || []).filter(isUuid);
       if (persistedTagIds.length) {
@@ -429,7 +438,7 @@ export const useFinanceStore = create<FinanceState>()((set, get) => ({
         );
 
         if (tagError) {
-          console.error("Failed to attach transaction tags:", tagError);
+          console.error("Erro ao vincular etiquetas à transação:", tagError);
         }
       }
 
@@ -443,7 +452,7 @@ export const useFinanceStore = create<FinanceState>()((set, get) => ({
   deleteTransaction: async (transactionId) => {
     try {
       const user = await getCurrentUser();
-      if (!user) return;
+      if (!user) throw new Error("Usuário não autenticado.");
 
       const { error } = await supabase
         .from("transactions")
@@ -459,7 +468,39 @@ export const useFinanceStore = create<FinanceState>()((set, get) => ({
         ),
       });
     } catch (error) {
-      console.error("Failed to delete transaction:", error);
+      console.error("Erro ao excluir transação:", error);
+      throw error;
     }
+  },
+
+  calculateBalances: () => {
+    const transactions = get().transactions;
+
+    return transactions.reduce<FinanceBalances>(
+      (balances, transaction) => {
+        const amount = Number(transaction.amount) || 0;
+
+        if (transaction.type === "income") {
+          balances.totalIncome += amount;
+        } else if (transaction.type === "card" || transaction.cardId) {
+          balances.totalCreditCardInvoice += amount;
+        } else {
+          balances.totalExpenseDebit += amount;
+        }
+
+        balances.availableBalance =
+          balances.totalIncome -
+          balances.totalExpenseDebit -
+          balances.totalCreditCardInvoice;
+
+        return balances;
+      },
+      {
+        totalIncome: 0,
+        totalExpenseDebit: 0,
+        totalCreditCardInvoice: 0,
+        availableBalance: 0,
+      },
+    );
   },
 }));

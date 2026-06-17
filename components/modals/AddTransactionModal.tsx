@@ -20,23 +20,23 @@ interface AddTransactionModalProps {
 }
 
 const categories = [
-  "Alimentacao",
+  "Alimentação",
   "Transporte",
   "Lazer",
-  "Saude",
-  "Educacao",
+  "Saúde",
+  "Educação",
   "Casa",
   "Assinatura",
   "Outros",
 ];
 
 const tagOptions = [
-  { id: "alimentacao", label: "Alimentacao", color: "#fb923c" },
+  { id: "alimentacao", label: "Alimentação", color: "#fb923c" },
   { id: "transporte", label: "Transporte", color: "#38bdf8" },
   { id: "lazer", label: "Lazer", color: "#a78bfa" },
-  { id: "saude", label: "Saude", color: "#34d399" },
+  { id: "saude", label: "Saúde", color: "#34d399" },
   { id: "assinatura", label: "Assinatura", color: "#f472b6" },
-  { id: "educacao", label: "Educacao", color: "#fbbf24" },
+  { id: "educacao", label: "Educação", color: "#fbbf24" },
   { id: "casa", label: "Casa", color: "#86efac" },
 ];
 
@@ -45,6 +45,8 @@ const dependentOptions = [
   { id: "joao", label: "Joao", color: "#c084fc" },
   { id: "maria", label: "Maria", color: "#60a5fa" },
 ];
+
+type PaymentMethod = "debit_pix" | "credit_card";
 
 export function AddTransactionModal({ isOpen, onClose }: AddTransactionModalProps) {
   const cards = useFinanceStore((state) => state.cards);
@@ -55,7 +57,8 @@ export function AddTransactionModal({ isOpen, onClose }: AddTransactionModalProp
   const [amount, setAmount] = useState("");
   const [date, setDate] = useState(() => new Date().toISOString().slice(0, 10));
   const [category, setCategory] = useState(categories[0]);
-  const [paymentSource, setPaymentSource] = useState("cash");
+  const [paymentMethod, setPaymentMethod] = useState<PaymentMethod>("debit_pix");
+  const [selectedCardId, setSelectedCardId] = useState("");
   const [owner, setOwner] = useState("eu");
   const [selectedTags, setSelectedTags] = useState<string[]>([]);
   const [splitWith, setSplitWith] = useState<string[]>(["eu"]);
@@ -66,10 +69,13 @@ export function AddTransactionModal({ isOpen, onClose }: AddTransactionModalProp
     }
   }, [fetchCards, isOpen]);
 
-  const selectedCardId = paymentSource === "cash" ? null : paymentSource;
   const selectedCard = useMemo(() => {
-    return cards.find((card) => card.id === selectedCardId);
-  }, [cards, selectedCardId]);
+    if (paymentMethod !== "credit_card") return null;
+
+    return cards.find((card) => card.id === selectedCardId) ?? null;
+  }, [cards, paymentMethod, selectedCardId]);
+
+  const transactionCardId = paymentMethod === "credit_card" ? selectedCardId || null : null;
 
   if (!isOpen) return null;
 
@@ -94,7 +100,8 @@ export function AddTransactionModal({ isOpen, onClose }: AddTransactionModalProp
     setAmount("");
     setDate(new Date().toISOString().slice(0, 10));
     setCategory(categories[0]);
-    setPaymentSource("cash");
+    setPaymentMethod("debit_pix");
+    setSelectedCardId("");
     setOwner("eu");
     setSelectedTags([]);
     setSplitWith(["eu"]);
@@ -105,19 +112,24 @@ export function AddTransactionModal({ isOpen, onClose }: AddTransactionModalProp
 
     const normalizedSplit = Array.from(new Set([owner, ...splitWith].filter(Boolean)));
 
+    if (paymentMethod === "credit_card" && !transactionCardId) {
+      toast.error("Selecione um cartão para lançar no crédito.");
+      return;
+    }
+
     try {
       await addTransaction({
         description: description.trim(),
         amount: Number(amount.replace(",", ".")) || 0,
         date,
         category,
-        type: selectedCardId ? "card" : "fixed",
+        type: paymentMethod === "credit_card" ? "card" : "fixed",
         status: "confirmed",
-        cardId: selectedCardId,
+        cardId: transactionCardId,
         owner,
         dependentIds: normalizedSplit.length ? normalizedSplit : [owner],
         tagIds: selectedTags,
-        notes: selectedCard ? `Cartao: ${selectedCard.name}` : "Dinheiro/Debito",
+        notes: selectedCard ? `Cartão: ${selectedCard.name}` : "Débito/PIX",
       });
 
       toast.success("Despesa salva com sucesso!");
@@ -137,13 +149,13 @@ export function AddTransactionModal({ isOpen, onClose }: AddTransactionModalProp
             <div>
               <p className="flex items-center gap-2 text-sm font-medium text-brand-300">
                 <ReceiptText className="h-4 w-4 text-brand-500" strokeWidth={2} />
-                Lancamento
+                Lançamento
               </p>
               <h2 className="mt-2 text-2xl font-semibold tracking-tight">
                 Nova despesa
               </h2>
               <p className="mt-2 text-sm leading-6 text-zinc-400">
-                Registre cartao, etiquetas e rateio para manter a fatura organizada.
+                Registre cartão, etiquetas e rateio para manter a fatura organizada.
               </p>
             </div>
             <button
@@ -159,7 +171,7 @@ export function AddTransactionModal({ isOpen, onClose }: AddTransactionModalProp
           <form className="space-y-5" onSubmit={handleSubmit}>
             <label className="block">
               <span className="mb-2 block text-sm font-medium text-zinc-200">
-                Descricao
+                Descrição
               </span>
               <input
                 value={description}
@@ -212,22 +224,27 @@ export function AddTransactionModal({ isOpen, onClose }: AddTransactionModalProp
                 <span className="mb-2 block text-sm font-medium text-zinc-200">
                   <span className="inline-flex items-center gap-2">
                     <CreditCard className="h-4 w-4 text-zinc-500" strokeWidth={2} />
-                    Cartao ou origem
+                    Tipo de pagamento
                   </span>
                 </span>
                 <select
-                  value={paymentSource}
-                  onChange={(event) => setPaymentSource(event.target.value)}
+                  value={paymentMethod}
+                  onChange={(event) => {
+                    const nextPaymentMethod = event.target.value as PaymentMethod;
+
+                    setPaymentMethod(nextPaymentMethod);
+                    setSelectedCardId(
+                      nextPaymentMethod === "credit_card" ? selectedCardId : "",
+                    );
+                  }}
                   className="h-12 w-full rounded-2xl border border-white/[0.08] bg-white/[0.055] px-4 text-sm text-white outline-none transition [color-scheme:dark] focus:border-brand-500/60 focus:bg-white/[0.1] focus:ring-4 focus:ring-brand-500/10"
                 >
-                  <option value="cash" className="bg-[#071014] text-white">
-                    Dinheiro/Debito
+                  <option value="debit_pix" className="bg-[#071014] text-white">
+                    Débito/PIX
                   </option>
-                  {cards.map((card) => (
-                    <option key={card.id} value={card.id} className="bg-[#071014] text-white">
-                      {card.name}
-                    </option>
-                  ))}
+                  <option value="credit_card" className="bg-[#071014] text-white">
+                    Cartão de Crédito
+                  </option>
                 </select>
               </label>
 
@@ -248,6 +265,35 @@ export function AddTransactionModal({ isOpen, onClose }: AddTransactionModalProp
                 </select>
               </label>
             </div>
+
+            {paymentMethod === "credit_card" ? (
+              <label className="block">
+                <span className="mb-2 block text-sm font-medium text-zinc-200">
+                  Selecionar Cartão
+                </span>
+                <select
+                  value={selectedCardId}
+                  onChange={(event) => setSelectedCardId(event.target.value)}
+                  disabled={!cards.length}
+                  className="h-12 w-full rounded-2xl border border-white/[0.08] bg-white/[0.055] px-4 text-sm text-white outline-none transition [color-scheme:dark] disabled:cursor-not-allowed disabled:opacity-50 focus:border-brand-500/60 focus:bg-white/[0.1] focus:ring-4 focus:ring-brand-500/10"
+                >
+                  <option value="" className="bg-[#071014] text-white">
+                    Selecione um cartão
+                  </option>
+                  {cards.length ? (
+                    cards.map((card) => (
+                      <option key={card.id} value={card.id} className="bg-[#071014] text-white">
+                        {card.name}
+                      </option>
+                    ))
+                  ) : (
+                    <option value="" className="bg-[#071014] text-white">
+                      Nenhum cartão cadastrado
+                    </option>
+                  )}
+                </select>
+              </label>
+            ) : null}
 
             <label className="block">
               <span className="mb-2 block text-sm font-medium text-zinc-200">

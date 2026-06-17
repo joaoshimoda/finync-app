@@ -23,12 +23,12 @@ export function BottomNav() {
 
     if (error) {
       console.error("Erro ao sair:", error);
-      toast.error("Nao foi possivel sair agora.");
+      toast.error("Não foi possível sair agora.");
       return;
     }
 
     clearFinanceState();
-    toast.success("Sessao encerrada. Ate logo!");
+    toast.success("Sessão encerrada. Até logo!");
     router.replace("/login");
   }
 
