@@ -35,7 +35,7 @@ export const navigationItems: NavigationItem[] = [
   {
     label: "Configurações",
     shortLabel: "Config.",
-    href: "/dashboard/settings",
+    href: "/configuracoes",
     icon: Settings,
   },
 ];

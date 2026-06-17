@@ -12,6 +12,7 @@ export interface Card {
   name: string;
   color?: string;
   emoji?: string;
+  closingDay?: number;
   dueDay?: number;
   limitAmount?: number;
   createdAt?: string;
@@ -48,8 +49,10 @@ export type CreateTransactionInput = Omit<
   Transaction,
   "id" | "createdAt" | "updatedAt"
 >;
+export type UpdateTransactionInput = Partial<CreateTransactionInput>;
 
 export type CreateCardInput = Omit<Card, "id" | "createdAt" | "updatedAt">;
+export type UpdateCardInput = Partial<CreateCardInput>;
 
 interface CardRow {
   id: string;
@@ -57,6 +60,7 @@ interface CardRow {
   name: string;
   color: string | null;
   emoji: string | null;
+  closing_day: number | null;
   due_day: number | null;
   limit_amount: number | null;
   created_at: string;
@@ -68,9 +72,10 @@ interface TransactionRow {
   card_id: string | null;
   month_start: string;
   month_label: string | null;
-  type: TransactionType;
+  type: string | null;
   description: string;
-  amount: number;
+  category: string | null;
+  amount: number | string | null;
   day: number;
   status: string | null;
   owner: string | null;
@@ -88,12 +93,24 @@ interface FinanceState {
   authUser: User | null;
   isAuthReady: boolean;
   isLoading: boolean;
+  currentMonth: number;
+  currentYear: number;
   initializeAuth: () => () => void;
+  nextMonth: () => void;
+  prevMonth: () => void;
   fetchCards: () => Promise<void>;
   addCard: (card: CreateCardInput) => Promise<void>;
+  editCard: (cardId: string, card: UpdateCardInput) => Promise<void>;
   deleteCard: (cardId: string) => Promise<void>;
   fetchTransactions: () => Promise<void>;
   addTransaction: (transaction: CreateTransactionInput) => Promise<void>;
+  updateTransaction: (
+    transactionId: string,
+    transaction: UpdateTransactionInput,
+  ) => Promise<void>;
+  addIncome: (
+    income: Pick<CreateTransactionInput, "amount" | "date" | "description">,
+  ) => Promise<void>;
   deleteTransaction: (transactionId: string) => Promise<void>;
   calculateBalances: () => FinanceBalances;
   clearFinanceState: () => void;
@@ -138,11 +155,46 @@ function getMonthStart(date: string) {
     .slice(0, 10);
 }
 
+function toDateOnly(year: number, month: number, day: number) {
+  return `${year}-${String(month).padStart(2, "0")}-${String(day).padStart(2, "0")}`;
+}
+
+function getSelectedMonthRange(month: number, year: number) {
+  const startDate = toDateOnly(year, month, 1);
+  const nextMonth = month === 12 ? 1 : month + 1;
+  const nextMonthYear = month === 12 ? year + 1 : year;
+  const endDate = toDateOnly(nextMonthYear, nextMonth, 1);
+
+  return { startDate, endDate };
+}
+
 function getDayFromDate(date: string) {
   const parsedDate = new Date(date);
   if (Number.isNaN(parsedDate.getTime())) return 5;
 
   return parsedDate.getDate();
+}
+
+function toTransactionType(value: string | null): TransactionType {
+  const normalizedValue = value?.toLowerCase().trim();
+
+  if (normalizedValue === "income" || normalizedValue === "receita") {
+    return "income";
+  }
+
+  if (normalizedValue === "card") {
+    return "card";
+  }
+
+  return "fixed";
+}
+
+function toAmount(value: number | string | null | undefined): number {
+  const normalizedValue =
+    typeof value === "string" ? value.replace(",", ".") : value;
+  const amount = Number(normalizedValue);
+
+  return Number.isFinite(amount) ? amount : 0;
 }
 
 function mapCard(row: CardRow): Card {
@@ -151,6 +203,7 @@ function mapCard(row: CardRow): Card {
     name: row.name,
     color: row.color ?? undefined,
     emoji: row.emoji ?? undefined,
+    closingDay: row.closing_day ?? undefined,
     dueDay: row.due_day ?? undefined,
     limitAmount: row.limit_amount ?? undefined,
     createdAt: row.created_at,
@@ -165,10 +218,10 @@ function mapTransaction(row: TransactionRow): Transaction {
   return {
     id: row.id,
     description: row.description,
-    amount: Number(row.amount) || 0,
+    amount: toAmount(row.amount),
     date: date.toISOString().slice(0, 10),
-    category: "",
-    type: row.type,
+    category: row.category ?? "",
+    type: toTransactionType(row.type),
     status: fromDbStatus(row.status),
     cardId: row.card_id,
     owner: row.owner ?? "eu",
@@ -210,6 +263,28 @@ export const useFinanceStore = create<FinanceState>()((set, get) => ({
   authUser: null,
   isAuthReady: false,
   isLoading: true,
+  currentMonth: new Date().getMonth() + 1,
+  currentYear: new Date().getFullYear(),
+
+  nextMonth: () => {
+    set((state) => {
+      if (state.currentMonth === 12) {
+        return { currentMonth: 1, currentYear: state.currentYear + 1 };
+      }
+
+      return { currentMonth: state.currentMonth + 1 };
+    });
+  },
+
+  prevMonth: () => {
+    set((state) => {
+      if (state.currentMonth === 1) {
+        return { currentMonth: 12, currentYear: state.currentYear - 1 };
+      }
+
+      return { currentMonth: state.currentMonth - 1 };
+    });
+  },
 
   initializeAuth: () => {
     if (!get().isAuthReady) {
@@ -320,7 +395,8 @@ export const useFinanceStore = create<FinanceState>()((set, get) => ({
           name: card.name,
           color: card.color ?? "#5b9cf6",
           emoji: card.emoji ?? null,
-          due_day: card.dueDay ?? 0,
+          closing_day: card.closingDay ?? null,
+          due_day: card.dueDay ?? null,
           limit_amount: card.limitAmount ?? 0,
         })
         .select("*")
@@ -331,6 +407,45 @@ export const useFinanceStore = create<FinanceState>()((set, get) => ({
       set({ cards: [...get().cards, mapCard(data as CardRow)] });
     } catch (error) {
       console.error("Erro no Supabase:", error);
+      throw error;
+    }
+  },
+
+  editCard: async (cardId, card) => {
+    try {
+      const user = await getCurrentUser();
+      if (!user) throw new Error("Usuário não autenticado.");
+
+      const updatePayload: Record<string, string | number | null> = {};
+
+      if (card.name !== undefined) {
+        updatePayload.name = card.name;
+        updatePayload.legacy_key = slugify(card.name);
+      }
+
+      if (card.color !== undefined) updatePayload.color = card.color;
+      if (card.emoji !== undefined) updatePayload.emoji = card.emoji;
+      if (card.closingDay !== undefined) updatePayload.closing_day = card.closingDay;
+      if (card.dueDay !== undefined) updatePayload.due_day = card.dueDay;
+      if (card.limitAmount !== undefined) updatePayload.limit_amount = card.limitAmount;
+
+      const { data, error } = await supabase
+        .from("cards")
+        .update(updatePayload)
+        .eq("id", cardId)
+        .eq("user_id", user.id)
+        .select("*")
+        .single();
+
+      if (error) throw error;
+
+      set({
+        cards: get().cards.map((currentCard) =>
+          currentCard.id === cardId ? mapCard(data as CardRow) : currentCard,
+        ),
+      });
+    } catch (error) {
+      console.error("Erro ao editar cartão:", error);
       throw error;
     }
   },
@@ -362,15 +477,29 @@ export const useFinanceStore = create<FinanceState>()((set, get) => ({
     try {
       const user = await getCurrentUser();
       if (!user) {
+        console.log("fetchTransactions: usuário não autenticado.");
         return;
       }
+
+      console.log("fetchTransactions: buscando transações para usuário:", user.id);
+
+      const { startDate, endDate } = getSelectedMonthRange(
+        get().currentMonth,
+        get().currentYear,
+      );
+
+      console.log("Período selecionado:", { startDate, endDate });
 
       const { data, error } = await supabase
         .from("transactions")
         .select("*")
         .eq("user_id", user.id)
+        .gte("month_start", startDate)
+        .lt("month_start", endDate)
         .order("month_start", { ascending: false })
         .order("day", { ascending: false });
+
+      console.log("Dados do Supabase:", data);
 
       if (error) throw error;
 
@@ -410,6 +539,7 @@ export const useFinanceStore = create<FinanceState>()((set, get) => ({
           month_start: getMonthStart(transaction.date),
           type: transaction.type,
           description: transaction.description,
+          category: transaction.category,
           amount: transaction.amount,
           day: getDayFromDate(transaction.date),
           status: toDbStatus(transaction.status),
@@ -442,11 +572,116 @@ export const useFinanceStore = create<FinanceState>()((set, get) => ({
         }
       }
 
-      set({ transactions: [mapTransaction(data as TransactionRow), ...get().transactions] });
+      const newTransaction = mapTransaction(data as TransactionRow);
+
+      set((state) => ({
+        transactions: [newTransaction, ...state.transactions],
+      }));
     } catch (error) {
       console.error("Erro no Supabase:", error);
       throw error;
     }
+  },
+
+  updateTransaction: async (transactionId, transaction) => {
+    try {
+      const user = await getCurrentUser();
+      if (!user) throw new Error("Usuário não autenticado.");
+
+      const updatePayload: Record<
+        string,
+        string | number | string[] | null
+      > = {};
+
+      if (transaction.description !== undefined) {
+        updatePayload.description = transaction.description;
+      }
+
+      if (transaction.amount !== undefined) {
+        updatePayload.amount = transaction.amount;
+      }
+
+      if (transaction.date !== undefined) {
+        updatePayload.month_start = getMonthStart(transaction.date);
+        updatePayload.day = getDayFromDate(transaction.date);
+      }
+
+      if (transaction.category !== undefined) {
+        updatePayload.category = transaction.category;
+      }
+
+      if (transaction.type !== undefined) {
+        updatePayload.type = transaction.type;
+        updatePayload.card_id =
+          transaction.type === "card" ? transaction.cardId ?? null : null;
+      } else if (transaction.cardId !== undefined) {
+        updatePayload.card_id = transaction.cardId;
+      }
+
+      if (transaction.status !== undefined) {
+        updatePayload.status = toDbStatus(transaction.status);
+      }
+
+      if (transaction.owner !== undefined) {
+        updatePayload.owner = transaction.owner;
+      }
+
+      if (transaction.installmentNumber !== undefined) {
+        updatePayload.installment_number = transaction.installmentNumber;
+      }
+
+      if (transaction.installmentsTotal !== undefined) {
+        updatePayload.installments_total = transaction.installmentsTotal;
+      }
+
+      if (transaction.notes !== undefined) {
+        updatePayload.notes = transaction.notes;
+      }
+
+      if (transaction.dependentIds !== undefined) {
+        updatePayload.split_with = transaction.dependentIds;
+      }
+
+      const { data, error } = await supabase
+        .from("transactions")
+        .update(updatePayload)
+        .eq("id", transactionId)
+        .eq("user_id", user.id)
+        .select("*")
+        .single();
+
+      if (error) throw error;
+      if (!data) throw new Error("Supabase não retornou a transação atualizada.");
+
+      const updatedTransaction = mapTransaction(data as TransactionRow);
+
+      set((state) => ({
+        transactions: state.transactions.map((currentTransaction) =>
+          currentTransaction.id === transactionId
+            ? updatedTransaction
+            : currentTransaction,
+        ),
+      }));
+    } catch (error) {
+      console.error("Erro ao atualizar transação:", error);
+      throw error;
+    }
+  },
+
+  addIncome: async (income) => {
+    await get().addTransaction({
+      description: income.description,
+      amount: income.amount,
+      date: income.date,
+      category: "Receita",
+      type: "income",
+      status: "confirmed",
+      cardId: null,
+      owner: "eu",
+      dependentIds: ["eu"],
+      tagIds: [],
+      notes: "Receita",
+    });
   },
 
   deleteTransaction: async (transactionId) => {
@@ -462,11 +697,11 @@ export const useFinanceStore = create<FinanceState>()((set, get) => ({
 
       if (error) throw error;
 
-      set({
-        transactions: get().transactions.filter(
+      set((state) => ({
+        transactions: state.transactions.filter(
           (transaction) => transaction.id !== transactionId,
         ),
-      });
+      }));
     } catch (error) {
       console.error("Erro ao excluir transação:", error);
       throw error;
@@ -475,32 +710,32 @@ export const useFinanceStore = create<FinanceState>()((set, get) => ({
 
   calculateBalances: () => {
     const transactions = get().transactions;
+    console.log("Transações no Store:", transactions);
 
-    return transactions.reduce<FinanceBalances>(
-      (balances, transaction) => {
-        const amount = Number(transaction.amount) || 0;
+    const totalIncome =
+      transactions
+        .filter((transaction) => transaction.type === "income")
+        .reduce((acc, transaction) => acc + toAmount(transaction.amount), 0) || 0;
+    const totalExpenseDebit =
+      transactions
+        .filter((transaction) => transaction.type === "fixed")
+        .reduce((acc, transaction) => acc + toAmount(transaction.amount), 0) || 0;
+    const totalCreditCardInvoice =
+      transactions
+        .filter(
+          (transaction) =>
+            transaction.type === "card" ||
+            (transaction.type !== "income" && Boolean(transaction.cardId)),
+        )
+        .reduce((acc, transaction) => acc + toAmount(transaction.amount), 0) || 0;
+    const availableBalance =
+      totalIncome - totalExpenseDebit - totalCreditCardInvoice;
 
-        if (transaction.type === "income") {
-          balances.totalIncome += amount;
-        } else if (transaction.type === "card" || transaction.cardId) {
-          balances.totalCreditCardInvoice += amount;
-        } else {
-          balances.totalExpenseDebit += amount;
-        }
-
-        balances.availableBalance =
-          balances.totalIncome -
-          balances.totalExpenseDebit -
-          balances.totalCreditCardInvoice;
-
-        return balances;
-      },
-      {
-        totalIncome: 0,
-        totalExpenseDebit: 0,
-        totalCreditCardInvoice: 0,
-        availableBalance: 0,
-      },
-    );
+    return {
+      totalIncome,
+      totalExpenseDebit,
+      totalCreditCardInvoice,
+      availableBalance,
+    };
   },
 }));

@@ -1,14 +1,17 @@
 "use client";
 
 import { FormEvent, useEffect, useMemo, useState } from "react";
-import { useFinanceStore } from "@/store/useFinanceStore";
+import {
+  useFinanceStore,
+  type CreateTransactionInput,
+  type Transaction,
+} from "@/store/useFinanceStore";
 import {
   CalendarDays,
   CreditCard,
   DollarSign,
   ReceiptText,
   Save,
-  Tags,
   Users,
   X,
 } from "lucide-react";
@@ -17,75 +20,92 @@ import { toast } from "sonner";
 interface AddTransactionModalProps {
   isOpen: boolean;
   onClose: () => void;
+  editingTransaction?: Transaction | null;
 }
+
+type ExpenseTransactionType = "fixed" | "card";
 
 const categories = [
   "Alimentação",
   "Transporte",
+  "Moradia",
   "Lazer",
   "Saúde",
   "Educação",
-  "Casa",
-  "Assinatura",
   "Outros",
-];
-
-const tagOptions = [
-  { id: "alimentacao", label: "Alimentação", color: "#fb923c" },
-  { id: "transporte", label: "Transporte", color: "#38bdf8" },
-  { id: "lazer", label: "Lazer", color: "#a78bfa" },
-  { id: "saude", label: "Saúde", color: "#34d399" },
-  { id: "assinatura", label: "Assinatura", color: "#f472b6" },
-  { id: "educacao", label: "Educação", color: "#fbbf24" },
-  { id: "casa", label: "Casa", color: "#86efac" },
 ];
 
 const dependentOptions = [
   { id: "eu", label: "Eu", color: "#2dd4bf" },
-  { id: "joao", label: "Joao", color: "#c084fc" },
+  { id: "joao", label: "João", color: "#c084fc" },
   { id: "maria", label: "Maria", color: "#60a5fa" },
 ];
 
-type PaymentMethod = "debit_pix" | "credit_card";
+export function AddTransactionModal({
+  isOpen,
+  onClose,
+  editingTransaction = null,
+}: AddTransactionModalProps) {
+  if (!isOpen) return null;
 
-export function AddTransactionModal({ isOpen, onClose }: AddTransactionModalProps) {
+  return (
+    <TransactionModalContent
+      key={editingTransaction?.id ?? "new-transaction"}
+      editingTransaction={editingTransaction}
+      onClose={onClose}
+    />
+  );
+}
+
+function TransactionModalContent({
+  editingTransaction,
+  onClose,
+}: {
+  editingTransaction: Transaction | null;
+  onClose: () => void;
+}) {
   const cards = useFinanceStore((state) => state.cards);
   const fetchCards = useFinanceStore((state) => state.fetchCards);
   const addTransaction = useFinanceStore((state) => state.addTransaction);
+  const updateTransaction = useFinanceStore((state) => state.updateTransaction);
 
-  const [description, setDescription] = useState("");
-  const [amount, setAmount] = useState("");
-  const [date, setDate] = useState(() => new Date().toISOString().slice(0, 10));
-  const [category, setCategory] = useState(categories[0]);
-  const [paymentMethod, setPaymentMethod] = useState<PaymentMethod>("debit_pix");
-  const [selectedCardId, setSelectedCardId] = useState("");
-  const [owner, setOwner] = useState("eu");
-  const [selectedTags, setSelectedTags] = useState<string[]>([]);
-  const [splitWith, setSplitWith] = useState<string[]>(["eu"]);
+  const [description, setDescription] = useState(
+    editingTransaction?.description ?? "",
+  );
+  const [amount, setAmount] = useState(
+    editingTransaction ? String(editingTransaction.amount).replace(".", ",") : "",
+  );
+  const [date, setDate] = useState(
+    editingTransaction?.date ?? new Date().toISOString().slice(0, 10),
+  );
+  const [category, setCategory] = useState(
+    editingTransaction?.category || categories[0],
+  );
+  const [transactionType, setTransactionType] =
+    useState<ExpenseTransactionType>(
+      editingTransaction?.type === "card" ? "card" : "fixed",
+    );
+  const [selectedCardId, setSelectedCardId] = useState(
+    editingTransaction?.cardId ?? "",
+  );
+  const [owner, setOwner] = useState(editingTransaction?.owner ?? "eu");
+  const [splitWith, setSplitWith] = useState<string[]>(
+    editingTransaction?.dependentIds?.length
+      ? editingTransaction.dependentIds
+      : ["eu"],
+  );
 
   useEffect(() => {
-    if (isOpen) {
-      fetchCards();
-    }
-  }, [fetchCards, isOpen]);
+    fetchCards();
+  }, [fetchCards]);
 
   const selectedCard = useMemo(() => {
-    if (paymentMethod !== "credit_card") return null;
+    if (transactionType !== "card") return null;
 
     return cards.find((card) => card.id === selectedCardId) ?? null;
-  }, [cards, paymentMethod, selectedCardId]);
+  }, [cards, selectedCardId, transactionType]);
 
-  const transactionCardId = paymentMethod === "credit_card" ? selectedCardId || null : null;
-
-  if (!isOpen) return null;
-
-  function toggleTag(tagId: string) {
-    setSelectedTags((current) =>
-      current.includes(tagId)
-        ? current.filter((item) => item !== tagId)
-        : [...current, tagId],
-    );
-  }
+  const transactionCardId = transactionType === "card" ? selectedCardId || null : null;
 
   function toggleSplitWith(dependentId: string) {
     setSplitWith((current) =>
@@ -95,49 +115,46 @@ export function AddTransactionModal({ isOpen, onClose }: AddTransactionModalProp
     );
   }
 
-  function resetForm() {
-    setDescription("");
-    setAmount("");
-    setDate(new Date().toISOString().slice(0, 10));
-    setCategory(categories[0]);
-    setPaymentMethod("debit_pix");
-    setSelectedCardId("");
-    setOwner("eu");
-    setSelectedTags([]);
-    setSplitWith(["eu"]);
-  }
-
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
 
     const normalizedSplit = Array.from(new Set([owner, ...splitWith].filter(Boolean)));
 
-    if (paymentMethod === "credit_card" && !transactionCardId) {
+    if (transactionType === "card" && !transactionCardId) {
       toast.error("Selecione um cartão para lançar no crédito.");
       return;
     }
 
-    try {
-      await addTransaction({
-        description: description.trim(),
-        amount: Number(amount.replace(",", ".")) || 0,
-        date,
-        category,
-        type: paymentMethod === "credit_card" ? "card" : "fixed",
-        status: "confirmed",
-        cardId: transactionCardId,
-        owner,
-        dependentIds: normalizedSplit.length ? normalizedSplit : [owner],
-        tagIds: selectedTags,
-        notes: selectedCard ? `Cartão: ${selectedCard.name}` : "Débito/PIX",
-      });
+    const transactionPayload: CreateTransactionInput = {
+      description: description.trim(),
+      amount: Number(amount.replace(",", ".")) || 0,
+      date,
+      category,
+      type: transactionType,
+      status: "confirmed",
+      cardId: transactionCardId,
+      owner,
+      dependentIds: normalizedSplit.length ? normalizedSplit : [owner],
+      tagIds: [],
+      notes: selectedCard ? `Cartão: ${selectedCard.name}` : "Débito/PIX",
+    };
 
-      toast.success("Despesa salva com sucesso!");
-      resetForm();
+    try {
+      if (editingTransaction) {
+        await updateTransaction(editingTransaction.id, transactionPayload);
+      } else {
+        await addTransaction(transactionPayload);
+      }
+
+      toast.success(
+        editingTransaction
+          ? "Transação atualizada com sucesso!"
+          : "Transação salva com sucesso!",
+      );
       onClose();
     } catch (error) {
-      console.error("Erro ao salvar despesa:", error);
-      toast.error("Erro ao salvar despesa.");
+      console.error("Erro ao salvar transação:", error);
+      toast.error("Erro ao salvar transação.");
     }
   }
 
@@ -152,10 +169,11 @@ export function AddTransactionModal({ isOpen, onClose }: AddTransactionModalProp
                 Lançamento
               </p>
               <h2 className="mt-2 text-2xl font-semibold tracking-tight">
-                Nova despesa
+                {editingTransaction ? "Editar transação" : "Nova transação"}
               </h2>
               <p className="mt-2 text-sm leading-6 text-zinc-400">
-                Registre cartão, etiquetas e rateio para manter a fatura organizada.
+                Registre saídas por débito/PIX ou cartão de crédito mantendo
+                categoria e rateio organizados.
               </p>
             </div>
             <button
@@ -224,25 +242,25 @@ export function AddTransactionModal({ isOpen, onClose }: AddTransactionModalProp
                 <span className="mb-2 block text-sm font-medium text-zinc-200">
                   <span className="inline-flex items-center gap-2">
                     <CreditCard className="h-4 w-4 text-zinc-500" strokeWidth={2} />
-                    Tipo de pagamento
+                    Tipo
                   </span>
                 </span>
                 <select
-                  value={paymentMethod}
+                  value={transactionType}
                   onChange={(event) => {
-                    const nextPaymentMethod = event.target.value as PaymentMethod;
+                    const nextType = event.target.value as ExpenseTransactionType;
 
-                    setPaymentMethod(nextPaymentMethod);
-                    setSelectedCardId(
-                      nextPaymentMethod === "credit_card" ? selectedCardId : "",
-                    );
+                    setTransactionType(nextType);
+                    if (nextType !== "card") {
+                      setSelectedCardId("");
+                    }
                   }}
                   className="h-12 w-full rounded-2xl border border-white/[0.08] bg-white/[0.055] px-4 text-sm text-white outline-none transition [color-scheme:dark] focus:border-brand-500/60 focus:bg-white/[0.1] focus:ring-4 focus:ring-brand-500/10"
                 >
-                  <option value="debit_pix" className="bg-[#071014] text-white">
+                  <option value="fixed" className="bg-[#071014] text-white">
                     Débito/PIX
                   </option>
-                  <option value="credit_card" className="bg-[#071014] text-white">
+                  <option value="card" className="bg-[#071014] text-white">
                     Cartão de Crédito
                   </option>
                 </select>
@@ -255,6 +273,7 @@ export function AddTransactionModal({ isOpen, onClose }: AddTransactionModalProp
                 <select
                   value={category}
                   onChange={(event) => setCategory(event.target.value)}
+                  required
                   className="h-12 w-full rounded-2xl border border-white/[0.08] bg-white/[0.055] px-4 text-sm text-white outline-none transition [color-scheme:dark] focus:border-brand-500/60 focus:bg-white/[0.1] focus:ring-4 focus:ring-brand-500/10"
                 >
                   {categories.map((item) => (
@@ -266,15 +285,16 @@ export function AddTransactionModal({ isOpen, onClose }: AddTransactionModalProp
               </label>
             </div>
 
-            {paymentMethod === "credit_card" ? (
+            {transactionType === "card" ? (
               <label className="block">
                 <span className="mb-2 block text-sm font-medium text-zinc-200">
-                  Selecionar Cartão
+                  Selecionar cartão
                 </span>
                 <select
                   value={selectedCardId}
                   onChange={(event) => setSelectedCardId(event.target.value)}
                   disabled={!cards.length}
+                  required
                   className="h-12 w-full rounded-2xl border border-white/[0.08] bg-white/[0.055] px-4 text-sm text-white outline-none transition [color-scheme:dark] disabled:cursor-not-allowed disabled:opacity-50 focus:border-brand-500/60 focus:bg-white/[0.1] focus:ring-4 focus:ring-brand-500/10"
                 >
                   <option value="" className="bg-[#071014] text-white">
@@ -322,36 +342,6 @@ export function AddTransactionModal({ isOpen, onClose }: AddTransactionModalProp
             <fieldset className="rounded-3xl border border-white/[0.08] bg-white/[0.04] p-4">
               <legend className="px-1 text-sm font-medium text-zinc-200">
                 <span className="inline-flex items-center gap-2">
-                  <Tags className="h-4 w-4 text-zinc-500" strokeWidth={2} />
-                  Etiquetas
-                </span>
-              </legend>
-              <div className="mt-3 flex flex-wrap gap-2">
-                {tagOptions.map((tag) => {
-                  const active = selectedTags.includes(tag.id);
-
-                  return (
-                    <button
-                      key={tag.id}
-                      type="button"
-                      onClick={() => toggleTag(tag.id)}
-                      className="rounded-full border px-3 py-2 text-xs font-semibold transition"
-                      style={{
-                        borderColor: active ? tag.color : "rgba(255,255,255,0.1)",
-                        backgroundColor: active ? `${tag.color}22` : "rgba(255,255,255,0.04)",
-                        color: active ? tag.color : "#a1a1aa",
-                      }}
-                    >
-                      {tag.label}
-                    </button>
-                  );
-                })}
-              </div>
-            </fieldset>
-
-            <fieldset className="rounded-3xl border border-white/[0.08] bg-white/[0.04] p-4">
-              <legend className="px-1 text-sm font-medium text-zinc-200">
-                <span className="inline-flex items-center gap-2">
                   <Users className="h-4 w-4 text-zinc-500" strokeWidth={2} />
                   Dividir igualmente com
                 </span>
@@ -380,7 +370,8 @@ export function AddTransactionModal({ isOpen, onClose }: AddTransactionModalProp
                 })}
               </div>
               <p className="mt-3 text-xs leading-5 text-zinc-500">
-                O dono sempre entra no rateio, seguindo a estrutura antiga de dono e splitWith.
+                O dono sempre entra no rateio, seguindo a estrutura de dono e
+                dependentes.
               </p>
             </fieldset>
 
@@ -397,7 +388,7 @@ export function AddTransactionModal({ isOpen, onClose }: AddTransactionModalProp
                 className="inline-flex h-12 items-center justify-center gap-2 rounded-2xl bg-brand-500 px-5 text-sm font-bold text-slate-950 shadow-[0_0_28px_rgba(16,185,129,0.14)] transition hover:bg-brand-400 hover:shadow-[0_0_36px_rgba(16,185,129,0.24)] focus:outline-none focus:ring-4 focus:ring-brand-500/30"
               >
                 <Save className="h-4 w-4" strokeWidth={2} />
-                Salvar despesa
+                Salvar transação
               </button>
             </div>
           </form>

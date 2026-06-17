@@ -10,12 +10,23 @@ interface AddCardModalProps {
   onClose: () => void;
 }
 
+function parseOptionalDay(value: string) {
+  const day = Number(value);
+
+  if (!Number.isInteger(day) || day < 1 || day > 31) {
+    return undefined;
+  }
+
+  return day;
+}
+
 export function AddCardModal({ isOpen, onClose }: AddCardModalProps) {
   const addCard = useFinanceStore((state) => state.addCard);
 
   const [name, setName] = useState("");
   const [limit, setLimit] = useState("");
   const [closingDay, setClosingDay] = useState("");
+  const [dueDay, setDueDay] = useState("");
 
   if (!isOpen) return null;
 
@@ -26,13 +37,15 @@ export function AddCardModal({ isOpen, onClose }: AddCardModalProps) {
       await addCard({
         name: name.trim(),
         limitAmount: Number(limit.replace(",", ".")) || 0,
-        dueDay: Number(closingDay) || 0,
+        closingDay: parseOptionalDay(closingDay),
+        dueDay: parseOptionalDay(dueDay),
       });
 
       toast.success("Cartão adicionado!");
       setName("");
       setLimit("");
       setClosingDay("");
+      setDueDay("");
       onClose();
     } catch (error) {
       console.error("Erro ao adicionar cartão:", error);
@@ -54,8 +67,8 @@ export function AddCardModal({ isOpen, onClose }: AddCardModalProps) {
                 Adicionar cartão
               </h2>
               <p className="mt-2 text-sm leading-6 text-zinc-400">
-                Cadastre um cartão para acompanhar limite, vencimento e gastos por
-                fatura.
+                Cadastre um cartão para acompanhar limite, fechamento, vencimento e
+                gastos por fatura.
               </p>
             </div>
             <button
@@ -77,30 +90,30 @@ export function AddCardModal({ isOpen, onClose }: AddCardModalProps) {
                 value={name}
                 onChange={(event) => setName(event.target.value)}
                 type="text"
-                placeholder="Ex: Nubank, Itau, C6"
+                placeholder="Ex: Nubank, Itaú, C6"
                 className="h-12 w-full rounded-2xl border border-white/[0.08] bg-white/[0.055] px-4 text-sm text-white outline-none transition placeholder:text-zinc-500 focus:border-brand-500/60 focus:bg-white/[0.1] focus:ring-4 focus:ring-brand-500/10"
                 required
+              />
+            </label>
+
+            <label className="block">
+              <span className="mb-2 block text-sm font-medium text-zinc-200">
+                Limite
+              </span>
+              <input
+                value={limit}
+                onChange={(event) => setLimit(event.target.value)}
+                type="text"
+                inputMode="decimal"
+                placeholder="0,00"
+                className="h-12 w-full rounded-2xl border border-white/[0.08] bg-white/[0.055] px-4 text-sm text-white outline-none transition placeholder:text-zinc-500 focus:border-brand-500/60 focus:bg-white/[0.1] focus:ring-4 focus:ring-brand-500/10"
               />
             </label>
 
             <div className="grid gap-4 sm:grid-cols-2">
               <label className="block">
                 <span className="mb-2 block text-sm font-medium text-zinc-200">
-                  Limite
-                </span>
-                <input
-                  value={limit}
-                  onChange={(event) => setLimit(event.target.value)}
-                  type="text"
-                  inputMode="decimal"
-                  placeholder="0,00"
-                  className="h-12 w-full rounded-2xl border border-white/[0.08] bg-white/[0.055] px-4 text-sm text-white outline-none transition placeholder:text-zinc-500 focus:border-brand-500/60 focus:bg-white/[0.1] focus:ring-4 focus:ring-brand-500/10"
-                />
-              </label>
-
-              <label className="block">
-                <span className="mb-2 block text-sm font-medium text-zinc-200">
-                  Dia de fechamento
+                  Dia de Fechamento
                 </span>
                 <input
                   value={closingDay}
@@ -108,7 +121,22 @@ export function AddCardModal({ isOpen, onClose }: AddCardModalProps) {
                   type="number"
                   min={1}
                   max={31}
-                  placeholder="10"
+                  placeholder="25"
+                  className="h-12 w-full rounded-2xl border border-white/[0.08] bg-white/[0.055] px-4 text-sm text-white outline-none transition placeholder:text-zinc-500 focus:border-brand-500/60 focus:bg-white/[0.1] focus:ring-4 focus:ring-brand-500/10"
+                />
+              </label>
+
+              <label className="block">
+                <span className="mb-2 block text-sm font-medium text-zinc-200">
+                  Dia de Vencimento
+                </span>
+                <input
+                  value={dueDay}
+                  onChange={(event) => setDueDay(event.target.value)}
+                  type="number"
+                  min={1}
+                  max={31}
+                  placeholder="05"
                   className="h-12 w-full rounded-2xl border border-white/[0.08] bg-white/[0.055] px-4 text-sm text-white outline-none transition placeholder:text-zinc-500 focus:border-brand-500/60 focus:bg-white/[0.1] focus:ring-4 focus:ring-brand-500/10"
                 />
               </label>

@@ -11,10 +11,10 @@ import {
 import {
   BookOpen,
   Car,
-  CreditCard,
   Dumbbell,
   Home,
   ReceiptText,
+  Pencil,
   ShoppingBasket,
   Tag,
   Trash2,
@@ -26,16 +26,17 @@ import { toast } from "sonner";
 interface TransactionFeedProps {
   transactions?: Transaction[];
   cards?: Card[];
+  onEdit?: (transaction: Transaction) => void;
 }
 
 const categoryMeta: Record<string, { color: string; icon: LucideIcon }> = {
   Alimentação: { color: "#fb923c", icon: ShoppingBasket },
   Transporte: { color: "#38bdf8", icon: Car },
+  Moradia: { color: "#86efac", icon: Home },
   Lazer: { color: "#a78bfa", icon: ReceiptText },
   Saúde: { color: "#34d399", icon: Dumbbell },
   Educação: { color: "#fbbf24", icon: BookOpen },
-  Casa: { color: "#86efac", icon: Home },
-  Assinatura: { color: "#f472b6", icon: CreditCard },
+  Receita: { color: "#34d399", icon: Wallet },
   Outros: { color: "#94a3b8", icon: Tag },
 };
 
@@ -60,6 +61,7 @@ const statusStyles: Record<
 export function TransactionFeed({
   transactions = [],
   cards = [],
+  onEdit,
 }: TransactionFeedProps) {
   const deleteTransaction = useFinanceStore((state) => state.deleteTransaction);
   const cardsById = new Map(cards.map((card) => [card.id, card]));
@@ -80,7 +82,7 @@ export function TransactionFeed({
         <div>
           <p className="text-sm font-medium text-brand-300">Movimentações</p>
           <h2 className="mt-1 text-2xl font-semibold tracking-tight text-white">
-            Despesas recentes
+            Transações recentes
           </h2>
         </div>
         <span className="rounded-full border border-white/[0.08] bg-white/[0.045] px-3 py-1 text-xs font-medium text-zinc-300">
@@ -91,25 +93,41 @@ export function TransactionFeed({
       {transactions.length ? (
         <div className="space-y-3">
           {transactions.slice(0, 8).map((transaction) => {
+            const isIncome = transaction.type === "income";
             const card = transaction.cardId ? cardsById.get(transaction.cardId) : null;
-            const isDebitPix = !transaction.cardId || transaction.type === "fixed";
-            const status = isDebitPix
+            const isDebitPix = !isIncome && (!transaction.cardId || transaction.type === "fixed");
+            const status = isIncome
               ? {
-                  label: "Débito/PIX",
-                  className: "border-brand-300/20 bg-brand-300/10 text-brand-100",
+                  label: "Receita",
+                  className: "border-emerald-300/20 bg-emerald-300/10 text-emerald-200",
                 }
-              : statusStyles[transaction.status || "confirmed"];
-            const category = categoryMeta[transaction.category] || categoryMeta.Outros;
+              : isDebitPix
+                ? {
+                    label: "Débito/PIX",
+                    className: "border-brand-300/20 bg-brand-300/10 text-brand-100",
+                  }
+                : statusStyles[transaction.status || "confirmed"];
+            const categoryLabel = isIncome
+              ? "Receita"
+              : transaction.category || "Sem categoria";
+            const category = categoryMeta[categoryLabel] || categoryMeta.Outros;
             const CategoryIcon = category.icon;
             const transactionDate = new Date(transaction.date);
             const day = Number.isNaN(transactionDate.getTime())
               ? "--"
               : String(transactionDate.getDate()).padStart(2, "0");
+            const amountColor = isIncome ? "text-emerald-300" : "text-white";
+            const amountPrefix = isIncome ? "+" : "";
 
             return (
               <article
                 key={transaction.id}
-                className="group flex gap-4 rounded-3xl border border-white/[0.08] bg-black/15 p-4 transition hover:border-white/[0.16] hover:bg-white/[0.055]"
+                className={[
+                  "group flex gap-4 rounded-3xl border p-4 transition",
+                  isIncome
+                    ? "border-emerald-300/15 bg-emerald-300/[0.045] hover:border-emerald-300/25 hover:bg-emerald-300/[0.07]"
+                    : "border-white/[0.08] bg-black/15 hover:border-white/[0.16] hover:bg-white/[0.055]",
+                ].join(" ")}
               >
                 <div className="flex h-12 w-12 shrink-0 flex-col items-center justify-center rounded-2xl border border-white/[0.08] bg-white/[0.045]">
                   <span className="text-[10px] font-medium uppercase text-zinc-500">
@@ -141,9 +159,11 @@ export function TransactionFeed({
                     ) : null}
                   </div>
                   <div className="mt-2 flex flex-wrap items-center gap-2 text-xs text-zinc-400">
-                    <span>{transaction.category || "Sem categoria"}</span>
+                    <span>{categoryLabel}</span>
                     <span className="h-1 w-1 rounded-full bg-zinc-600" />
-                    <span>{card?.name || "Débito/PIX"}</span>
+                    <span>
+                      {isIncome ? "Entrada" : card?.name || "Débito/PIX"}
+                    </span>
                     {transaction.owner ? (
                       <>
                         <span className="h-1 w-1 rounded-full bg-zinc-600" />
@@ -160,12 +180,23 @@ export function TransactionFeed({
                     {status.label}
                   </span>
                   <div className="flex items-center gap-2">
-                    <strong className="text-sm font-semibold text-white sm:text-base">
+                    <strong className={`text-sm font-semibold sm:text-base ${amountColor}`}>
+                      {amountPrefix}
                       {formatCurrency(transaction.amount)}
                     </strong>
+                    {onEdit ? (
+                      <button
+                        type="button"
+                        onClick={() => onEdit(transaction)}
+                        className="flex h-8 w-8 items-center justify-center rounded-xl border border-white/[0.08] bg-white/[0.045] text-zinc-500 transition hover:border-brand-400/20 hover:bg-brand-500/10 hover:text-brand-200"
+                        aria-label="Editar transação"
+                      >
+                        <Pencil className="h-4 w-4" strokeWidth={2} />
+                      </button>
+                    ) : null}
                     <ConfirmDialog
                       title="Excluir transação"
-                      description="Esta ação remove a despesa da sua lista e não pode ser desfeita."
+                      description="Esta ação remove o lançamento da sua lista e não pode ser desfeita."
                       confirmLabel="Excluir"
                       onConfirm={() => handleDeleteTransaction(transaction.id)}
                     >
@@ -188,10 +219,10 @@ export function TransactionFeed({
           <div>
             <Wallet className="mx-auto h-8 w-8 text-zinc-500" strokeWidth={1.8} />
             <p className="mt-4 text-sm font-medium text-zinc-300">
-              Nenhuma despesa registrada ainda.
+              Nenhuma transação registrada ainda.
             </p>
             <p className="mt-2 text-xs text-zinc-500">
-              Suas transações recentes aparecerão aqui.
+              Suas movimentações recentes aparecerão aqui.
             </p>
           </div>
         </div>

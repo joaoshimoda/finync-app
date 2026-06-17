@@ -56,6 +56,8 @@ export function WalletSlider({ cards = [], transactions = [] }: WalletSliderProp
             const usage = limit > 0 ? Math.min((total / limit) * 100, 100) : 0;
             const isNearLimit = usage >= 85;
             const color = card.color || "#2dd4bf";
+            const closingDay = card.closingDay || "--";
+            const dueDay = card.dueDay || "--";
 
             return (
               <article
@@ -83,7 +85,10 @@ export function WalletSlider({ cards = [], transactions = [] }: WalletSliderProp
                         <h3 className="text-lg font-semibold text-white">{card.name}</h3>
                       </div>
                       <p className="mt-2 text-xs font-medium text-zinc-400">
-                        Vence dia {card.dueDay || "--"} {"\u00b7"}{" "}
+                        Fechamento: dia {closingDay} {"\u2022"} Vencimento: dia{" "}
+                        {dueDay}
+                      </p>
+                      <p className="mt-1 text-xs text-zinc-500">
                         {cardTransactions.length} lançamentos
                       </p>
                     </div>
