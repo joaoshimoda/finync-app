@@ -1,36 +1,42 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# 📊 Finync
 
-## Getting Started
+> Um gerenciador financeiro minimalista, focado em performance, controle de estado em tempo real e arquitetura moderna.
 
-First, run the development server:
+![Status do Projeto](https://img.shields.io/badge/Status-Em%20Desenvolvimento-green)
+![Licença](https://img.shields.io/badge/License-MIT-blue)
 
+---
+
+## 💻 Tecnologias Utilizadas
+
+Este projeto foi construído utilizando o que há de mais moderno no ecossistema front-end e back-end as a service:
+
+*   **[Next.js 14](https://nextjs.org/):** Framework React com App Router para renderização otimizada.
+*   **[React](https://react.dev/):** Biblioteca para construção de interfaces de usuário.
+*   **[TypeScript](https://www.typescriptlang.org/):** Tipagem estática para maior segurança e previsibilidade do código.
+*   **[Tailwind CSS](https://tailwindcss.com/):** Estilização utilitária para um design responsivo e ágil.
+*   **[Zustand](https://github.com/pmndrs/zustand):** Gerenciamento de estado global leve e performático.
+*   **[Supabase](https://supabase.com/):** Banco de dados PostgreSQL com autenticação e políticas de segurança (RLS) nativas.
+*   **[Lucide React](https://lucide.dev/):** Ícones limpos e consistentes.
+*   **[Sonner](https://sonner.emilkowal.ski/):** Sistema de notificações (Toasts) elegante e acessível.
+
+---
+
+## ✨ Funcionalidades (MVP)
+
+*   **Autenticação Segura:** Login e cadastro de usuários integrados diretamente com a API do Supabase.
+*   **Proteção de Rotas:** Redirecionamento automático e blindagem do Dashboard contra acessos não autorizados.
+*   **Gerenciamento de Cartões:** Cadastro de cartões de crédito/débito vinculados exclusivamente ao usuário autenticado (RLS).
+*   **Fluxo de Transações:** Adição de receitas e despesas com atualização matemática em tempo real.
+*   **Sincronização de Estado:** Integração fluida entre o banco de dados e a interface utilizando Zustand, eliminando telas de carregamento desnecessárias e garantindo a persistência dos dados.
+
+---
+
+## 🚀 Como Executar o Projeto Localmente
+
+Siga os passos abaixo para rodar uma cópia deste projeto na sua máquina local:
+
+### 1. Clone o repositório
 ```bash
-npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
-```
-
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
-
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
-
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
-
-## Learn More
-
-To learn more about Next.js, take a look at the following resources:
-
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
-
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
-
-## Deploy on Vercel
-
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
-
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+git clone [https://github.com/SEU_USUARIO/finync.git](https://github.com/joaoshimoda/finync.git)
+cd finync
