@@ -106,6 +106,8 @@ function TransactionModalContent({
 }) {
   const cards = useFinanceStore((state) => state.cards);
   const fetchCards = useFinanceStore((state) => state.fetchCards);
+  const fetchTransactions = useFinanceStore((state) => state.fetchTransactions);
+  const authUser = useFinanceStore((state) => state.authUser);
   const addTransaction = useFinanceStore((state) => state.addTransaction);
   const addTransactions = useFinanceStore((state) => state.addTransactions);
   const updateTransaction = useFinanceStore((state) => state.updateTransaction);
@@ -137,6 +139,7 @@ function TransactionModalContent({
   const [isRecurring, setIsRecurring] = useState(
     isFixedMode ? true : editingTransaction?.is_recurring ?? false,
   );
+  const [isSubmitting, setIsSubmitting] = useState(false);
 
   useEffect(() => {
     void fetchCards();
@@ -154,6 +157,13 @@ function TransactionModalContent({
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
 
+    if (isSubmitting) return;
+
+    if (!authUser?.id) {
+      toast.error("Faça login novamente para salvar a transação.");
+      return;
+    }
+
     if (transactionType === "card" && !transactionCardId) {
       toast.error("Selecione um cartão para lançar no crédito.");
       return;
@@ -164,13 +174,22 @@ function TransactionModalContent({
     const parsedInstallmentCount = Math.max(Number(installmentCount) || 2, 2);
     const shouldCreateRecurringProjection =
       transactionType === "fixed" && (isFixedMode || isRecurring);
+    const shouldCreateCreditCardSubscription =
+      transactionType === "card" && isRecurring;
+    const baseStatus =
+      editingTransaction?.status ??
+      (transactionType === "fixed"
+        ? shouldCreateRecurringProjection
+          ? "pending"
+          : "paid"
+        : "confirmed");
     const transactionPayload: CreateTransactionInput = {
       description: description.trim(),
       amount: totalAmount,
       date: normalizedDate,
       category,
       type: transactionType,
-      status: "confirmed",
+      status: baseStatus,
       cardId: transactionCardId,
       owner: "eu",
       dependentIds: ["eu"],
@@ -179,7 +198,8 @@ function TransactionModalContent({
       current_installment: 1,
       installmentsTotal: 1,
       installmentNumber: 1,
-      is_recurring: shouldCreateRecurringProjection,
+      is_recurring:
+        shouldCreateRecurringProjection || shouldCreateCreditCardSubscription,
       notes: selectedCard
         ? `Cartão: ${selectedCard.name}`
         : isFixedMode
@@ -187,9 +207,30 @@ function TransactionModalContent({
           : "Débito/PIX",
     };
 
+    setIsSubmitting(true);
+
     try {
       if (editingTransaction) {
         await updateTransaction(editingTransaction.id, transactionPayload);
+      } else if (shouldCreateCreditCardSubscription) {
+        const groupId = crypto.randomUUID();
+        const subscriptionTransactions = Array.from(
+          { length: 12 },
+          (_, index): CreateTransactionInput => ({
+            ...transactionPayload,
+            groupId,
+            cardId: transactionCardId,
+            date: addMonthsToDateOnly(normalizedDate, index),
+            status: "pending",
+            installments: 1,
+            current_installment: 1,
+            installmentsTotal: 1,
+            installmentNumber: 1,
+            is_recurring: true,
+          }),
+        );
+
+        await addTransactions(subscriptionTransactions);
       } else if (
         transactionType === "card" &&
         isInstallmentPurchase &&
@@ -223,6 +264,7 @@ function TransactionModalContent({
             ...transactionPayload,
             groupId,
             date: addMonthsToDateOnly(normalizedDate, index),
+            status: "pending",
             is_recurring: true,
           }),
         );
@@ -232,15 +274,23 @@ function TransactionModalContent({
         await addTransaction(transactionPayload);
       }
 
+      await fetchTransactions();
+
       toast.success(
         editingTransaction
-          ? "Transação atualizada com sucesso!"
-          : "Transação salva com sucesso!",
+          ? isFixedMode
+            ? "Conta atualizada!"
+            : "Transação atualizada com sucesso!"
+          : isFixedMode
+            ? "Conta adicionada com sucesso!"
+            : "Transação adicionada com sucesso!",
       );
       onClose();
     } catch (error) {
       console.error("Erro ao salvar transação:", error);
       toast.error("Erro ao salvar transação.");
+    } finally {
+      setIsSubmitting(false);
     }
   }
 
@@ -346,10 +396,6 @@ function TransactionModalContent({
                   setSelectedCardId("");
                   setIsInstallmentPurchase(false);
                 }
-
-                if (nextType !== "fixed") {
-                  setIsRecurring(false);
-                }
               }}
             >
               <SelectTrigger className="mt-2">
@@ -396,7 +442,12 @@ function TransactionModalContent({
                     </span>
                     <Switch
                       checked={isInstallmentPurchase}
-                      onCheckedChange={setIsInstallmentPurchase}
+                      onCheckedChange={(checked) => {
+                        setIsInstallmentPurchase(checked);
+                        if (checked) {
+                          setIsRecurring(false);
+                        }
+                      }}
                     />
                   </div>
 
@@ -414,6 +465,21 @@ function TransactionModalContent({
                       />
                     </div>
                   ) : null}
+
+                  <div className="flex items-center justify-between gap-4">
+                    <span className="text-sm font-medium text-foreground">
+                      Assinatura mensal no cartão?
+                    </span>
+                    <Switch
+                      checked={isRecurring}
+                      onCheckedChange={(checked) => {
+                        setIsRecurring(checked);
+                        if (checked) {
+                          setIsInstallmentPurchase(false);
+                        }
+                      }}
+                    />
+                  </div>
                 </>
               ) : null}
             </>
@@ -430,12 +496,17 @@ function TransactionModalContent({
         </div>
 
         <div className="col-span-2 flex flex-col-reverse gap-3 pt-2 sm:flex-row sm:justify-end">
-          <Button type="button" variant="outline" onClick={onClose}>
+          <Button
+            type="button"
+            variant="outline"
+            disabled={isSubmitting}
+            onClick={onClose}
+          >
             Cancelar
           </Button>
-          <Button type="submit" className="gap-2">
+          <Button type="submit" disabled={isSubmitting} className="gap-2">
             <Save className="size-4" />
-            Salvar transação
+            {isSubmitting ? "Salvando..." : "Salvar transação"}
           </Button>
         </div>
       </form>

@@ -67,7 +67,9 @@ function IncomeModalContent({
   editingTransaction: Transaction | null;
   onClose: () => void;
 }) {
+  const authUser = useFinanceStore((state) => state.authUser);
   const addTransaction = useFinanceStore((state) => state.addTransaction);
+  const fetchTransactions = useFinanceStore((state) => state.fetchTransactions);
   const updateTransaction = useFinanceStore((state) => state.updateTransaction);
 
   const [amount, setAmount] = useState(
@@ -84,9 +86,17 @@ function IncomeModalContent({
   const [category, setCategory] = useState(
     editingTransaction?.category || "Receita",
   );
+  const [isSubmitting, setIsSubmitting] = useState(false);
 
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
+
+    if (isSubmitting) return;
+
+    if (!authUser?.id) {
+      toast.error("Faça login novamente para salvar a receita.");
+      return;
+    }
 
     const incomePayload = {
       description: description.trim(),
@@ -104,6 +114,8 @@ function IncomeModalContent({
       notes: "Receita",
     };
 
+    setIsSubmitting(true);
+
     try {
       if (editingTransaction) {
         await updateTransaction(editingTransaction.id, incomePayload);
@@ -111,15 +123,19 @@ function IncomeModalContent({
         await addTransaction(incomePayload);
       }
 
+      await fetchTransactions();
+
       toast.success(
         editingTransaction
           ? "Receita atualizada com sucesso!"
-          : "Receita salva com sucesso!",
+          : "Receita adicionada com sucesso!",
       );
       onClose();
     } catch (error) {
       console.error("Erro ao salvar receita:", error);
       toast.error("Erro ao salvar receita.");
+    } finally {
+      setIsSubmitting(false);
     }
   }
 
@@ -193,16 +209,23 @@ function IncomeModalContent({
         </div>
 
         <div className="col-span-2 flex flex-col-reverse gap-3 pt-2 sm:flex-row sm:justify-end">
-          <Button type="button" variant="outline" size="lg" onClick={onClose}>
+          <Button
+            type="button"
+            variant="outline"
+            size="lg"
+            disabled={isSubmitting}
+            onClick={onClose}
+          >
             Cancelar
           </Button>
           <Button
             type="submit"
             size="lg"
+            disabled={isSubmitting}
             className="gap-2 bg-emerald-500 text-white hover:bg-emerald-400"
           >
             <Save className="size-4" />
-            Salvar receita
+            {isSubmitting ? "Salvando..." : "Salvar receita"}
           </Button>
         </div>
       </form>

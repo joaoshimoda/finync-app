@@ -60,7 +60,7 @@ export default function DashboardLayout({
       <div className="pointer-events-none fixed inset-0 bg-[linear-gradient(rgba(255,255,255,0.025)_1px,transparent_1px),linear-gradient(90deg,rgba(255,255,255,0.025)_1px,transparent_1px)] bg-[size:72px_72px] opacity-35" />
       <div className="relative flex min-h-screen">
         <Sidebar />
-        <main className="mx-auto w-full max-w-7xl flex-1 px-5 pb-28 pt-6 sm:px-8 lg:px-10 lg:pb-10">
+        <main className="mx-auto w-full max-w-[1440px] flex-1 overflow-y-auto px-4 py-8 pb-28 md:px-8 lg:pb-10">
           {children}
         </main>
       </div>

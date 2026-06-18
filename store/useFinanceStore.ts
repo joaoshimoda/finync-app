@@ -124,6 +124,7 @@ interface FinanceState {
     transactionId: string,
     transaction: UpdateTransactionInput,
   ) => Promise<void>;
+  payCardInvoice: (cardId: string) => Promise<void>;
   addIncome: (
     income: Pick<CreateTransactionInput, "amount" | "date" | "description">,
   ) => Promise<void>;
@@ -736,6 +737,44 @@ export const useFinanceStore = create<FinanceState>()((set, get) => ({
       }));
     } catch (error) {
       console.error("Erro ao atualizar transação:", error);
+      throw error;
+    }
+  },
+
+  payCardInvoice: async (cardId) => {
+    try {
+      const user = await getCurrentUser();
+      if (!user) throw new Error("Usuário não autenticado.");
+
+      const { startDate, endDate } = getSelectedMonthRange(
+        get().currentMonth,
+        get().currentYear,
+      );
+
+      const { data, error } = await supabase
+        .from("transactions")
+        .update({ status: toDbStatus("paid") })
+        .eq("user_id", user.id)
+        .eq("type", "card")
+        .eq("card_id", cardId)
+        .gte("month_start", startDate)
+        .lt("month_start", endDate)
+        .select("*");
+
+      if (error) throw error;
+
+      const paidTransactions = (data as TransactionRow[]).map(mapTransaction);
+      const paidTransactionById = new Map(
+        paidTransactions.map((transaction) => [transaction.id, transaction]),
+      );
+
+      set((state) => ({
+        transactions: state.transactions.map((transaction) =>
+          paidTransactionById.get(transaction.id) ?? transaction,
+        ),
+      }));
+    } catch (error) {
+      console.error("Erro ao liquidar fatura:", error);
       throw error;
     }
   },

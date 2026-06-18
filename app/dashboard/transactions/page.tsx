@@ -45,7 +45,10 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import { formatDateOnlyBR, getDateOnlyParts } from "@/lib/dateUtils";
+import {
+  formatDateOnlyBR,
+  getDateOnlyParts,
+} from "@/lib/dateUtils";
 import { cn } from "@/lib/utils";
 import { useFinanceStore, type Transaction } from "@/store/useFinanceStore";
 
@@ -63,9 +66,15 @@ const monthFormatter = new Intl.DateTimeFormat("pt-BR", {
 
 const typeLabel: Record<string, string> = {
   card: "Cartão",
-  fixed: "Fixo",
+  fixed: "Débito/PIX",
   income: "Receita",
 };
+
+function getTransactionFallbackLabel(transaction: Transaction) {
+  if (transaction.type === "fixed" && transaction.is_recurring) return "Fixo";
+
+  return typeLabel[transaction.type];
+}
 
 function sortByRecentDate(left: Transaction, right: Transaction) {
   return right.date.localeCompare(left.date);
@@ -230,7 +239,7 @@ export default function TransactionsPage() {
   }
 
   return (
-    <div className="mx-auto flex w-full max-w-7xl flex-col gap-6 pb-10">
+    <div className="flex w-full flex-col gap-8">
       <div className="flex flex-col items-start justify-between gap-4 sm:flex-row sm:items-center">
         <div>
           <h1 className="text-3xl font-bold tracking-tight">
@@ -393,7 +402,7 @@ export default function TransactionsPage() {
               filteredTransactions.map((transaction) => {
                 const originLabel = getTransactionOrigin(transaction, cards);
                 const categoryLabel =
-                  transaction.category || typeLabel[transaction.type];
+                  transaction.category || getTransactionFallbackLabel(transaction);
 
                 return (
                   <TableRow

@@ -12,7 +12,7 @@ export function TransactionDescription({
     transaction.installmentNumber ?? transaction.current_installment ?? 1;
   const installmentsTotal =
     transaction.installmentsTotal ?? transaction.installments ?? 1;
-  const isFixed = transaction.type === "fixed" || transaction.is_recurring;
+  const isFixed = transaction.is_recurring === true;
 
   return (
     <>

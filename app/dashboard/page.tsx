@@ -28,6 +28,13 @@ import {
   CardTitle,
 } from "@/components/ui/card";
 import {
+  Carousel,
+  CarouselContent,
+  CarouselItem,
+  CarouselNext,
+  CarouselPrevious,
+} from "@/components/ui/carousel";
+import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
@@ -42,13 +49,18 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { getCardGradient } from "@/lib/cardUtils";
-import { formatDateOnlyBR, getDateOnlyParts } from "@/lib/dateUtils";
+import {
+  formatDateOnlyBR,
+  getDateOnlyParts,
+  normalizeDateOnly,
+  toDateOnly,
+} from "@/lib/dateUtils";
 import { cn } from "@/lib/utils";
 import {
   useFinanceStore,
-  type Card as FinanceCard,
   type Transaction,
 } from "@/store/useFinanceStore";
+import { toast } from "sonner";
 
 const brlFormatter = new Intl.NumberFormat("pt-BR", {
   style: "currency",
@@ -57,9 +69,15 @@ const brlFormatter = new Intl.NumberFormat("pt-BR", {
 
 const typeLabel: Record<string, string> = {
   card: "Cartão",
-  fixed: "Fixo",
+  fixed: "Débito/PIX",
   income: "Receita",
 };
+
+function getTransactionFallbackLabel(transaction: Transaction) {
+  if (transaction.type === "fixed" && transaction.is_recurring) return "Fixo";
+
+  return typeLabel[transaction.type];
+}
 
 function isSameSelectedMonth(
   transaction: Transaction,
@@ -77,22 +95,6 @@ function sortByRecentDate(left: Transaction, right: Transaction) {
   return right.date.localeCompare(left.date);
 }
 
-function getCardInvoiceTotal(card: FinanceCard, transactions: Transaction[]) {
-  const totalCard = transactions
-    .filter(
-      (transaction) => {
-        const dbCardId =
-          (transaction as Transaction & { card_id?: string | null }).card_id ??
-          transaction.cardId;
-
-        return transaction.type === "card" && dbCardId === card.id;
-      },
-    )
-    .reduce((total, transaction) => total + transaction.amount, 0);
-
-  return totalCard;
-}
-
 export default function DashboardPage() {
   const [isAddCardModalOpen, setIsAddCardModalOpen] = useState(false);
   const [isAddIncomeModalOpen, setIsAddIncomeModalOpen] = useState(false);
@@ -105,6 +107,7 @@ export default function DashboardPage() {
   const transactions = useFinanceStore((state) => state.transactions);
   const fetchCards = useFinanceStore((state) => state.fetchCards);
   const fetchTransactions = useFinanceStore((state) => state.fetchTransactions);
+  const payCardInvoice = useFinanceStore((state) => state.payCardInvoice);
   const currentMonth = useFinanceStore((state) => state.currentMonth);
   const currentYear = useFinanceStore((state) => state.currentYear);
   const fetchedMonth = useFinanceStore((state) => state.fetchedMonth);
@@ -115,6 +118,15 @@ export default function DashboardPage() {
 
   const displayMonth = isFetching ? fetchedMonth : currentMonth;
   const displayYear = isFetching ? fetchedYear : currentYear;
+  const todayDate = useMemo(() => {
+    const today = new Date();
+
+    return toDateOnly(
+      today.getFullYear(),
+      today.getMonth() + 1,
+      today.getDate(),
+    );
+  }, []);
 
   const monthlyTransactions = useMemo(
     () =>
@@ -125,41 +137,92 @@ export default function DashboardPage() {
   );
 
   const monthlyBalances = useMemo(() => {
-    const totalIncome = monthlyTransactions
-      .filter((transaction) => transaction.type === "income")
-      .reduce((total, transaction) => total + transaction.amount, 0);
-    const totalOutflow = monthlyTransactions
-      .filter((transaction) => transaction.type !== "income")
-      .reduce((total, transaction) => total + transaction.amount, 0);
+    const totals = monthlyTransactions.reduce(
+      (acc, transaction) => {
+        if (transaction.type === "income") {
+          acc.totalIncome += transaction.amount;
+          return acc;
+        }
+
+        if (transaction.type === "card") {
+          acc.creditCardProjected += transaction.amount;
+
+          if (normalizeDateOnly(transaction.date) <= todayDate) {
+            acc.creditCardUntilToday += transaction.amount;
+          }
+
+          if (transaction.status !== "paid") {
+            acc.pendingObligations += transaction.amount;
+          }
+
+          return acc;
+        }
+
+        acc.nonCardTotal += transaction.amount;
+
+        if (transaction.status !== "paid") {
+          acc.nonCardPending += transaction.amount;
+          acc.pendingObligations += transaction.amount;
+        }
+
+        return acc;
+      },
+      {
+        creditCardProjected: 0,
+        creditCardUntilToday: 0,
+        nonCardTotal: 0,
+        nonCardPending: 0,
+        pendingObligations: 0,
+        totalIncome: 0,
+      },
+    );
 
     return {
-      projectedBalance: totalIncome - totalOutflow,
-      totalIncome,
-      totalOutflow,
+      ...totals,
+      availableBalance:
+        totals.totalIncome - totals.nonCardTotal - totals.creditCardUntilToday,
+      projectedBalance:
+        totals.totalIncome - totals.nonCardTotal - totals.creditCardProjected,
+      totalPendingObligations: totals.pendingObligations,
     };
-  }, [monthlyTransactions]);
+  }, [monthlyTransactions, todayDate]);
 
   const recentTransactions = useMemo(
     () => [...monthlyTransactions].sort(sortByRecentDate).slice(0, 10),
     [monthlyTransactions],
   );
 
-  const pendingOutflow = monthlyTransactions
-    .filter(
-      (transaction) =>
-        transaction.type !== "income" && transaction.status !== "paid",
-    )
-    .reduce((total, transaction) => total + transaction.amount, 0);
-
   const cardSpendingSummaries = cards.map((card) => ({
     id: card.id,
     name: card.name,
-    total: getCardInvoiceTotal(card, monthlyTransactions),
     gradient: getCardGradient(card.name),
+    ...monthlyTransactions
+      .filter((transaction) => {
+        const dbCardId =
+          (transaction as Transaction & { card_id?: string | null }).card_id ??
+          transaction.cardId;
+
+        return transaction.type === "card" && dbCardId === card.id;
+      })
+      .reduce(
+        (totals, transaction) => {
+          totals.projected += transaction.amount;
+
+          if (normalizeDateOnly(transaction.date) <= todayDate) {
+            totals.current += transaction.amount;
+          }
+
+          return totals;
+        },
+        { current: 0, projected: 0 },
+      ),
   }));
 
   const fixedSpendingTotal = monthlyTransactions
-    .filter((transaction) => transaction.type === "fixed")
+    .filter(
+      (transaction) =>
+        transaction.type === "fixed" && transaction.is_recurring === true,
+    )
     .reduce((total, transaction) => total + transaction.amount, 0);
 
   const debitPixSpendingTotal = monthlyTransactions
@@ -169,9 +232,8 @@ export default function DashboardPage() {
         transaction.cardId;
 
       return (
-        transaction.type !== "income" &&
-        transaction.type !== "fixed" &&
-        transaction.type !== "card" &&
+        transaction.type === "fixed" &&
+        transaction.is_recurring !== true &&
         !dbCardId
       );
     })
@@ -192,8 +254,19 @@ export default function DashboardPage() {
     setEditingTransaction(null);
   }
 
+  async function handlePayInvoiceClick(cardId: string) {
+    try {
+      await payCardInvoice(cardId);
+      toast.success("Fatura liquidada!");
+      await fetchTransactions();
+    } catch (error) {
+      console.error("Erro ao liquidar fatura:", error);
+      toast.error("Não foi possível liquidar a fatura.");
+    }
+  }
+
   return (
-    <div className="mx-auto flex w-full max-w-7xl flex-col gap-6 pb-10">
+    <div className="flex w-full flex-col gap-8">
       <div className="mb-2 flex flex-row items-center justify-between">
         <div>
           <h1 className="text-3xl font-bold tracking-tight">
@@ -212,28 +285,54 @@ export default function DashboardPage() {
                 Novo
               </Button>
             </DropdownMenuTrigger>
-            <DropdownMenuContent align="end" className="w-52">
+            <DropdownMenuContent align="end" className="w-80 p-2">
               <DropdownMenuItem
+                className="cursor-pointer gap-4 rounded-xl p-3"
                 onClick={() => {
                   setEditingTransaction(null);
                   setIsAddTransactionModalOpen(true);
                 }}
               >
-                <ArrowDown className="size-4 text-red-400" />
-                Nova Despesa
+                <div className="rounded-full bg-red-500/10 p-2.5 text-red-500">
+                  <ArrowDown className="size-4" />
+                </div>
+                <div className="flex flex-col">
+                  <span className="text-base font-medium">Nova Despesa</span>
+                  <span className="text-xs text-muted-foreground">
+                    Registre um gasto, pix ou boleto
+                  </span>
+                </div>
               </DropdownMenuItem>
               <DropdownMenuItem
+                className="cursor-pointer gap-4 rounded-xl p-3"
                 onClick={() => {
                   setEditingTransaction(null);
                   setIsAddIncomeModalOpen(true);
                 }}
               >
-                <ArrowUp className="size-4 text-emerald-400" />
-                Nova Receita
+                <div className="rounded-full bg-green-500/10 p-2.5 text-green-500">
+                  <ArrowUp className="size-4" />
+                </div>
+                <div className="flex flex-col">
+                  <span className="text-base font-medium">Nova Receita</span>
+                  <span className="text-xs text-muted-foreground">
+                    Adicione seu salário ou entrada
+                  </span>
+                </div>
               </DropdownMenuItem>
-              <DropdownMenuItem onClick={() => setIsAddCardModalOpen(true)}>
-                <CreditCard className="size-4 text-muted-foreground" />
-                Novo Cartão
+              <DropdownMenuItem
+                className="cursor-pointer gap-4 rounded-xl p-3"
+                onClick={() => setIsAddCardModalOpen(true)}
+              >
+                <div className="rounded-full bg-purple-500/10 p-2.5 text-purple-500">
+                  <CreditCard className="size-4" />
+                </div>
+                <div className="flex flex-col">
+                  <span className="text-base font-medium">Novo Cartão</span>
+                  <span className="text-xs text-muted-foreground">
+                    Cadastre um cartão de crédito
+                  </span>
+                </div>
               </DropdownMenuItem>
             </DropdownMenuContent>
           </DropdownMenu>
@@ -250,45 +349,73 @@ export default function DashboardPage() {
         />
       </div>
 
-      <section className="grid grid-cols-1 gap-6 md:grid-cols-3">
-        <Card className="rounded-lg border-border bg-card shadow-none">
-          <CardHeader>
-            <CardDescription>Saldo projetado</CardDescription>
-            <CardTitle className="text-2xl tracking-normal">
-              {brlFormatter.format(monthlyBalances.projectedBalance)}
-            </CardTitle>
-          </CardHeader>
-          <CardContent className="flex items-center gap-2 text-sm text-muted-foreground">
-            <ReceiptText className="size-4 text-brand-300" />
-            Fim do mês com gastos e faturas deduzidos
-          </CardContent>
-        </Card>
+      <section>
+        <div className="mb-8 flex flex-wrap gap-4">
+          <Card className="w-full flex-none rounded-lg border-border bg-card p-6 shadow-none sm:w-[240px] md:w-[260px] lg:w-[250px] xl:w-[260px]">
+            <CardHeader className="p-0">
+              <CardDescription>Saldo Disponível Total</CardDescription>
+              <CardTitle className="text-4xl tracking-normal">
+                {brlFormatter.format(monthlyBalances.projectedBalance)}
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="flex items-center gap-2 p-0 pt-5 text-sm text-muted-foreground">
+              <ReceiptText className="size-4 text-brand-300" />
+              Após todos os compromissos do mês
+            </CardContent>
+          </Card>
 
-        <Card className="rounded-lg border-border bg-card shadow-none">
-          <CardHeader>
-            <CardDescription>Receitas do mês</CardDescription>
-            <CardTitle className="text-2xl tracking-normal text-emerald-300">
-              {brlFormatter.format(monthlyBalances.totalIncome)}
-            </CardTitle>
-          </CardHeader>
-          <CardContent className="flex items-center gap-2 text-sm text-muted-foreground">
-            <TrendingUp className="size-4 text-emerald-300" />
-            Entradas registradas no período
-          </CardContent>
-        </Card>
+          <Card className="w-full flex-none rounded-lg border-border bg-card p-6 shadow-none sm:w-[240px] md:w-[260px] lg:w-[250px] xl:w-[260px]">
+            <CardHeader className="p-0">
+              <CardDescription>Receitas</CardDescription>
+              <CardTitle className="text-4xl tracking-normal text-emerald-300">
+                {brlFormatter.format(monthlyBalances.totalIncome)}
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="flex items-center gap-2 p-0 pt-5 text-sm text-muted-foreground">
+              <TrendingUp className="size-4 text-emerald-300" />
+              Entradas registradas no mês
+            </CardContent>
+          </Card>
 
-        <Card className="rounded-lg border-border bg-card shadow-none">
-          <CardHeader>
-            <CardDescription>Gastos pendentes</CardDescription>
-            <CardTitle className="text-2xl tracking-normal text-amber-200">
-              {brlFormatter.format(pendingOutflow)}
-            </CardTitle>
-          </CardHeader>
-          <CardContent className="flex items-center gap-2 text-sm text-muted-foreground">
-            <CreditCard className="size-4 text-amber-200" />
-            Fixos, faturas e lançamentos em aberto
-          </CardContent>
-        </Card>
+          <Card className="w-full flex-none rounded-lg border-border bg-card shadow-none sm:w-[240px] md:w-[260px] lg:w-[250px] xl:w-[260px]">
+            <CardHeader>
+              <CardDescription>Fatura Atual</CardDescription>
+              <CardTitle className="text-2xl tracking-normal text-red-300">
+                {brlFormatter.format(monthlyBalances.creditCardUntilToday)}
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="flex items-center gap-2 text-sm text-muted-foreground">
+              <CreditCard className="size-4 text-red-300" />
+              Cartão lançado até hoje
+            </CardContent>
+          </Card>
+
+          <Card className="w-full flex-none rounded-lg border-border bg-card shadow-none sm:w-[240px] md:w-[260px] lg:w-[250px] xl:w-[260px]">
+            <CardHeader>
+              <CardDescription>Fatura Total</CardDescription>
+              <CardTitle className="text-2xl tracking-normal text-amber-200">
+                {brlFormatter.format(monthlyBalances.creditCardProjected)}
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="flex items-center gap-2 text-sm text-muted-foreground">
+              <CreditCard className="size-4 text-amber-200" />
+              Total projetado do cartão no mês
+            </CardContent>
+          </Card>
+
+          <Card className="w-full flex-none rounded-lg border-border bg-card shadow-none sm:w-[240px] md:w-[260px] lg:w-[250px] xl:w-[260px]">
+            <CardHeader>
+              <CardDescription>Gastos Totais Pendentes</CardDescription>
+              <CardTitle className="text-2xl tracking-normal text-orange-300">
+                {brlFormatter.format(monthlyBalances.totalPendingObligations)}
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="flex items-center gap-2 text-sm text-muted-foreground">
+              <ReceiptText className="size-4 text-orange-300" />
+              Pendências manuais e fatura do cartão
+            </CardContent>
+          </Card>
+        </div>
       </section>
 
       <section className="space-y-4">
@@ -301,12 +428,12 @@ export default function DashboardPage() {
           </p>
         </div>
 
-        <div className="-mx-5 grid grid-cols-1 gap-4 overflow-x-auto px-5 pb-2 md:mx-0 md:grid-cols-2 md:px-0 lg:grid-cols-4">
+        <div className="flex flex-nowrap gap-6 overflow-x-auto overflow-y-hidden pb-4 snap-x snap-mandatory scroll-smooth [&::-webkit-scrollbar]:hidden [-ms-overflow-style:none] [scrollbar-width:none]">
           {cardSpendingSummaries.map((cardSummary) => (
             <div
               key={cardSummary.id}
               className={cn(
-                "relative min-h-44 min-w-[17rem] overflow-hidden rounded-2xl p-5 text-white shadow-lg",
+                "relative h-[200px] w-full max-w-[340px] flex-none shrink-0 snap-start overflow-hidden rounded-2xl p-5 text-white shadow-lg",
                 cardSummary.gradient,
               )}
             >
@@ -323,16 +450,28 @@ export default function DashboardPage() {
               </div>
               <div className="relative mt-10 text-right">
                 <p className="text-xs font-medium uppercase text-white/60">
-                  Fatura do mês
+                  Fatura atual
                 </p>
-                <strong className="mt-1 block text-2xl font-bold tracking-normal text-white">
-                  {brlFormatter.format(cardSummary.total)}
+                <strong className="mt-1 block text-3xl font-bold tracking-normal text-white">
+                  {brlFormatter.format(cardSummary.current)}
                 </strong>
+                <p className="mt-1 text-sm text-white/70">
+                  Projetado: {brlFormatter.format(cardSummary.projected)}
+                </p>
+                <Button
+                  type="button"
+                  size="sm"
+                  variant="outline"
+                  className="mt-3 h-8 border-white/25 bg-white/10 px-3 text-xs text-white hover:bg-white/20 hover:text-white"
+                  onClick={() => handlePayInvoiceClick(cardSummary.id)}
+                >
+                  Pagar Fatura
+                </Button>
               </div>
             </div>
           ))}
 
-          <div className="relative min-h-44 min-w-[17rem] overflow-hidden rounded-2xl bg-gradient-to-br from-blue-600 to-blue-800 p-5 text-white shadow-lg">
+          <div className="relative h-[200px] w-full max-w-[340px] flex-none shrink-0 snap-start overflow-hidden rounded-2xl bg-gradient-to-br from-blue-600 to-blue-800 p-5 text-white shadow-lg">
             <div className="pointer-events-none absolute -right-10 -top-10 size-28 rounded-full bg-white/10" />
             <div className="relative flex items-start justify-between gap-4">
               <div>
@@ -347,13 +486,13 @@ export default function DashboardPage() {
               <p className="text-xs font-medium uppercase text-white/60">
                 Total do mês
               </p>
-              <strong className="mt-1 block text-2xl font-bold tracking-normal text-white">
+              <strong className="mt-1 block text-3xl font-bold tracking-normal text-white">
                 {brlFormatter.format(fixedSpendingTotal)}
               </strong>
             </div>
           </div>
 
-          <div className="relative min-h-44 min-w-[17rem] overflow-hidden rounded-2xl bg-gradient-to-br from-emerald-500 to-emerald-700 p-5 text-white shadow-lg">
+          <div className="relative h-[200px] w-full max-w-[340px] flex-none shrink-0 snap-start overflow-hidden rounded-2xl bg-gradient-to-br from-emerald-500 to-emerald-700 p-5 text-white shadow-lg">
             <div className="pointer-events-none absolute -right-10 -top-10 size-28 rounded-full bg-white/10" />
             <div className="relative flex items-start justify-between gap-4">
               <div>
@@ -368,7 +507,7 @@ export default function DashboardPage() {
               <p className="text-xs font-medium uppercase text-white/60">
                 Total do mês
               </p>
-              <strong className="mt-1 block text-2xl font-bold tracking-normal text-white">
+              <strong className="mt-1 block text-3xl font-bold tracking-normal text-white">
                 {brlFormatter.format(debitPixSpendingTotal)}
               </strong>
             </div>
@@ -403,46 +542,61 @@ export default function DashboardPage() {
                 <TableHead>Data</TableHead>
                 <TableHead>Descrição</TableHead>
                 <TableHead className="hidden md:table-cell">Categoria</TableHead>
+                <TableHead className="hidden lg:table-cell">Origem</TableHead>
                 <TableHead className="text-right">Valor</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
               {recentTransactions.length ? (
-                recentTransactions.map((transaction) => (
-                  <TableRow key={transaction.id} className="hover:bg-muted/35">
-                    <TableCell className="text-muted-foreground">
-                      {formatDateOnlyBR(transaction.date)}
-                    </TableCell>
-                    <TableCell>
-                      <div className="font-medium text-foreground">
-                        <TransactionDescription transaction={transaction} />
-                      </div>
-                      <div className="mt-1 text-xs text-muted-foreground md:hidden">
-                        {transaction.category || typeLabel[transaction.type]}
-                      </div>
-                    </TableCell>
-                    <TableCell className="hidden md:table-cell">
-                      <Badge variant="outline" className="rounded-lg">
-                        {transaction.category || typeLabel[transaction.type]}
-                      </Badge>
-                    </TableCell>
-                    <TableCell
-                      className={cn(
-                        "text-right font-medium",
-                        transaction.type === "income"
-                          ? "text-emerald-300"
-                          : "text-red-300",
-                      )}
+                recentTransactions.map((transaction) => {
+                  const originLabel =
+                    transaction.type === "card"
+                      ? cards.find((card) => card.id === transaction.cardId)
+                          ?.name ?? "Crédito"
+                      : getTransactionFallbackLabel(transaction);
+
+                  return (
+                    <TableRow
+                      key={transaction.id}
+                      className="hover:bg-muted/35"
                     >
-                      {transaction.type === "income" ? "+" : "-"}
-                      {brlFormatter.format(transaction.amount)}
-                    </TableCell>
-                  </TableRow>
-                ))
+                      <TableCell className="text-muted-foreground">
+                        {formatDateOnlyBR(transaction.date)}
+                      </TableCell>
+                      <TableCell>
+                        <div className="font-medium text-foreground">
+                          <TransactionDescription transaction={transaction} />
+                        </div>
+                        <div className="mt-1 text-xs text-muted-foreground md:hidden">
+                          {transaction.category || getTransactionFallbackLabel(transaction)}
+                        </div>
+                      </TableCell>
+                      <TableCell className="hidden md:table-cell">
+                        <Badge variant="outline" className="rounded-lg">
+                          {transaction.category || getTransactionFallbackLabel(transaction)}
+                        </Badge>
+                      </TableCell>
+                      <TableCell className="hidden text-muted-foreground lg:table-cell">
+                        {originLabel}
+                      </TableCell>
+                      <TableCell
+                        className={cn(
+                          "text-right font-medium",
+                          transaction.type === "income"
+                            ? "text-emerald-300"
+                            : "text-red-300",
+                        )}
+                      >
+                        {transaction.type === "income" ? "+" : "-"}
+                        {brlFormatter.format(transaction.amount)}
+                      </TableCell>
+                    </TableRow>
+                  );
+                })
               ) : (
                 <TableRow>
                   <TableCell
-                    colSpan={4}
+                    colSpan={5}
                     className="h-28 text-center text-muted-foreground"
                   >
                     Nenhuma movimentação neste período.
