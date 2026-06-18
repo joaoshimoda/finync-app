@@ -1,6 +1,12 @@
-"use client";
+﻿"use client";
 
 import { supabase } from "@/lib/supabaseClient";
+import {
+  getDateOnlyParts,
+  getLocalTodayDateOnly,
+  normalizeDateOnly,
+  toDateOnly,
+} from "@/lib/dateUtils";
 import type { User } from "@supabase/supabase-js";
 import { create } from "zustand";
 
@@ -145,18 +151,9 @@ function isUuid(value: string) {
 }
 
 function getMonthStart(date: string) {
-  const parsedDate = new Date(date);
-  if (Number.isNaN(parsedDate.getTime())) {
-    return new Date().toISOString().slice(0, 10);
-  }
+  const { month, year } = getDateOnlyParts(date);
 
-  return new Date(parsedDate.getFullYear(), parsedDate.getMonth(), 1)
-    .toISOString()
-    .slice(0, 10);
-}
-
-function toDateOnly(year: number, month: number, day: number) {
-  return `${year}-${String(month).padStart(2, "0")}-${String(day).padStart(2, "0")}`;
+  return toDateOnly(year, month, 1);
 }
 
 function getSelectedMonthRange(month: number, year: number) {
@@ -169,10 +166,7 @@ function getSelectedMonthRange(month: number, year: number) {
 }
 
 function getDayFromDate(date: string) {
-  const parsedDate = new Date(date);
-  if (Number.isNaN(parsedDate.getTime())) return 5;
-
-  return parsedDate.getDate();
+  return getDateOnlyParts(date).day;
 }
 
 function toTransactionType(value: string | null): TransactionType {
@@ -212,14 +206,13 @@ function mapCard(row: CardRow): Card {
 }
 
 function mapTransaction(row: TransactionRow): Transaction {
-  const date = new Date(row.month_start);
-  date.setDate(row.day || 1);
+  const { month, year } = getDateOnlyParts(row.month_start);
 
   return {
     id: row.id,
     description: row.description,
     amount: toAmount(row.amount),
-    date: date.toISOString().slice(0, 10),
+    date: toDateOnly(year, month, row.day || 1),
     category: row.category ?? "",
     type: toTransactionType(row.type),
     status: fromDbStatus(row.status),
@@ -263,8 +256,8 @@ export const useFinanceStore = create<FinanceState>()((set, get) => ({
   authUser: null,
   isAuthReady: false,
   isLoading: true,
-  currentMonth: new Date().getMonth() + 1,
-  currentYear: new Date().getFullYear(),
+  currentMonth: getDateOnlyParts(getLocalTodayDateOnly()).month,
+  currentYear: getDateOnlyParts(getLocalTodayDateOnly()).year,
 
   nextMonth: () => {
     set((state) => {
@@ -361,7 +354,7 @@ export const useFinanceStore = create<FinanceState>()((set, get) => ({
 
       set({ cards: (data as CardRow[]).map(mapCard) });
     } catch (error) {
-      console.error("Erro ao buscar cartões:", error);
+      console.error("Erro ao buscar cartÃµes:", error);
     }
   },
 
@@ -373,7 +366,7 @@ export const useFinanceStore = create<FinanceState>()((set, get) => ({
       } = await supabase.auth.getUser();
 
       if (userError || !user) {
-        throw userError ?? new Error("Usuário não autenticado.");
+        throw userError ?? new Error("UsuÃ¡rio nÃ£o autenticado.");
       }
 
       const { error: profileError } = await supabase.from("users").upsert(
@@ -414,7 +407,7 @@ export const useFinanceStore = create<FinanceState>()((set, get) => ({
   editCard: async (cardId, card) => {
     try {
       const user = await getCurrentUser();
-      if (!user) throw new Error("Usuário não autenticado.");
+      if (!user) throw new Error("UsuÃ¡rio nÃ£o autenticado.");
 
       const updatePayload: Record<string, string | number | null> = {};
 
@@ -445,7 +438,7 @@ export const useFinanceStore = create<FinanceState>()((set, get) => ({
         ),
       });
     } catch (error) {
-      console.error("Erro ao editar cartão:", error);
+      console.error("Erro ao editar cartÃ£o:", error);
       throw error;
     }
   },
@@ -465,30 +458,42 @@ export const useFinanceStore = create<FinanceState>()((set, get) => ({
 
       set({
         cards: get().cards.filter((card) => card.id !== cardId),
-        transactions: get().transactions.filter((transaction) => transaction.cardId !== cardId),
+        transactions: get().transactions.filter(
+          (transaction) => transaction.cardId !== cardId,
+        ),
       });
     } catch (error) {
       console.error("Erro ao excluir cartão:", error);
+      if (
+        typeof error === "object" &&
+        error !== null &&
+        "code" in error &&
+        error.code === "23503"
+      ) {
+        throw new Error(
+          "Não é possível excluir um cartão que possui transações vinculadas.",
+        );
+      }
+
       throw error;
     }
   },
-
   fetchTransactions: async () => {
     try {
       const user = await getCurrentUser();
       if (!user) {
-        console.log("fetchTransactions: usuário não autenticado.");
+        console.log("fetchTransactions: usuÃ¡rio nÃ£o autenticado.");
         return;
       }
 
-      console.log("fetchTransactions: buscando transações para usuário:", user.id);
+      console.log("fetchTransactions: buscando transaÃ§Ãµes para usuÃ¡rio:", user.id);
 
       const { startDate, endDate } = getSelectedMonthRange(
         get().currentMonth,
         get().currentYear,
       );
 
-      console.log("Período selecionado:", { startDate, endDate });
+      console.log("PerÃ­odo selecionado:", { startDate, endDate });
 
       const { data, error } = await supabase
         .from("transactions")
@@ -505,7 +510,7 @@ export const useFinanceStore = create<FinanceState>()((set, get) => ({
 
       set({ transactions: (data as TransactionRow[]).map(mapTransaction) });
     } catch (error) {
-      console.error("Erro ao buscar transações:", error);
+      console.error("Erro ao buscar transaÃ§Ãµes:", error);
     }
   },
 
@@ -517,7 +522,7 @@ export const useFinanceStore = create<FinanceState>()((set, get) => ({
       } = await supabase.auth.getUser();
 
       if (userError || !user) {
-        throw userError ?? new Error("Usuário não autenticado.");
+        throw userError ?? new Error("UsuÃ¡rio nÃ£o autenticado.");
       }
 
       const { error: profileError } = await supabase.from("users").upsert(
@@ -536,12 +541,12 @@ export const useFinanceStore = create<FinanceState>()((set, get) => ({
         .insert({
           user_id: user.id,
           card_id: transaction.cardId ?? null,
-          month_start: getMonthStart(transaction.date),
+          month_start: getMonthStart(normalizeDateOnly(transaction.date)),
           type: transaction.type,
           description: transaction.description,
           category: transaction.category,
           amount: transaction.amount,
-          day: getDayFromDate(transaction.date),
+          day: getDayFromDate(normalizeDateOnly(transaction.date)),
           status: toDbStatus(transaction.status),
           owner: transaction.owner ?? "eu",
           installment_number: transaction.installmentNumber ?? 1,
@@ -555,7 +560,7 @@ export const useFinanceStore = create<FinanceState>()((set, get) => ({
         .single();
 
       if (error) throw error;
-      if (!data) throw new Error("Supabase não retornou a transação inserida.");
+      if (!data) throw new Error("Supabase nÃ£o retornou a transaÃ§Ã£o inserida.");
 
       const persistedTagIds = (transaction.tagIds || []).filter(isUuid);
       if (persistedTagIds.length) {
@@ -568,7 +573,7 @@ export const useFinanceStore = create<FinanceState>()((set, get) => ({
         );
 
         if (tagError) {
-          console.error("Erro ao vincular etiquetas à transação:", tagError);
+          console.error("Erro ao vincular etiquetas Ã  transaÃ§Ã£o:", tagError);
         }
       }
 
@@ -586,7 +591,7 @@ export const useFinanceStore = create<FinanceState>()((set, get) => ({
   updateTransaction: async (transactionId, transaction) => {
     try {
       const user = await getCurrentUser();
-      if (!user) throw new Error("Usuário não autenticado.");
+      if (!user) throw new Error("UsuÃ¡rio nÃ£o autenticado.");
 
       const updatePayload: Record<
         string,
@@ -602,8 +607,10 @@ export const useFinanceStore = create<FinanceState>()((set, get) => ({
       }
 
       if (transaction.date !== undefined) {
-        updatePayload.month_start = getMonthStart(transaction.date);
-        updatePayload.day = getDayFromDate(transaction.date);
+        updatePayload.month_start = getMonthStart(
+          normalizeDateOnly(transaction.date),
+        );
+        updatePayload.day = getDayFromDate(normalizeDateOnly(transaction.date));
       }
 
       if (transaction.category !== undefined) {
@@ -651,7 +658,7 @@ export const useFinanceStore = create<FinanceState>()((set, get) => ({
         .single();
 
       if (error) throw error;
-      if (!data) throw new Error("Supabase não retornou a transação atualizada.");
+      if (!data) throw new Error("Supabase nÃ£o retornou a transaÃ§Ã£o atualizada.");
 
       const updatedTransaction = mapTransaction(data as TransactionRow);
 
@@ -663,7 +670,7 @@ export const useFinanceStore = create<FinanceState>()((set, get) => ({
         ),
       }));
     } catch (error) {
-      console.error("Erro ao atualizar transação:", error);
+      console.error("Erro ao atualizar transaÃ§Ã£o:", error);
       throw error;
     }
   },
@@ -687,7 +694,7 @@ export const useFinanceStore = create<FinanceState>()((set, get) => ({
   deleteTransaction: async (transactionId) => {
     try {
       const user = await getCurrentUser();
-      if (!user) throw new Error("Usuário não autenticado.");
+      if (!user) throw new Error("UsuÃ¡rio nÃ£o autenticado.");
 
       const { error } = await supabase
         .from("transactions")
@@ -703,14 +710,14 @@ export const useFinanceStore = create<FinanceState>()((set, get) => ({
         ),
       }));
     } catch (error) {
-      console.error("Erro ao excluir transação:", error);
+      console.error("Erro ao excluir transaÃ§Ã£o:", error);
       throw error;
     }
   },
 
   calculateBalances: () => {
     const transactions = get().transactions;
-    console.log("Transações no Store:", transactions);
+    console.log("TransaÃ§Ãµes no Store:", transactions);
 
     const totalIncome =
       transactions

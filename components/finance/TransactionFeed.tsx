@@ -1,6 +1,7 @@
 "use client";
 
 import { formatCurrency } from "@/lib/financeUtils";
+import { getDateOnlyParts } from "@/lib/dateUtils";
 import { ConfirmDialog } from "@/components/ui/ConfirmDialog";
 import {
   useFinanceStore,
@@ -112,10 +113,7 @@ export function TransactionFeed({
               : transaction.category || "Sem categoria";
             const category = categoryMeta[categoryLabel] || categoryMeta.Outros;
             const CategoryIcon = category.icon;
-            const transactionDate = new Date(transaction.date);
-            const day = Number.isNaN(transactionDate.getTime())
-              ? "--"
-              : String(transactionDate.getDate()).padStart(2, "0");
+            const day = getDateOnlyParts(transaction.date).dayLabel;
             const amountColor = isIncome ? "text-emerald-300" : "text-white";
             const amountPrefix = isIncome ? "+" : "";
 

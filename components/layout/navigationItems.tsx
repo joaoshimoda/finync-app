@@ -1,4 +1,5 @@
 import {
+  CalendarDays,
   CreditCard,
   LayoutDashboard,
   Receipt,
@@ -25,6 +26,12 @@ export const navigationItems: NavigationItem[] = [
     shortLabel: "Transações",
     href: "/dashboard/transactions",
     icon: Receipt,
+  },
+  {
+    label: "Contas Fixas",
+    shortLabel: "Fixas",
+    href: "/dashboard/fixed",
+    icon: CalendarDays,
   },
   {
     label: "Cartões",

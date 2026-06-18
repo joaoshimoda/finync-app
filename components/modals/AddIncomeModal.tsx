@@ -1,6 +1,7 @@
 "use client";
 
 import { useFinanceStore, type Transaction } from "@/store/useFinanceStore";
+import { getLocalTodayDateOnly, normalizeDateOnly } from "@/lib/dateUtils";
 import { CalendarDays, DollarSign, Save, Wallet, X } from "lucide-react";
 import { FormEvent, useState } from "react";
 import { toast } from "sonner";
@@ -41,7 +42,9 @@ function IncomeModalContent({
     editingTransaction ? String(editingTransaction.amount).replace(".", ",") : "",
   );
   const [date, setDate] = useState(
-    editingTransaction?.date ?? new Date().toISOString().slice(0, 10),
+    editingTransaction?.date
+      ? normalizeDateOnly(editingTransaction.date)
+      : getLocalTodayDateOnly(),
   );
   const [description, setDescription] = useState(
     editingTransaction?.description ?? "",
@@ -52,7 +55,7 @@ function IncomeModalContent({
 
     const incomePayload = {
       amount: Number(amount.replace(",", ".")) || 0,
-      date,
+      date: normalizeDateOnly(date),
       description: description.trim(),
     };
 

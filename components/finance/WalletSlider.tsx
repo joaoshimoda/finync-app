@@ -20,7 +20,9 @@ export function WalletSlider({ cards = [], transactions = [] }: WalletSliderProp
       toast.success("Item removido com sucesso");
     } catch (error) {
       console.error("Erro ao remover cartão:", error);
-      toast.error("Erro ao remover item");
+      toast.error(
+        error instanceof Error ? error.message : "Erro ao remover item",
+      );
     }
   }
 

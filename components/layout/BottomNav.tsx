@@ -34,7 +34,7 @@ export function BottomNav() {
 
   return (
     <nav className="fixed inset-x-0 bottom-0 z-50 border-t border-white/[0.08] bg-[#071014]/85 px-3 pb-[calc(env(safe-area-inset-bottom)+10px)] pt-3 shadow-2xl shadow-black/40 backdrop-blur-2xl lg:hidden">
-      <div className="mx-auto grid max-w-lg grid-cols-5 gap-2">
+      <div className="mx-auto grid max-w-lg grid-cols-6 gap-2">
         {navigationItems.map((item) => {
           const active = isActiveRoute(pathname, item.href);
           const Icon = item.icon;
