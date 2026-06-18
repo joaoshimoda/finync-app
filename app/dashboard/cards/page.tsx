@@ -163,10 +163,10 @@ export default function CardsPage() {
     <div className="flex w-full flex-col gap-8">
       <div className="flex flex-col items-start justify-between gap-4 sm:flex-row sm:items-center">
         <div>
-          <h1 className="text-3xl font-bold tracking-tight">
+          <h1 className="text-2xl font-bold tracking-tight md:text-3xl">
             Meus Cartões
           </h1>
-          <p className="text-muted-foreground">
+          <p className="text-sm text-muted-foreground md:text-base">
             Gerencie cartões, limites, fechamento e vencimento.
           </p>
         </div>
@@ -184,7 +184,8 @@ export default function CardsPage() {
       </div>
 
       <section className="space-y-4">
-        <div className="flex flex-nowrap gap-6 overflow-x-auto overflow-y-hidden p-2 pb-4 snap-x snap-mandatory scroll-smooth [&::-webkit-scrollbar]:hidden [-ms-overflow-style:none] [scrollbar-width:none]">
+        <Carousel opts={{ dragFree: true }} className="w-full">
+          <CarouselContent className="-ml-4 py-4 px-2">
             {cards.map((card) => {
               const cardTransactions = monthlyTransactions.filter(
                 (transaction) => transaction.cardId === card.id,
@@ -196,9 +197,9 @@ export default function CardsPage() {
               const isSelected = selectedCard?.id === card.id;
 
               return (
-                <div
+                <CarouselItem
                   key={card.id}
-                  className="w-full max-w-[340px] shrink-0 snap-start overflow-visible"
+                  className="basis-[86%] pl-4 sm:basis-1/2 lg:basis-1/3 xl:basis-1/4"
                 >
                   <div
                     role="button"
@@ -206,7 +207,7 @@ export default function CardsPage() {
                     onClick={() => setSelectedCardId(card.id)}
                     onKeyDown={(event) => handleCardKeyDown(event, card.id)}
                     className={cn(
-                      "group relative flex h-[214px] w-full max-w-[340px] shrink-0 cursor-pointer flex-col justify-between overflow-hidden rounded-2xl border-2 p-6 text-left text-white transition-all duration-300 ease-in-out",
+                      "group relative flex aspect-[340/214] w-full shrink-0 cursor-pointer flex-col justify-between overflow-hidden rounded-2xl border-2 p-5 text-left text-white transition-all duration-300 ease-in-out md:p-6",
                       getCardGradient(card.name),
                       isSelected
                         ? "scale-105 border-white/80 opacity-100 shadow-2xl"
@@ -219,7 +220,7 @@ export default function CardsPage() {
                     <div className="relative flex items-start justify-between gap-4">
                       <div>
                         <div className="mb-5 h-8 w-12 rounded-md border border-white/25 bg-gradient-to-br from-white/45 to-white/10 shadow-inner" />
-                        <h2 className="max-w-48 truncate text-lg font-semibold text-white">
+                        <h2 className="max-w-full truncate text-base font-semibold text-white md:text-lg">
                           {card.name}
                         </h2>
                         <p className="mt-1 text-xs text-white/65">
@@ -274,7 +275,7 @@ export default function CardsPage() {
                         <p className="text-xs font-medium uppercase text-white/60">
                           Fatura atual
                         </p>
-                        <strong className="mt-1 block text-2xl font-bold tracking-normal">
+                        <strong className="mt-1 block text-xl font-bold tracking-normal md:text-2xl">
                           {brlFormatter.format(invoiceTotal)}
                         </strong>
                         <Button
@@ -292,10 +293,13 @@ export default function CardsPage() {
                       </div>
                     </div>
                   </div>
-                </div>
+                </CarouselItem>
               );
             })}
-        </div>
+          </CarouselContent>
+          <CarouselPrevious className="absolute -left-12 z-50 hidden bg-background/80 md:inline-flex lg:-left-16" />
+          <CarouselNext className="absolute -right-12 z-50 hidden bg-background/80 md:inline-flex lg:-right-16" />
+        </Carousel>
 
         {!cards.length ? (
           <Card className="rounded-lg border-dashed border-border bg-card shadow-none">
@@ -311,13 +315,13 @@ export default function CardsPage() {
           <div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
             <div>
               <CardDescription>Visão da fatura</CardDescription>
-              <CardTitle className="mt-1 text-2xl tracking-normal">
+              <CardTitle className="mt-1 text-xl tracking-normal md:text-2xl">
                 {selectedCard?.name ?? "Nenhum cartão selecionado"}
               </CardTitle>
             </div>
             <div className="text-left lg:text-right">
               <p className="text-sm text-muted-foreground">Total do mês</p>
-              <p className="mt-1 text-3xl font-bold text-foreground">
+              <p className="mt-1 text-2xl font-bold text-foreground md:text-3xl">
                 {brlFormatter.format(selectedInvoiceTotal)}
               </p>
             </div>

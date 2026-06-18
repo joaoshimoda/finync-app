@@ -190,10 +190,10 @@ export default function FixedExpensesPage() {
       <div className="flex w-full flex-col gap-8">
         <div className="flex flex-col items-start justify-between gap-4 sm:flex-row sm:items-center">
           <div>
-            <h1 className="text-3xl font-bold tracking-tight">
+            <h1 className="text-2xl font-bold tracking-tight md:text-3xl">
               Contas Fixas
             </h1>
-            <p className="text-muted-foreground">
+            <p className="text-sm text-muted-foreground md:text-base">
               Centralize assinaturas, mensalidades e despesas que se repetem.
             </p>
           </div>
@@ -210,12 +210,12 @@ export default function FixedExpensesPage() {
           </div>
         </div>
 
-        <section className="mb-8 grid grid-cols-1 gap-4 md:grid-cols-3">
+        <section className="mb-8 grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-3">
           <Card className="border-white/[0.08] bg-white/[0.035]">
             <CardHeader className="flex flex-row items-start justify-between gap-4">
               <div>
                 <CardDescription>Contas Pagas</CardDescription>
-                <CardTitle className="mt-2 text-3xl">
+                <CardTitle className="mt-2 text-2xl md:text-3xl">
                   {brlFormatter.format(paidFixed)}
                 </CardTitle>
                 <p className="mt-1 text-sm text-muted-foreground">
@@ -235,7 +235,7 @@ export default function FixedExpensesPage() {
             <CardHeader className="flex flex-row items-start justify-between gap-4">
               <div>
                 <CardDescription>Próximo Vencimento</CardDescription>
-                <CardTitle className="mt-2 text-3xl">
+                <CardTitle className="mt-2 text-2xl md:text-3xl">
                   {nextDueTransaction
                     ? brlFormatter.format(nextDueTransaction.amount)
                     : "Tudo em dia!"}
@@ -275,7 +275,7 @@ export default function FixedExpensesPage() {
             <CardHeader className="flex flex-row items-start justify-between gap-4">
               <div>
                 <CardDescription>Comprometimento de Renda</CardDescription>
-                <CardTitle className="mt-2 text-3xl">
+                <CardTitle className="mt-2 text-2xl md:text-3xl">
                   {totalRevenue > 0 ? `${incomeCommitmentPercentage}%` : "0%"}
                 </CardTitle>
                 <p className="mt-1 text-sm text-muted-foreground">

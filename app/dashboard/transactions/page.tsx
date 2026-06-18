@@ -242,16 +242,16 @@ export default function TransactionsPage() {
     <div className="flex w-full flex-col gap-8">
       <div className="flex flex-col items-start justify-between gap-4 sm:flex-row sm:items-center">
         <div>
-          <h1 className="text-3xl font-bold tracking-tight">
+          <h1 className="text-2xl font-bold tracking-tight md:text-3xl">
             Transações
           </h1>
-          <p className="text-muted-foreground">
+          <p className="text-sm text-muted-foreground md:text-base">
             Analise entradas, saídas, recorrências e compras parceladas do
             período selecionado.
           </p>
         </div>
 
-        <div className="flex items-center gap-3">
+        <div className="flex flex-wrap items-center gap-3">
           <Button
             type="button"
             variant="outline"
@@ -278,13 +278,13 @@ export default function TransactionsPage() {
         </div>
       </div>
 
-      <section className="grid grid-cols-1 gap-4 md:grid-cols-3">
+      <section className="grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-3">
         <div className="rounded-xl border border-border bg-card/80 p-5">
           <div className="flex items-center justify-between gap-4">
             <p className="text-sm text-muted-foreground">Total de Entradas</p>
             <ArrowUpRight className="size-4 text-emerald-400" />
           </div>
-          <strong className="mt-3 block text-2xl font-semibold tracking-normal text-emerald-400">
+          <strong className="mt-3 block text-xl font-semibold tracking-normal text-emerald-400 md:text-2xl">
             {brlFormatter.format(summary.totalIncome)}
           </strong>
         </div>
@@ -294,7 +294,7 @@ export default function TransactionsPage() {
             <p className="text-sm text-muted-foreground">Total de Saídas</p>
             <ArrowDownRight className="size-4 text-red-400" />
           </div>
-          <strong className="mt-3 block text-2xl font-semibold tracking-normal text-red-300">
+          <strong className="mt-3 block text-xl font-semibold tracking-normal text-red-300 md:text-2xl">
             {brlFormatter.format(summary.totalExpense)}
           </strong>
         </div>
@@ -306,7 +306,7 @@ export default function TransactionsPage() {
           </div>
           <strong
             className={cn(
-              "mt-3 block text-2xl font-semibold tracking-normal",
+              "mt-3 block text-xl font-semibold tracking-normal md:text-2xl",
               summary.netBalance >= 0 ? "text-foreground" : "text-red-300",
             )}
           >
@@ -316,8 +316,8 @@ export default function TransactionsPage() {
       </section>
 
       <section className="flex flex-col gap-4 rounded-xl border border-border bg-muted/20 p-4 xl:flex-row xl:items-center xl:justify-between">
-        <div className="grid flex-1 grid-cols-1 gap-3 md:grid-cols-[minmax(16rem,1fr)_12rem_12rem]">
-          <div className="relative">
+        <div className="grid flex-1 grid-cols-1 gap-3 md:grid-cols-3 lg:grid-cols-4">
+          <div className="relative lg:col-span-2">
             <Search className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
             <Input
               value={searchTerm}
@@ -357,7 +357,7 @@ export default function TransactionsPage() {
           </Select>
         </div>
 
-        <div className="flex h-11 items-center rounded-lg border border-border bg-card">
+        <div className="flex h-11 w-full items-center rounded-lg border border-border bg-card sm:w-auto">
           <Button
             type="button"
             variant="ghost"
@@ -368,7 +368,7 @@ export default function TransactionsPage() {
           >
             <ChevronLeft />
           </Button>
-          <span className="flex min-w-40 items-center justify-center gap-2 px-3 text-center text-sm font-medium capitalize text-foreground">
+          <span className="flex flex-1 items-center justify-center gap-2 px-3 text-center text-sm font-medium capitalize text-foreground sm:flex-none">
             <CalendarDays className="size-4 text-muted-foreground" />
             {selectedPeriodLabel}
           </span>
@@ -507,7 +507,7 @@ export default function TransactionsPage() {
             if (!open) setDeleteTarget(null);
           }}
         >
-          <DialogContent className="p-6 sm:max-w-[400px]">
+          <DialogContent className="p-6 sm:max-w-md">
             <div className="flex flex-col gap-6">
               <div className="space-y-2">
                 <h2 className="text-xl font-semibold tracking-tight">

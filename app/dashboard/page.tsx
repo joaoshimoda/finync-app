@@ -267,12 +267,12 @@ export default function DashboardPage() {
 
   return (
     <div className="flex w-full flex-col gap-8">
-      <div className="mb-2 flex flex-row items-center justify-between">
+      <div className="mb-2 flex flex-col items-start justify-between gap-4 sm:flex-row sm:items-center">
         <div>
-          <h1 className="text-3xl font-bold tracking-tight">
+          <h1 className="text-2xl font-bold tracking-tight md:text-3xl">
             Visão geral
           </h1>
-          <p className="text-muted-foreground">
+          <p className="text-sm text-muted-foreground md:text-base">
             Acompanhe saldos, faturas e movimentações do período.
           </p>
         </div>
@@ -350,11 +350,11 @@ export default function DashboardPage() {
       </div>
 
       <section>
-        <div className="mb-8 flex flex-wrap gap-4">
-          <Card className="w-full flex-none rounded-lg border-border bg-card p-6 shadow-none sm:w-[240px] md:w-[260px] lg:w-[250px] xl:w-[260px]">
+        <div className="mb-8 grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5">
+          <Card className="w-full rounded-lg border-border bg-card p-6 shadow-none">
             <CardHeader className="p-0">
               <CardDescription>Saldo Disponível Total</CardDescription>
-              <CardTitle className="text-4xl tracking-normal">
+              <CardTitle className="text-2xl tracking-normal md:text-3xl lg:text-4xl">
                 {brlFormatter.format(monthlyBalances.projectedBalance)}
               </CardTitle>
             </CardHeader>
@@ -364,10 +364,10 @@ export default function DashboardPage() {
             </CardContent>
           </Card>
 
-          <Card className="w-full flex-none rounded-lg border-border bg-card p-6 shadow-none sm:w-[240px] md:w-[260px] lg:w-[250px] xl:w-[260px]">
+          <Card className="w-full rounded-lg border-border bg-card p-6 shadow-none">
             <CardHeader className="p-0">
               <CardDescription>Receitas</CardDescription>
-              <CardTitle className="text-4xl tracking-normal text-emerald-300">
+              <CardTitle className="text-2xl tracking-normal text-emerald-300 md:text-3xl lg:text-4xl">
                 {brlFormatter.format(monthlyBalances.totalIncome)}
               </CardTitle>
             </CardHeader>
@@ -377,10 +377,10 @@ export default function DashboardPage() {
             </CardContent>
           </Card>
 
-          <Card className="w-full flex-none rounded-lg border-border bg-card shadow-none sm:w-[240px] md:w-[260px] lg:w-[250px] xl:w-[260px]">
+          <Card className="w-full rounded-lg border-border bg-card shadow-none">
             <CardHeader>
               <CardDescription>Fatura Atual</CardDescription>
-              <CardTitle className="text-2xl tracking-normal text-red-300">
+              <CardTitle className="text-xl tracking-normal text-red-300 md:text-2xl">
                 {brlFormatter.format(monthlyBalances.creditCardUntilToday)}
               </CardTitle>
             </CardHeader>
@@ -390,10 +390,10 @@ export default function DashboardPage() {
             </CardContent>
           </Card>
 
-          <Card className="w-full flex-none rounded-lg border-border bg-card shadow-none sm:w-[240px] md:w-[260px] lg:w-[250px] xl:w-[260px]">
+          <Card className="w-full rounded-lg border-border bg-card shadow-none">
             <CardHeader>
               <CardDescription>Fatura Total</CardDescription>
-              <CardTitle className="text-2xl tracking-normal text-amber-200">
+              <CardTitle className="text-xl tracking-normal text-amber-200 md:text-2xl">
                 {brlFormatter.format(monthlyBalances.creditCardProjected)}
               </CardTitle>
             </CardHeader>
@@ -403,10 +403,10 @@ export default function DashboardPage() {
             </CardContent>
           </Card>
 
-          <Card className="w-full flex-none rounded-lg border-border bg-card shadow-none sm:w-[240px] md:w-[260px] lg:w-[250px] xl:w-[260px]">
+          <Card className="w-full rounded-lg border-border bg-card shadow-none">
             <CardHeader>
               <CardDescription>Gastos Totais Pendentes</CardDescription>
-              <CardTitle className="text-2xl tracking-normal text-orange-300">
+              <CardTitle className="text-xl tracking-normal text-orange-300 md:text-2xl">
                 {brlFormatter.format(monthlyBalances.totalPendingObligations)}
               </CardTitle>
             </CardHeader>
@@ -428,15 +428,19 @@ export default function DashboardPage() {
           </p>
         </div>
 
-        <div className="flex flex-nowrap gap-6 overflow-x-auto overflow-y-hidden pb-4 snap-x snap-mandatory scroll-smooth [&::-webkit-scrollbar]:hidden [-ms-overflow-style:none] [scrollbar-width:none]">
+        <Carousel opts={{ dragFree: true }} className="w-full">
+          <CarouselContent className="-ml-4 py-4 px-2">
           {cardSpendingSummaries.map((cardSummary) => (
-            <div
+            <CarouselItem
               key={cardSummary.id}
-              className={cn(
-                "relative h-[200px] w-full max-w-[340px] flex-none shrink-0 snap-start overflow-hidden rounded-2xl p-5 text-white shadow-lg",
-                cardSummary.gradient,
-              )}
+              className="basis-[86%] pl-4 sm:basis-1/2 lg:basis-1/3 xl:basis-1/4"
             >
+              <div
+                className={cn(
+                  "relative aspect-[340/214] w-full shrink-0 overflow-hidden rounded-2xl p-5 text-white shadow-lg",
+                  cardSummary.gradient,
+                )}
+              >
               <div className="pointer-events-none absolute -right-10 -top-10 size-28 rounded-full bg-white/10" />
               <div className="pointer-events-none absolute -bottom-12 left-8 size-28 rounded-full bg-black/20" />
               <div className="relative flex items-start justify-between gap-4">
@@ -452,7 +456,7 @@ export default function DashboardPage() {
                 <p className="text-xs font-medium uppercase text-white/60">
                   Fatura atual
                 </p>
-                <strong className="mt-1 block text-3xl font-bold tracking-normal text-white">
+                <strong className="mt-1 block text-2xl font-bold tracking-normal text-white md:text-3xl">
                   {brlFormatter.format(cardSummary.current)}
                 </strong>
                 <p className="mt-1 text-sm text-white/70">
@@ -468,10 +472,12 @@ export default function DashboardPage() {
                   Pagar Fatura
                 </Button>
               </div>
-            </div>
+              </div>
+            </CarouselItem>
           ))}
 
-          <div className="relative h-[200px] w-full max-w-[340px] flex-none shrink-0 snap-start overflow-hidden rounded-2xl bg-gradient-to-br from-blue-600 to-blue-800 p-5 text-white shadow-lg">
+            <CarouselItem className="basis-[86%] pl-4 sm:basis-1/2 lg:basis-1/3 xl:basis-1/4">
+              <div className="relative aspect-[340/214] w-full shrink-0 overflow-hidden rounded-2xl bg-gradient-to-br from-blue-600 to-blue-800 p-5 text-white shadow-lg">
             <div className="pointer-events-none absolute -right-10 -top-10 size-28 rounded-full bg-white/10" />
             <div className="relative flex items-start justify-between gap-4">
               <div>
@@ -486,13 +492,15 @@ export default function DashboardPage() {
               <p className="text-xs font-medium uppercase text-white/60">
                 Total do mês
               </p>
-              <strong className="mt-1 block text-3xl font-bold tracking-normal text-white">
+                  <strong className="mt-1 block text-2xl font-bold tracking-normal text-white md:text-3xl">
                 {brlFormatter.format(fixedSpendingTotal)}
               </strong>
             </div>
-          </div>
+              </div>
+            </CarouselItem>
 
-          <div className="relative h-[200px] w-full max-w-[340px] flex-none shrink-0 snap-start overflow-hidden rounded-2xl bg-gradient-to-br from-emerald-500 to-emerald-700 p-5 text-white shadow-lg">
+            <CarouselItem className="basis-[86%] pl-4 sm:basis-1/2 lg:basis-1/3 xl:basis-1/4">
+              <div className="relative aspect-[340/214] w-full shrink-0 overflow-hidden rounded-2xl bg-gradient-to-br from-emerald-500 to-emerald-700 p-5 text-white shadow-lg">
             <div className="pointer-events-none absolute -right-10 -top-10 size-28 rounded-full bg-white/10" />
             <div className="relative flex items-start justify-between gap-4">
               <div>
@@ -507,12 +515,16 @@ export default function DashboardPage() {
               <p className="text-xs font-medium uppercase text-white/60">
                 Total do mês
               </p>
-              <strong className="mt-1 block text-3xl font-bold tracking-normal text-white">
+                  <strong className="mt-1 block text-2xl font-bold tracking-normal text-white md:text-3xl">
                 {brlFormatter.format(debitPixSpendingTotal)}
               </strong>
             </div>
-          </div>
-        </div>
+              </div>
+            </CarouselItem>
+          </CarouselContent>
+          <CarouselPrevious className="absolute -left-12 z-50 hidden bg-background/80 md:inline-flex lg:-left-16" />
+          <CarouselNext className="absolute -right-12 z-50 hidden bg-background/80 md:inline-flex lg:-right-16" />
+        </Carousel>
       </section>
 
       <section className="space-y-4">
