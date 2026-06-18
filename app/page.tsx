@@ -9,7 +9,7 @@ import {
 } from "lucide-react";
 
 const summaryCards = [
-  ["Gasto mensal", "R$ 3.842,70", "+12 lancamentos"],
+  ["Gasto mensal", "R$ 3.842,70", "+12 lançamentos"],
   ["Faturas abertas", "R$ 1.248,35", "2 cartões"],
   ["Limite livre", "R$ 6.180,00", "68% disponível"],
 ];

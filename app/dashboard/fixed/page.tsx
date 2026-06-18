@@ -1,8 +1,11 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import { CalendarDays, Plus, Repeat } from "lucide-react";
+import { CalendarDays, Plus, Repeat, Trash2 } from "lucide-react";
+import { toast } from "sonner";
 
+import { RecurringDeleteDialog } from "@/components/finance/RecurringDeleteDialog";
+import { TransactionDescription } from "@/components/finance/TransactionDescription";
 import { AddTransactionModal } from "@/components/modals/AddTransactionModal";
 import { Button } from "@/components/ui/button";
 import {
@@ -12,8 +15,16 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
-import { getDateOnlyParts } from "@/lib/dateUtils";
-import { useFinanceStore } from "@/store/useFinanceStore";
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@/components/ui/table";
+import { getDateOnlyParts, formatDateOnlyBR } from "@/lib/dateUtils";
+import { useFinanceStore, type Transaction } from "@/store/useFinanceStore";
 
 const brlFormatter = new Intl.NumberFormat("pt-BR", {
   style: "currency",
@@ -25,12 +36,16 @@ export default function FixedExpensesPage() {
 
   const transactions = useFinanceStore((state) => state.transactions);
   const fetchTransactions = useFinanceStore((state) => state.fetchTransactions);
+  const deleteTransaction = useFinanceStore((state) => state.deleteTransaction);
+  const deleteTransactionGroup = useFinanceStore(
+    (state) => state.deleteTransactionGroup,
+  );
   const currentMonth = useFinanceStore((state) => state.currentMonth);
   const currentYear = useFinanceStore((state) => state.currentYear);
 
   useEffect(() => {
     void fetchTransactions();
-  }, [fetchTransactions]);
+  }, [currentMonth, currentYear, fetchTransactions]);
 
   const fixedTransactions = useMemo(() => {
     return transactions.filter((transaction) => {
@@ -50,31 +65,52 @@ export default function FixedExpensesPage() {
   );
   const annualProjection = monthlyFixedCost * 12;
 
+  async function handleDeleteTransaction(transactionId: string) {
+    try {
+      await deleteTransaction(transactionId);
+      toast.success("Conta fixa removida.");
+    } catch (error) {
+      console.error("Erro ao remover conta fixa:", error);
+      toast.error("Não foi possível remover agora.");
+    }
+  }
+
+  async function handleDeleteFutureTransactions(transaction: Transaction) {
+    if (!transaction.groupId) return;
+
+    try {
+      await deleteTransactionGroup(transaction.groupId, transaction.date);
+      toast.success("Conta fixa atual e próximas removidas.");
+    } catch (error) {
+      console.error("Erro ao remover recorrência:", error);
+      toast.error("Não foi possível remover a recorrência agora.");
+    }
+  }
+
   return (
     <>
-      <main className="mx-auto flex w-full max-w-7xl flex-col gap-8 px-4 py-8 sm:px-6 lg:px-8">
-        <header className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+      <div className="mx-auto flex w-full max-w-7xl flex-col gap-6 pb-10">
+        <div className="flex flex-col items-start justify-between gap-4 sm:flex-row sm:items-center">
           <div>
-            <p className="text-sm font-medium text-brand-300">
-              Gestão recorrente
-            </p>
-            <h1 className="text-3xl font-semibold tracking-tight text-white">
+            <h1 className="text-3xl font-bold tracking-tight">
               Contas Fixas
             </h1>
-            <p className="mt-2 max-w-2xl text-sm text-zinc-400">
+            <p className="text-muted-foreground">
               Centralize assinaturas, mensalidades e despesas que se repetem.
             </p>
           </div>
 
-          <Button
-            type="button"
-            onClick={() => setIsNewFixedModalOpen(true)}
-            className="bg-brand-500 text-zinc-950 hover:bg-brand-400"
-          >
-            <Plus />
-            Nova Conta
-          </Button>
-        </header>
+          <div className="flex items-center gap-3">
+            <Button
+              type="button"
+              onClick={() => setIsNewFixedModalOpen(true)}
+              className="h-12 cursor-pointer gap-2 bg-primary px-6 text-base font-semibold text-primary-foreground shadow-lg transition-all duration-200 hover:-translate-y-0.5 hover:shadow-xl"
+            >
+              <Plus className="h-5 w-5" />
+              Nova Conta
+            </Button>
+          </div>
+        </div>
 
         <section className="grid grid-cols-1 gap-6 md:grid-cols-2">
           <Card className="border-white/[0.08] bg-white/[0.035]">
@@ -116,16 +152,85 @@ export default function FixedExpensesPage() {
           </Card>
         </section>
 
-        <Card className="border-dashed border-white/[0.12] bg-white/[0.025]">
-          <CardContent className="flex min-h-48 items-center justify-center p-8">
-            <p className="text-sm text-zinc-400">Carregando contas fixas...</p>
+        <Card className="border-white/[0.08] bg-white/[0.025]">
+          <CardHeader className="border-b border-white/[0.08]">
+            <CardTitle>Contas do mês</CardTitle>
+            <CardDescription>
+              Despesas fixas cadastradas para o período selecionado.
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="pt-4">
+            <Table>
+              <TableHeader>
+                <TableRow className="hover:bg-transparent">
+                  <TableHead>Data</TableHead>
+                  <TableHead>Descrição</TableHead>
+                  <TableHead className="hidden md:table-cell">Categoria</TableHead>
+                  <TableHead className="text-right">Valor</TableHead>
+                  <TableHead className="w-16 text-right">Ações</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {fixedTransactions.length ? (
+                  fixedTransactions.map((transaction) => (
+                    <TableRow key={transaction.id} className="hover:bg-muted/35">
+                      <TableCell className="text-muted-foreground">
+                        {formatDateOnlyBR(transaction.date)}
+                      </TableCell>
+                      <TableCell>
+                        <div className="font-medium text-foreground">
+                          <TransactionDescription transaction={transaction} />
+                        </div>
+                      </TableCell>
+                      <TableCell className="hidden md:table-cell">
+                        {transaction.category || "Sem categoria"}
+                      </TableCell>
+                      <TableCell className="text-right font-medium text-red-300">
+                        -{brlFormatter.format(transaction.amount)}
+                      </TableCell>
+                      <TableCell>
+                        <div className="flex justify-end">
+                          <RecurringDeleteDialog
+                            transaction={transaction}
+                            onDeleteSingle={(item) =>
+                              handleDeleteTransaction(item.id)
+                            }
+                            onDeleteFuture={handleDeleteFutureTransactions}
+                          >
+                            <Button
+                              type="button"
+                              variant="ghost"
+                              size="icon"
+                              aria-label="Excluir conta fixa"
+                              className="text-muted-foreground hover:text-red-300"
+                            >
+                              <Trash2 />
+                            </Button>
+                          </RecurringDeleteDialog>
+                        </div>
+                      </TableCell>
+                    </TableRow>
+                  ))
+                ) : (
+                  <TableRow>
+                    <TableCell
+                      colSpan={5}
+                      className="h-32 text-center text-muted-foreground"
+                    >
+                      Nenhuma conta fixa neste mês.
+                    </TableCell>
+                  </TableRow>
+                )}
+              </TableBody>
+            </Table>
           </CardContent>
         </Card>
-      </main>
+      </div>
 
       <AddTransactionModal
         isOpen={isNewFixedModalOpen}
         onClose={() => setIsNewFixedModalOpen(false)}
+        mode="fixed"
       />
     </>
   );

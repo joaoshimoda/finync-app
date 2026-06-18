@@ -11,6 +11,7 @@ import {
 import { toast } from "sonner";
 
 import { AddCardModal } from "@/components/modals/AddCardModal";
+import { TransactionDescription } from "@/components/finance/TransactionDescription";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import {
@@ -147,25 +148,28 @@ export default function CardsPage() {
   }
 
   return (
-    <div className="space-y-8">
-      <header className="flex flex-col gap-4 border-b border-border/60 pb-6 sm:flex-row sm:items-end sm:justify-between">
+    <div className="mx-auto flex w-full max-w-7xl flex-col gap-6 pb-10">
+      <div className="flex flex-col items-start justify-between gap-4 sm:flex-row sm:items-center">
         <div>
-          <p className="text-sm font-medium text-muted-foreground">Carteira</p>
-          <h1 className="mt-2 text-3xl font-semibold tracking-normal text-foreground">
+          <h1 className="text-3xl font-bold tracking-tight">
             Meus Cartões
           </h1>
+          <p className="text-muted-foreground">
+            Gerencie cartões, limites, fechamento e vencimento.
+          </p>
         </div>
 
-        <Button
-          type="button"
-          size="lg"
-          onClick={openCreateModal}
-          className="bg-brand-500 text-zinc-950 hover:bg-brand-400"
-        >
-          <Plus />
-          Adicionar Cartão
-        </Button>
-      </header>
+        <div className="flex items-center gap-3">
+          <Button
+            type="button"
+            onClick={openCreateModal}
+            className="h-12 cursor-pointer gap-2 bg-primary px-6 text-base font-semibold text-primary-foreground shadow-lg transition-all duration-200 hover:-translate-y-0.5 hover:shadow-xl"
+          >
+            <Plus className="h-5 w-5" />
+            Adicionar Cartão
+          </Button>
+        </div>
+      </div>
 
       <section className="space-y-4">
         <Carousel opts={{ align: "start" }} className="w-full max-w-full px-1">
@@ -331,7 +335,7 @@ export default function CardsPage() {
                     </TableCell>
                     <TableCell>
                       <div className="font-medium text-foreground">
-                        {transaction.description}
+                        <TransactionDescription transaction={transaction} />
                       </div>
                     </TableCell>
                     <TableCell className="hidden md:table-cell">

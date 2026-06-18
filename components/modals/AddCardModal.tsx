@@ -1,7 +1,7 @@
 "use client";
 
-import { FormEvent, useState } from "react";
-import { CreditCard } from "lucide-react";
+import { FormEvent, useMemo, useState } from "react";
+import { CreditCard, Save } from "lucide-react";
 import { toast } from "sonner";
 
 import { Button } from "@/components/ui/button";
@@ -12,6 +12,10 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { getCardGradient } from "@/lib/cardUtils";
+import { cn } from "@/lib/utils";
 import { useFinanceStore, type Card } from "@/store/useFinanceStore";
 
 interface AddCardModalProps {
@@ -19,6 +23,11 @@ interface AddCardModalProps {
   onClose: () => void;
   editingCard?: Card | null;
 }
+
+const brlFormatter = new Intl.NumberFormat("pt-BR", {
+  style: "currency",
+  currency: "BRL",
+});
 
 function parseOptionalDay(value: string) {
   const day = Number(value);
@@ -69,12 +78,19 @@ function CardModalContent({
     editingCard?.dueDay ? String(editingCard.dueDay) : "",
   );
 
+  const previewName = name.trim() || "Finync Card";
+  const previewLimit = Number(limit.replace(",", ".")) || 0;
+  const previewGradient = useMemo(
+    () => getCardGradient(previewName),
+    [previewName],
+  );
+
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
 
     const cardPayload = {
       name: name.trim(),
-      limitAmount: Number(limit.replace(",", ".")) || 0,
+      limitAmount: previewLimit,
       closingDay: parseOptionalDay(closingDay),
       dueDay: parseOptionalDay(dueDay),
     };
@@ -96,85 +112,105 @@ function CardModalContent({
   }
 
   return (
-    <DialogContent className="max-w-lg border-white/[0.08] bg-zinc-950/95 text-white">
+    <DialogContent className="border-white/[0.08] bg-zinc-950/95 text-white sm:max-w-xl">
       <DialogHeader>
         <div className="mb-2 flex size-10 items-center justify-center rounded-2xl border border-brand-500/20 bg-brand-500/10 text-brand-300">
           <CreditCard className="size-5" />
         </div>
         <DialogTitle>
-          {editingCard ? "Editar cartão" : "Adicionar cartão"}
+          {editingCard ? "Editar cartão" : "Novo cartão"}
         </DialogTitle>
         <DialogDescription>
           Configure limite, fechamento e vencimento para acompanhar a fatura.
         </DialogDescription>
       </DialogHeader>
 
-      <form className="space-y-5" onSubmit={handleSubmit}>
-        <label className="block">
-          <span className="mb-2 block text-sm font-medium text-zinc-200">
-            Nome
-          </span>
-          <input
+      <form className="grid grid-cols-2 gap-4" onSubmit={handleSubmit}>
+        <div className="col-span-2 rounded-xl border border-border bg-muted/30 p-4">
+          <div className="flex justify-center">
+            <div
+              className={cn(
+                "relative h-36 w-full max-w-72 overflow-hidden rounded-2xl p-5 text-white shadow-lg",
+                previewGradient,
+              )}
+            >
+              <div className="pointer-events-none absolute -right-10 -top-10 size-28 rounded-full bg-white/10" />
+              <div className="pointer-events-none absolute -bottom-12 left-8 size-28 rounded-full bg-black/20" />
+              <div className="relative flex items-start justify-between gap-4">
+                <div className="h-7 w-10 rounded-md border border-white/25 bg-gradient-to-br from-white/40 to-white/10 shadow-inner" />
+                <CreditCard className="size-5 text-white/80" />
+              </div>
+              <div className="relative mt-8">
+                <p className="truncate text-sm font-medium text-white">
+                  {previewName}
+                </p>
+                <p className="mt-2 text-xs font-medium uppercase text-white/60">
+                  Limite
+                </p>
+                <strong className="block text-xl font-bold tracking-normal text-white">
+                  {brlFormatter.format(previewLimit)}
+                </strong>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div className="space-y-2">
+          <Label htmlFor="card-name">Nome do Cartão</Label>
+          <Input
+            id="card-name"
             value={name}
             onChange={(event) => setName(event.target.value)}
             type="text"
-            placeholder="Ex: Nubank, Itaú, C6"
-            className="h-12 w-full rounded-2xl border border-white/[0.08] bg-white/[0.055] px-4 text-sm text-white outline-none transition placeholder:text-zinc-500 focus:border-brand-500/60 focus:bg-white/[0.1] focus:ring-4 focus:ring-brand-500/10"
+            placeholder="Ex: Nubank"
             required
           />
-        </label>
+        </div>
 
-        <label className="block">
-          <span className="mb-2 block text-sm font-medium text-zinc-200">
-            Limite
-          </span>
-          <input
+        <div className="space-y-2">
+          <Label htmlFor="card-limit">Limite</Label>
+          <Input
+            id="card-limit"
             value={limit}
             onChange={(event) => setLimit(event.target.value)}
             type="text"
             inputMode="decimal"
             placeholder="0,00"
-            className="h-12 w-full rounded-2xl border border-white/[0.08] bg-white/[0.055] px-4 text-sm text-white outline-none transition placeholder:text-zinc-500 focus:border-brand-500/60 focus:bg-white/[0.1] focus:ring-4 focus:ring-brand-500/10"
           />
-        </label>
-
-        <div className="grid gap-4 sm:grid-cols-2">
-          <label className="block">
-            <span className="mb-2 block text-sm font-medium text-zinc-200">
-              Dia de fechamento
-            </span>
-            <input
-              value={closingDay}
-              onChange={(event) => setClosingDay(event.target.value)}
-              type="number"
-              min={1}
-              max={31}
-              placeholder="25"
-              className="h-12 w-full rounded-2xl border border-white/[0.08] bg-white/[0.055] px-4 text-sm text-white outline-none transition placeholder:text-zinc-500 focus:border-brand-500/60 focus:bg-white/[0.1] focus:ring-4 focus:ring-brand-500/10"
-            />
-          </label>
-
-          <label className="block">
-            <span className="mb-2 block text-sm font-medium text-zinc-200">
-              Dia de vencimento
-            </span>
-            <input
-              value={dueDay}
-              onChange={(event) => setDueDay(event.target.value)}
-              type="number"
-              min={1}
-              max={31}
-              placeholder="05"
-              className="h-12 w-full rounded-2xl border border-white/[0.08] bg-white/[0.055] px-4 text-sm text-white outline-none transition placeholder:text-zinc-500 focus:border-brand-500/60 focus:bg-white/[0.1] focus:ring-4 focus:ring-brand-500/10"
-            />
-          </label>
         </div>
 
-        <div className="flex flex-col-reverse gap-3 pt-2 sm:flex-row sm:justify-end">
+        <div className="space-y-2">
+          <Label htmlFor="card-closing-day">Dia de Fechamento</Label>
+          <Input
+            id="card-closing-day"
+            value={closingDay}
+            onChange={(event) => setClosingDay(event.target.value)}
+            type="number"
+            min={1}
+            max={31}
+            placeholder="25"
+          />
+        </div>
+
+        <div className="space-y-2">
+          <Label htmlFor="card-due-day">Dia de Vencimento</Label>
+          <Input
+            id="card-due-day"
+            value={dueDay}
+            onChange={(event) => setDueDay(event.target.value)}
+            type="number"
+            min={1}
+            max={31}
+            placeholder="05"
+          />
+        </div>
+
+        <div className="col-span-2 flex flex-col-reverse gap-3 pt-2 sm:flex-row sm:justify-end">
           <Button type="button" variant="outline" size="lg" onClick={onClose}>
             Cancelar
           </Button>
-          <Button type="submit" size="lg">
+          <Button type="submit" size="lg" className="gap-2">
+            <Save className="size-4" />
             Salvar cartão
           </Button>
         </div>

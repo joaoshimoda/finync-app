@@ -1,14 +1,42 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import { CreditCard, Pencil, Plus, Receipt, Trash2 } from "lucide-react";
+import {
+  ArrowDownRight,
+  ArrowUpRight,
+  CalendarDays,
+  ChevronLeft,
+  ChevronRight,
+  MoreHorizontal,
+  Pencil,
+  Plus,
+  Search,
+  Trash2,
+  Wallet,
+} from "lucide-react";
 import { toast } from "sonner";
 
+import { RecurringDeleteDialog } from "@/components/finance/RecurringDeleteDialog";
+import { TransactionDescription } from "@/components/finance/TransactionDescription";
 import { AddIncomeModal } from "@/components/modals/AddIncomeModal";
 import { AddTransactionModal } from "@/components/modals/AddTransactionModal";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { ConfirmDialog } from "@/components/ui/ConfirmDialog";
+import { Dialog, DialogContent } from "@/components/ui/dialog";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
+import { Input } from "@/components/ui/input";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import {
   Table,
   TableBody,
@@ -17,19 +45,24 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
+import { formatDateOnlyBR, getDateOnlyParts } from "@/lib/dateUtils";
 import { cn } from "@/lib/utils";
-import { formatDateOnlyBR } from "@/lib/dateUtils";
 import { useFinanceStore, type Transaction } from "@/store/useFinanceStore";
 
-type TransactionFilter = "all" | "debit" | `card:${string}`;
+type TypeFilter = "all" | "income" | "expense" | "fixed";
 
 const brlFormatter = new Intl.NumberFormat("pt-BR", {
   style: "currency",
   currency: "BRL",
 });
 
+const monthFormatter = new Intl.DateTimeFormat("pt-BR", {
+  month: "long",
+  year: "numeric",
+});
+
 const typeLabel: Record<string, string> = {
-  card: "Cartao",
+  card: "Cartão",
   fixed: "Fixo",
   income: "Receita",
 };
@@ -38,43 +71,118 @@ function sortByRecentDate(left: Transaction, right: Transaction) {
   return right.date.localeCompare(left.date);
 }
 
-function isDebitTransaction(transaction: Transaction) {
+function isSameSelectedMonth(
+  transaction: Transaction,
+  currentMonth: number,
+  currentYear: number,
+) {
+  const transactionDate = getDateOnlyParts(transaction.date);
+
   return (
-    transaction.type === "fixed" ||
-    (transaction.type !== "income" && !transaction.cardId)
+    transactionDate.month === currentMonth && transactionDate.year === currentYear
+  );
+}
+
+function getTransactionOrigin(
+  transaction: Transaction,
+  cards: ReturnType<typeof useFinanceStore.getState>["cards"],
+) {
+  if (transaction.type === "income") return "Receita";
+  if (transaction.type === "fixed") return "Débito/PIX";
+
+  return (
+    cards.find((card) => card.id === transaction.cardId)?.name ?? "Cartão"
   );
 }
 
 export default function TransactionsPage() {
-  const [selectedFilter, setSelectedFilter] =
-    useState<TransactionFilter>("all");
+  const [searchTerm, setSearchTerm] = useState("");
+  const [categoryFilter, setCategoryFilter] = useState("all");
+  const [typeFilter, setTypeFilter] = useState<TypeFilter>("all");
   const [isAddIncomeModalOpen, setIsAddIncomeModalOpen] = useState(false);
   const [isAddTransactionModalOpen, setIsAddTransactionModalOpen] =
     useState(false);
   const [editingTransaction, setEditingTransaction] =
     useState<Transaction | null>(null);
+  const [deleteTarget, setDeleteTarget] = useState<Transaction | null>(null);
 
   const cards = useFinanceStore((state) => state.cards);
   const transactions = useFinanceStore((state) => state.transactions);
   const fetchCards = useFinanceStore((state) => state.fetchCards);
   const fetchTransactions = useFinanceStore((state) => state.fetchTransactions);
   const deleteTransaction = useFinanceStore((state) => state.deleteTransaction);
-
-  const filteredTransactions = useMemo(() => {
-    const filtered = transactions.filter((transaction) => {
-      if (selectedFilter === "all") return true;
-      if (selectedFilter === "debit") return isDebitTransaction(transaction);
-
-      return transaction.cardId === selectedFilter.replace("card:", "");
-    });
-
-    return filtered.sort(sortByRecentDate);
-  }, [selectedFilter, transactions]);
+  const deleteTransactionGroup = useFinanceStore(
+    (state) => state.deleteTransactionGroup,
+  );
+  const currentMonth = useFinanceStore((state) => state.currentMonth);
+  const currentYear = useFinanceStore((state) => state.currentYear);
+  const nextMonth = useFinanceStore((state) => state.nextMonth);
+  const prevMonth = useFinanceStore((state) => state.prevMonth);
 
   useEffect(() => {
     void fetchCards();
     void fetchTransactions();
-  }, [fetchCards, fetchTransactions]);
+  }, [currentMonth, currentYear, fetchCards, fetchTransactions]);
+
+  const selectedPeriodLabel = monthFormatter.format(
+    new Date(currentYear, currentMonth - 1, 1),
+  );
+
+  const monthlyTransactions = useMemo(
+    () =>
+      transactions
+        .filter((transaction) =>
+          isSameSelectedMonth(transaction, currentMonth, currentYear),
+        )
+        .sort(sortByRecentDate),
+    [currentMonth, currentYear, transactions],
+  );
+
+  const categories = useMemo(() => {
+    const uniqueCategories = new Set(
+      monthlyTransactions
+        .map((transaction) => transaction.category)
+        .filter(Boolean),
+    );
+
+    return Array.from(uniqueCategories).sort((left, right) =>
+      left.localeCompare(right, "pt-BR"),
+    );
+  }, [monthlyTransactions]);
+
+  const filteredTransactions = useMemo(() => {
+    const normalizedSearch = searchTerm.trim().toLowerCase();
+
+    return monthlyTransactions.filter((transaction) => {
+      const matchesSearch =
+        !normalizedSearch ||
+        transaction.description.toLowerCase().includes(normalizedSearch);
+      const matchesCategory =
+        categoryFilter === "all" || transaction.category === categoryFilter;
+      const matchesType =
+        typeFilter === "all" ||
+        (typeFilter === "income" && transaction.type === "income") ||
+        (typeFilter === "expense" && transaction.type !== "income") ||
+        (typeFilter === "fixed" && transaction.type === "fixed");
+
+      return matchesSearch && matchesCategory && matchesType;
+    });
+  }, [categoryFilter, monthlyTransactions, searchTerm, typeFilter]);
+
+  const summary = useMemo(() => {
+    const totalIncome = filteredTransactions
+      .filter((transaction) => transaction.type === "income")
+      .reduce((total, transaction) => total + transaction.amount, 0);
+    const totalExpense = filteredTransactions
+      .filter((transaction) => transaction.type !== "income")
+      .reduce((total, transaction) => total + transaction.amount, 0);
+
+    return {
+      totalIncome,
+      totalExpense,
+      netBalance: totalIncome - totalExpense,
+    };
+  }, [filteredTransactions]);
 
   function handleCloseIncomeModal() {
     setIsAddIncomeModalOpen(false);
@@ -100,157 +208,259 @@ export default function TransactionsPage() {
   async function handleDeleteTransaction(transactionId: string) {
     try {
       await deleteTransaction(transactionId);
-      toast.success("Movimentacao excluida.");
+      toast.success("Movimentação excluída.");
+      setDeleteTarget(null);
     } catch (error) {
-      console.error("Erro ao excluir movimentacao:", error);
-      toast.error("Nao foi possivel excluir agora.");
+      console.error("Erro ao excluir movimentação:", error);
+      toast.error("Não foi possível excluir agora.");
+    }
+  }
+
+  async function handleDeleteFutureTransactions(transaction: Transaction) {
+    if (!transaction.groupId) return;
+
+    try {
+      await deleteTransactionGroup(transaction.groupId, transaction.date);
+      toast.success("Recorrência atual e próximas excluídas.");
+      setDeleteTarget(null);
+    } catch (error) {
+      console.error("Erro ao excluir recorrência:", error);
+      toast.error("Não foi possível excluir a recorrência agora.");
     }
   }
 
   return (
-    <div className="space-y-6">
-      <header className="flex flex-col gap-4 border-b border-border/60 pb-6 sm:flex-row sm:items-end sm:justify-between">
+    <div className="mx-auto flex w-full max-w-7xl flex-col gap-6 pb-10">
+      <div className="flex flex-col items-start justify-between gap-4 sm:flex-row sm:items-center">
         <div>
-          <p className="text-sm font-medium text-muted-foreground">
-            Transacoes
-          </p>
-          <h1 className="mt-2 text-3xl font-semibold tracking-normal text-foreground">
-            Historico de movimentacoes
+          <h1 className="text-3xl font-bold tracking-tight">
+            Transações
           </h1>
+          <p className="text-muted-foreground">
+            Analise entradas, saídas, recorrências e compras parceladas do
+            período selecionado.
+          </p>
         </div>
 
-        <Button
-          type="button"
-          variant="outline"
-          size="lg"
-          onClick={() => {
-            setEditingTransaction(null);
-            setIsAddTransactionModalOpen(true);
-          }}
-        >
-          <Plus />
-          Nova despesa
-        </Button>
-      </header>
-
-      <div className="flex flex-wrap gap-2">
-        <Button
-          type="button"
-          variant={selectedFilter === "all" ? "default" : "outline"}
-          onClick={() => setSelectedFilter("all")}
-        >
-          Todas
-        </Button>
-        <Button
-          type="button"
-          variant={selectedFilter === "debit" ? "default" : "outline"}
-          onClick={() => setSelectedFilter("debit")}
-        >
-          <Receipt />
-          Pix / Debito
-        </Button>
-        {cards.map((card) => {
-          const filterValue = `card:${card.id}` as const;
-
-          return (
-            <Button
-              key={card.id}
-              type="button"
-              variant={selectedFilter === filterValue ? "default" : "outline"}
-              onClick={() => setSelectedFilter(filterValue)}
-            >
-              <CreditCard />
-              {card.name}
-            </Button>
-          );
-        })}
+        <div className="flex items-center gap-3">
+          <Button
+            type="button"
+            variant="outline"
+            className="h-10 cursor-pointer gap-2 px-4 py-2"
+            onClick={() => {
+              setEditingTransaction(null);
+              setIsAddIncomeModalOpen(true);
+            }}
+          >
+            <ArrowUpRight className="h-4 w-4" />
+            Nova receita
+          </Button>
+          <Button
+            type="button"
+            className="h-12 cursor-pointer gap-2 bg-primary px-6 text-base font-semibold text-primary-foreground shadow-lg transition-all duration-200 hover:-translate-y-0.5 hover:shadow-xl"
+            onClick={() => {
+              setEditingTransaction(null);
+              setIsAddTransactionModalOpen(true);
+            }}
+          >
+            <Plus className="h-5 w-5" />
+            Nova despesa
+          </Button>
+        </div>
       </div>
 
-      <div className="overflow-hidden rounded-lg border border-border bg-card">
+      <section className="grid grid-cols-1 gap-4 md:grid-cols-3">
+        <div className="rounded-xl border border-border bg-card/80 p-5">
+          <div className="flex items-center justify-between gap-4">
+            <p className="text-sm text-muted-foreground">Total de Entradas</p>
+            <ArrowUpRight className="size-4 text-emerald-400" />
+          </div>
+          <strong className="mt-3 block text-2xl font-semibold tracking-normal text-emerald-400">
+            {brlFormatter.format(summary.totalIncome)}
+          </strong>
+        </div>
+
+        <div className="rounded-xl border border-border bg-card/80 p-5">
+          <div className="flex items-center justify-between gap-4">
+            <p className="text-sm text-muted-foreground">Total de Saídas</p>
+            <ArrowDownRight className="size-4 text-red-400" />
+          </div>
+          <strong className="mt-3 block text-2xl font-semibold tracking-normal text-red-300">
+            {brlFormatter.format(summary.totalExpense)}
+          </strong>
+        </div>
+
+        <div className="rounded-xl border border-border bg-card/80 p-5">
+          <div className="flex items-center justify-between gap-4">
+            <p className="text-sm text-muted-foreground">Saldo Líquido</p>
+            <Wallet className="size-4 text-brand-300" />
+          </div>
+          <strong
+            className={cn(
+              "mt-3 block text-2xl font-semibold tracking-normal",
+              summary.netBalance >= 0 ? "text-foreground" : "text-red-300",
+            )}
+          >
+            {brlFormatter.format(summary.netBalance)}
+          </strong>
+        </div>
+      </section>
+
+      <section className="flex flex-col gap-4 rounded-xl border border-border bg-muted/20 p-4 xl:flex-row xl:items-center xl:justify-between">
+        <div className="grid flex-1 grid-cols-1 gap-3 md:grid-cols-[minmax(16rem,1fr)_12rem_12rem]">
+          <div className="relative">
+            <Search className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
+            <Input
+              value={searchTerm}
+              onChange={(event) => setSearchTerm(event.target.value)}
+              placeholder="Buscar por descrição"
+              className="pl-9"
+            />
+          </div>
+
+          <Select value={categoryFilter} onValueChange={setCategoryFilter}>
+            <SelectTrigger>
+              <SelectValue placeholder="Categoria" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">Todas categorias</SelectItem>
+              {categories.map((category) => (
+                <SelectItem key={category} value={category}>
+                  {category}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+
+          <Select
+            value={typeFilter}
+            onValueChange={(value) => setTypeFilter(value as TypeFilter)}
+          >
+            <SelectTrigger>
+              <SelectValue placeholder="Tipo" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">Todos os tipos</SelectItem>
+              <SelectItem value="income">Receita</SelectItem>
+              <SelectItem value="expense">Despesa</SelectItem>
+              <SelectItem value="fixed">Fixo</SelectItem>
+            </SelectContent>
+          </Select>
+        </div>
+
+        <div className="flex h-11 items-center rounded-lg border border-border bg-card">
+          <Button
+            type="button"
+            variant="ghost"
+            size="icon-sm"
+            onClick={prevMonth}
+            aria-label="Mês anterior"
+            className="rounded-r-none"
+          >
+            <ChevronLeft />
+          </Button>
+          <span className="flex min-w-40 items-center justify-center gap-2 px-3 text-center text-sm font-medium capitalize text-foreground">
+            <CalendarDays className="size-4 text-muted-foreground" />
+            {selectedPeriodLabel}
+          </span>
+          <Button
+            type="button"
+            variant="ghost"
+            size="icon-sm"
+            onClick={nextMonth}
+            aria-label="Próximo mês"
+            className="rounded-l-none"
+          >
+            <ChevronRight />
+          </Button>
+        </div>
+      </section>
+
+      <section className="overflow-hidden rounded-xl border border-border bg-card">
         <Table>
-          <TableHeader>
+          <TableHeader className="bg-muted/50">
             <TableRow className="hover:bg-transparent">
               <TableHead>Data</TableHead>
-              <TableHead>Descricao</TableHead>
+              <TableHead>Descrição</TableHead>
               <TableHead className="hidden md:table-cell">Categoria</TableHead>
               <TableHead className="hidden lg:table-cell">Origem</TableHead>
               <TableHead className="text-right">Valor</TableHead>
-              <TableHead className="w-24 text-right">Acoes</TableHead>
+              <TableHead className="w-14 text-right" />
             </TableRow>
           </TableHeader>
           <TableBody>
             {filteredTransactions.length ? (
               filteredTransactions.map((transaction) => {
-                const linkedCard = transaction.cardId
-                  ? cards.find((card) => card.id === transaction.cardId)
-                  : null;
-                const originLabel =
-                  transaction.type === "income"
-                    ? "Receita"
-                    : linkedCard?.name ?? "Pix / Debito";
+                const originLabel = getTransactionOrigin(transaction, cards);
+                const categoryLabel =
+                  transaction.category || typeLabel[transaction.type];
 
                 return (
-                  <TableRow key={transaction.id} className="hover:bg-muted/35">
-                    <TableCell className="text-muted-foreground">
+                  <TableRow
+                    key={transaction.id}
+                    className="transition-colors hover:bg-muted/30"
+                  >
+                    <TableCell className="py-4 text-muted-foreground">
                       {formatDateOnlyBR(transaction.date)}
                     </TableCell>
-                    <TableCell>
+                    <TableCell className="py-4">
                       <div className="font-medium text-foreground">
-                        {transaction.description}
+                        <TransactionDescription transaction={transaction} />
                       </div>
                       <div className="mt-1 text-xs text-muted-foreground md:hidden">
-                        {transaction.category || typeLabel[transaction.type]}
+                        {categoryLabel}
                       </div>
                     </TableCell>
-                    <TableCell className="hidden md:table-cell">
+                    <TableCell className="hidden py-4 md:table-cell">
                       <Badge variant="outline" className="rounded-lg">
-                        {transaction.category || typeLabel[transaction.type]}
+                        {categoryLabel}
                       </Badge>
                     </TableCell>
-                    <TableCell className="hidden text-muted-foreground lg:table-cell">
+                    <TableCell className="hidden py-4 text-muted-foreground lg:table-cell">
                       {originLabel}
                     </TableCell>
                     <TableCell
                       className={cn(
-                        "text-right font-medium",
+                        "py-4 text-right font-medium",
                         transaction.type === "income"
-                          ? "text-emerald-300"
+                          ? "text-emerald-500"
                           : "text-red-300",
                       )}
                     >
                       {transaction.type === "income" ? "+" : "-"}
                       {brlFormatter.format(transaction.amount)}
                     </TableCell>
-                    <TableCell>
-                      <div className="flex justify-end gap-1">
-                        <Button
-                          type="button"
-                          variant="ghost"
-                          size="icon"
-                          aria-label="Editar movimentacao"
-                          onClick={() => handleEditTransaction(transaction)}
-                        >
-                          <Pencil />
-                        </Button>
-                        <ConfirmDialog
-                          title="Excluir movimentacao"
-                          description="Esta acao remove o lancamento e nao pode ser desfeita."
-                          confirmLabel="Excluir"
-                          onConfirm={() =>
-                            handleDeleteTransaction(transaction.id)
-                          }
-                        >
+                    <TableCell className="py-4">
+                      <DropdownMenu>
+                        <DropdownMenuTrigger asChild>
                           <Button
                             type="button"
                             variant="ghost"
-                            size="icon"
-                            aria-label="Excluir movimentacao"
-                            className="text-muted-foreground hover:text-red-300"
+                            size="icon-sm"
+                            aria-label="Ações da transação"
+                            className="ml-auto cursor-pointer"
                           >
-                            <Trash2 />
+                            <MoreHorizontal />
                           </Button>
-                        </ConfirmDialog>
-                      </div>
+                        </DropdownMenuTrigger>
+                        <DropdownMenuContent align="end" className="w-48">
+                          <DropdownMenuItem
+                            className="cursor-pointer"
+                            onClick={() => handleEditTransaction(transaction)}
+                          >
+                            <Pencil className="size-4" />
+                            Editar transação
+                          </DropdownMenuItem>
+                          <DropdownMenuItem
+                            variant="destructive"
+                            className="cursor-pointer"
+                            onClick={() => setDeleteTarget(transaction)}
+                          >
+                            <Trash2 className="size-4" />
+                            Excluir transação
+                          </DropdownMenuItem>
+                        </DropdownMenuContent>
+                      </DropdownMenu>
                     </TableCell>
                   </TableRow>
                 );
@@ -259,15 +469,68 @@ export default function TransactionsPage() {
               <TableRow>
                 <TableCell
                   colSpan={6}
-                  className="h-32 text-center text-muted-foreground"
+                  className="h-36 text-center text-muted-foreground"
                 >
-                  Nenhuma movimentacao neste filtro.
+                  Nenhuma transação encontrada para os filtros selecionados.
                 </TableCell>
               </TableRow>
             )}
           </TableBody>
         </Table>
-      </div>
+      </section>
+
+      {deleteTarget?.groupId ? (
+        <RecurringDeleteDialog
+          transaction={deleteTarget}
+          open={Boolean(deleteTarget)}
+          onOpenChange={(open) => {
+            if (!open) setDeleteTarget(null);
+          }}
+          onDeleteSingle={(item) => handleDeleteTransaction(item.id)}
+          onDeleteFuture={handleDeleteFutureTransactions}
+        />
+      ) : null}
+
+      {deleteTarget && !deleteTarget.groupId ? (
+        <Dialog
+          open={Boolean(deleteTarget)}
+          onOpenChange={(open) => {
+            if (!open) setDeleteTarget(null);
+          }}
+        >
+          <DialogContent className="p-6 sm:max-w-[400px]">
+            <div className="flex flex-col gap-6">
+              <div className="space-y-2">
+                <h2 className="text-xl font-semibold tracking-tight">
+                  Excluir transação?
+                </h2>
+                <p className="text-sm leading-relaxed text-muted-foreground">
+                  Esta ação remove o lançamento da sua lista e não pode ser
+                  desfeita.
+                </p>
+              </div>
+              <div className="flex flex-col gap-3">
+                <Button
+                  type="button"
+                  variant="destructive"
+                  className="h-11 w-full cursor-pointer"
+                  onClick={() => handleDeleteTransaction(deleteTarget.id)}
+                >
+                  Excluir transação
+                </Button>
+                <Button
+                  type="button"
+                  variant="ghost"
+                  className="h-11 w-full cursor-pointer hover:bg-zinc-800"
+                  onClick={() => setDeleteTarget(null)}
+                >
+                  Cancelar
+                </Button>
+              </div>
+            </div>
+          </DialogContent>
+        </Dialog>
+      ) : null}
 
       <AddIncomeModal
         isOpen={isAddIncomeModalOpen}

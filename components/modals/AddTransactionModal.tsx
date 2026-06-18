@@ -1,18 +1,33 @@
 "use client";
 
 import { FormEvent, useEffect, useMemo, useState } from "react";
-import {
-  CalendarDays,
-  CreditCard,
-  DollarSign,
-  ReceiptText,
-  Save,
-  Users,
-  X,
-} from "lucide-react";
+import { CalendarDays, CreditCard, DollarSign, ReceiptText, Save } from "lucide-react";
 import { toast } from "sonner";
 
-import { getLocalTodayDateOnly, normalizeDateOnly } from "@/lib/dateUtils";
+import {
+  getDateOnlyParts,
+  getLocalTodayDateOnly,
+  normalizeDateOnly,
+  toDateOnly,
+} from "@/lib/dateUtils";
+import { Button } from "@/components/ui/button";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import { Switch } from "@/components/ui/switch";
 import {
   useFinanceStore,
   type CreateTransactionInput,
@@ -23,53 +38,78 @@ interface AddTransactionModalProps {
   isOpen: boolean;
   onClose: () => void;
   editingTransaction?: Transaction | null;
+  mode?: "expense" | "fixed";
 }
 
 type ExpenseTransactionType = "fixed" | "card";
 
 const categories = [
-  "Alimentacao",
+  "Alimentação",
   "Transporte",
   "Moradia",
   "Lazer",
-  "Saude",
-  "Educacao",
+  "Saúde",
+  "Educação",
   "Outros",
 ];
 
-const dependentOptions = [
-  { id: "eu", label: "Eu", color: "#2dd4bf" },
-  { id: "joao", label: "Joao", color: "#c084fc" },
-  { id: "maria", label: "Maria", color: "#60a5fa" },
-];
+function addMonthsToDateOnly(date: string, monthsToAdd: number) {
+  const { day, month, year } = getDateOnlyParts(date);
+  const monthIndex = month - 1 + monthsToAdd;
+  const nextYear = year + Math.floor(monthIndex / 12);
+  const nextMonth = (monthIndex % 12) + 1;
+  const lastDayOfNextMonth = new Date(nextYear, nextMonth, 0).getDate();
+
+  return toDateOnly(nextYear, nextMonth, Math.min(day, lastDayOfNextMonth));
+}
+
+function splitAmountIntoInstallments(totalAmount: number, installments: number) {
+  const totalCents = Math.round(totalAmount * 100);
+  const baseCents = Math.floor(totalCents / installments);
+  const remainder = totalCents % installments;
+
+  return Array.from({ length: installments }, (_, index) => {
+    const cents = baseCents + (index < remainder ? 1 : 0);
+
+    return Number((cents / 100).toFixed(2));
+  });
+}
 
 export function AddTransactionModal({
   isOpen,
   onClose,
   editingTransaction = null,
+  mode = "expense",
 }: AddTransactionModalProps) {
   if (!isOpen) return null;
 
   return (
-    <TransactionModalContent
-      key={editingTransaction?.id ?? "new-transaction"}
-      editingTransaction={editingTransaction}
-      onClose={onClose}
-    />
+    <Dialog open={isOpen} onOpenChange={(open) => !open && onClose()}>
+      <TransactionModalContent
+        key={`${mode}-${editingTransaction?.id ?? "new-transaction"}`}
+        editingTransaction={editingTransaction}
+        onClose={onClose}
+        mode={mode}
+      />
+    </Dialog>
   );
 }
 
 function TransactionModalContent({
   editingTransaction,
   onClose,
+  mode,
 }: {
   editingTransaction: Transaction | null;
   onClose: () => void;
+  mode: "expense" | "fixed";
 }) {
   const cards = useFinanceStore((state) => state.cards);
   const fetchCards = useFinanceStore((state) => state.fetchCards);
   const addTransaction = useFinanceStore((state) => state.addTransaction);
+  const addTransactions = useFinanceStore((state) => state.addTransactions);
   const updateTransaction = useFinanceStore((state) => state.updateTransaction);
+  const isFixedMode = mode === "fixed";
 
   const [description, setDescription] = useState(
     editingTransaction?.description ?? "",
@@ -87,16 +127,15 @@ function TransactionModalContent({
   );
   const [transactionType, setTransactionType] =
     useState<ExpenseTransactionType>(
-      editingTransaction?.type === "card" ? "card" : "fixed",
+      isFixedMode || editingTransaction?.type !== "card" ? "fixed" : "card",
     );
   const [selectedCardId, setSelectedCardId] = useState(
     editingTransaction?.cardId ?? "",
   );
-  const [owner, setOwner] = useState(editingTransaction?.owner ?? "eu");
-  const [splitWith, setSplitWith] = useState<string[]>(
-    editingTransaction?.dependentIds?.length
-      ? editingTransaction.dependentIds
-      : ["eu"],
+  const [isInstallmentPurchase, setIsInstallmentPurchase] = useState(false);
+  const [installmentCount, setInstallmentCount] = useState("2");
+  const [isRecurring, setIsRecurring] = useState(
+    isFixedMode ? true : editingTransaction?.is_recurring ?? false,
   );
 
   useEffect(() => {
@@ -112,291 +151,294 @@ function TransactionModalContent({
   const transactionCardId =
     transactionType === "card" ? selectedCardId || null : null;
 
-  function toggleSplitWith(dependentId: string) {
-    setSplitWith((current) =>
-      current.includes(dependentId)
-        ? current.filter((item) => item !== dependentId)
-        : [...current, dependentId],
-    );
-  }
-
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
 
-    const normalizedSplit = Array.from(
-      new Set([owner, ...splitWith].filter(Boolean)),
-    );
-
     if (transactionType === "card" && !transactionCardId) {
-      toast.error("Selecione um cartao para lancar no credito.");
+      toast.error("Selecione um cartão para lançar no crédito.");
       return;
     }
 
+    const normalizedDate = normalizeDateOnly(date);
+    const totalAmount = Number(amount.replace(",", ".")) || 0;
+    const parsedInstallmentCount = Math.max(Number(installmentCount) || 2, 2);
+    const shouldCreateRecurringProjection =
+      transactionType === "fixed" && (isFixedMode || isRecurring);
     const transactionPayload: CreateTransactionInput = {
       description: description.trim(),
-      amount: Number(amount.replace(",", ".")) || 0,
-      date: normalizeDateOnly(date),
+      amount: totalAmount,
+      date: normalizedDate,
       category,
       type: transactionType,
       status: "confirmed",
       cardId: transactionCardId,
-      owner,
-      dependentIds: normalizedSplit.length ? normalizedSplit : [owner],
+      owner: "eu",
+      dependentIds: ["eu"],
       tagIds: [],
-      notes: selectedCard ? `Cartao: ${selectedCard.name}` : "Debito/PIX",
+      installments: 1,
+      current_installment: 1,
+      installmentsTotal: 1,
+      installmentNumber: 1,
+      is_recurring: shouldCreateRecurringProjection,
+      notes: selectedCard
+        ? `Cartão: ${selectedCard.name}`
+        : isFixedMode
+          ? "Gasto fixo"
+          : "Débito/PIX",
     };
 
     try {
       if (editingTransaction) {
         await updateTransaction(editingTransaction.id, transactionPayload);
+      } else if (
+        transactionType === "card" &&
+        isInstallmentPurchase &&
+        parsedInstallmentCount >= 2
+      ) {
+        const groupId = crypto.randomUUID();
+        const installmentAmounts = splitAmountIntoInstallments(
+          totalAmount,
+          parsedInstallmentCount,
+        );
+        const installmentTransactions = installmentAmounts.map(
+          (installmentAmount, index): CreateTransactionInput => ({
+            ...transactionPayload,
+            groupId,
+            amount: installmentAmount,
+            date: addMonthsToDateOnly(normalizedDate, index),
+            installments: parsedInstallmentCount,
+            current_installment: index + 1,
+            installmentsTotal: parsedInstallmentCount,
+            installmentNumber: index + 1,
+            is_recurring: false,
+          }),
+        );
+
+        await addTransactions(installmentTransactions);
+      } else if (shouldCreateRecurringProjection) {
+        const groupId = crypto.randomUUID();
+        const recurringTransactions = Array.from(
+          { length: 12 },
+          (_, index): CreateTransactionInput => ({
+            ...transactionPayload,
+            groupId,
+            date: addMonthsToDateOnly(normalizedDate, index),
+            is_recurring: true,
+          }),
+        );
+
+        await addTransactions(recurringTransactions);
       } else {
         await addTransaction(transactionPayload);
       }
 
       toast.success(
         editingTransaction
-          ? "Transacao atualizada com sucesso!"
-          : "Transacao salva com sucesso!",
+          ? "Transação atualizada com sucesso!"
+          : "Transação salva com sucesso!",
       );
       onClose();
     } catch (error) {
-      console.error("Erro ao salvar transacao:", error);
-      toast.error("Erro ao salvar transacao.");
+      console.error("Erro ao salvar transação:", error);
+      toast.error("Erro ao salvar transação.");
     }
   }
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 px-4 py-8 backdrop-blur-xl">
-      <div className="relative max-h-[85vh] w-full max-w-2xl overflow-y-auto rounded-[2rem] border border-white/[0.08] bg-zinc-950/95 p-6 text-white shadow-2xl shadow-black/50">
-        <div className="mb-6 flex items-start justify-between gap-4">
-          <div>
-            <p className="flex items-center gap-2 text-sm font-medium text-brand-300">
-              <ReceiptText className="h-4 w-4 text-brand-500" strokeWidth={2} />
-              Lancamento
-            </p>
-            <h2 className="mt-2 text-2xl font-semibold tracking-tight">
-              {editingTransaction ? "Editar transacao" : "Nova transacao"}
-            </h2>
-            <p className="mt-2 text-sm leading-6 text-zinc-400">
-              Registre saidas por debito, PIX ou cartao de credito.
-            </p>
+    <DialogContent className="max-h-[90vh] overflow-y-auto sm:max-w-2xl">
+      <DialogHeader>
+        <div className="flex items-center gap-2 text-sm font-medium text-brand-300">
+          <ReceiptText className="size-4" />
+          Lançamento
+        </div>
+        <DialogTitle>
+          {editingTransaction
+            ? "Editar transação"
+            : isFixedMode
+              ? "Nova conta fixa"
+              : "Nova transação"}
+        </DialogTitle>
+        <DialogDescription>
+          {isFixedMode
+            ? "Projete uma despesa recorrente para os próximos 12 meses."
+            : "Registre saídas por débito, PIX ou cartão de crédito."}
+        </DialogDescription>
+      </DialogHeader>
+
+      <form className="grid grid-cols-2 gap-4" onSubmit={handleSubmit}>
+        <div className="col-span-2">
+          <Label htmlFor="transaction-amount" className="justify-center">
+            Valor (R$)
+          </Label>
+          <div className="relative mt-2">
+            <DollarSign className="pointer-events-none absolute left-4 top-1/2 size-5 -translate-y-1/2 text-muted-foreground" />
+            <Input
+              id="transaction-amount"
+              value={amount}
+              onChange={(event) => setAmount(event.target.value)}
+              type="text"
+              inputMode="decimal"
+              placeholder="0,00"
+              className="h-16 px-12 text-center text-3xl font-bold"
+              required
+            />
           </div>
-          <button
-            type="button"
-            onClick={onClose}
-            className="flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl border border-white/[0.08] bg-white/[0.045] text-zinc-400 transition hover:bg-white/[0.08] hover:text-white"
-            aria-label="Fechar modal"
-          >
-            <X className="h-4 w-4" strokeWidth={2} />
-          </button>
         </div>
 
-        <form
-          className="grid grid-cols-1 gap-4 md:grid-cols-2"
-          onSubmit={handleSubmit}
-        >
-          <div className="space-y-4">
-            <label className="block">
-              <span className="mb-2 block text-sm font-medium text-zinc-200">
-                Descricao
-              </span>
-              <input
-                value={description}
-                onChange={(event) => setDescription(event.target.value)}
-                type="text"
-                placeholder="Ex: Mercado, assinatura, transporte"
-                className="h-12 w-full rounded-2xl border border-white/[0.08] bg-white/[0.055] px-4 text-sm text-white outline-none transition placeholder:text-zinc-500 focus:border-brand-500/60 focus:bg-white/[0.1] focus:ring-4 focus:ring-brand-500/10"
-                required
-              />
-            </label>
+        <div className="col-span-2">
+          <Label htmlFor="transaction-description">Descrição</Label>
+          <Input
+            id="transaction-description"
+            value={description}
+            onChange={(event) => setDescription(event.target.value)}
+            type="text"
+            placeholder="Ex: Mercado, assinatura, transporte"
+            className="mt-2"
+            required
+          />
+        </div>
 
-            <label className="block">
-              <span className="mb-2 block text-sm font-medium text-zinc-200">
-                <span className="inline-flex items-center gap-2">
-                  <DollarSign className="h-4 w-4 text-zinc-500" strokeWidth={2} />
-                  Valor (R$)
-                </span>
-              </span>
-              <input
-                value={amount}
-                onChange={(event) => setAmount(event.target.value)}
-                type="text"
-                inputMode="decimal"
-                placeholder="0,00"
-                className="h-12 w-full rounded-2xl border border-white/[0.08] bg-white/[0.055] px-4 text-sm text-white outline-none transition placeholder:text-zinc-500 focus:border-brand-500/60 focus:bg-white/[0.1] focus:ring-4 focus:ring-brand-500/10"
-                required
-              />
-            </label>
+        <div>
+          <Label htmlFor="transaction-date">
+            <CalendarDays className="size-4 text-muted-foreground" />
+            Data
+          </Label>
+          <Input
+            id="transaction-date"
+            value={date}
+            onChange={(event) => setDate(event.target.value)}
+            type="date"
+            className="mt-2 [color-scheme:dark]"
+            required
+          />
+        </div>
 
-            <label className="block">
-              <span className="mb-2 block text-sm font-medium text-zinc-200">
-                <span className="inline-flex items-center gap-2">
-                  <CalendarDays className="h-4 w-4 text-zinc-500" strokeWidth={2} />
-                  Data
-                </span>
-              </span>
-              <input
-                value={date}
-                onChange={(event) => setDate(event.target.value)}
-                type="date"
-                className="h-12 w-full rounded-2xl border border-white/[0.08] bg-white/[0.055] px-4 text-sm text-white outline-none transition [color-scheme:dark] focus:border-brand-500/60 focus:bg-white/[0.1] focus:ring-4 focus:ring-brand-500/10"
-                required
-              />
-            </label>
-          </div>
-
-          <div className="space-y-4">
-            <label className="block">
-              <span className="mb-2 block text-sm font-medium text-zinc-200">
-                Categoria
-              </span>
-              <select
-                value={category}
-                onChange={(event) => setCategory(event.target.value)}
-                required
-                className="h-12 w-full rounded-2xl border border-white/[0.08] bg-white/[0.055] px-4 text-sm text-white outline-none transition [color-scheme:dark] focus:border-brand-500/60 focus:bg-white/[0.1] focus:ring-4 focus:ring-brand-500/10"
-              >
-                {categories.map((item) => (
-                  <option key={item} value={item} className="bg-[#071014] text-white">
-                    {item}
-                  </option>
-                ))}
-              </select>
-            </label>
-
-            <label className="block">
-              <span className="mb-2 block text-sm font-medium text-zinc-200">
-                <span className="inline-flex items-center gap-2">
-                  <CreditCard className="h-4 w-4 text-zinc-500" strokeWidth={2} />
-                  Tipo
-                </span>
-              </span>
-              <select
-                value={transactionType}
-                onChange={(event) => {
-                  const nextType = event.target.value as ExpenseTransactionType;
-
-                  setTransactionType(nextType);
-                  if (nextType !== "card") {
-                    setSelectedCardId("");
-                  }
-                }}
-                className="h-12 w-full rounded-2xl border border-white/[0.08] bg-white/[0.055] px-4 text-sm text-white outline-none transition [color-scheme:dark] focus:border-brand-500/60 focus:bg-white/[0.1] focus:ring-4 focus:ring-brand-500/10"
-              >
-                <option value="fixed" className="bg-[#071014] text-white">
-                  Debito/PIX
-                </option>
-                <option value="card" className="bg-[#071014] text-white">
-                  Cartao de Credito
-                </option>
-              </select>
-            </label>
-
-            {transactionType === "card" ? (
-              <label className="block">
-                <span className="mb-2 block text-sm font-medium text-zinc-200">
-                  Cartao
-                </span>
-                <select
-                  value={selectedCardId}
-                  onChange={(event) => setSelectedCardId(event.target.value)}
-                  disabled={!cards.length}
-                  required
-                  className="h-12 w-full rounded-2xl border border-white/[0.08] bg-white/[0.055] px-4 text-sm text-white outline-none transition [color-scheme:dark] disabled:cursor-not-allowed disabled:opacity-50 focus:border-brand-500/60 focus:bg-white/[0.1] focus:ring-4 focus:ring-brand-500/10"
-                >
-                  <option value="" className="bg-[#071014] text-white">
-                    Selecione um cartao
-                  </option>
-                  {cards.length ? (
-                    cards.map((card) => (
-                      <option key={card.id} value={card.id} className="bg-[#071014] text-white">
-                        {card.name}
-                      </option>
-                    ))
-                  ) : (
-                    <option value="" className="bg-[#071014] text-white">
-                      Nenhum cartao cadastrado
-                    </option>
-                  )}
-                </select>
-              </label>
-            ) : null}
-          </div>
-
-          <label className="block md:col-span-2">
-            <span className="mb-2 block text-sm font-medium text-zinc-200">
-              Dono
-            </span>
-            <select
-              value={owner}
-              onChange={(event) => {
-                setOwner(event.target.value);
-                setSplitWith((current) =>
-                  current.includes(event.target.value)
-                    ? current
-                    : [event.target.value, ...current],
-                );
-              }}
-              className="h-12 w-full rounded-2xl border border-white/[0.08] bg-white/[0.055] px-4 text-sm text-white outline-none transition [color-scheme:dark] focus:border-brand-500/60 focus:bg-white/[0.1] focus:ring-4 focus:ring-brand-500/10"
-            >
-              {dependentOptions.map((dependent) => (
-                <option key={dependent.id} value={dependent.id} className="bg-[#071014] text-white">
-                  {dependent.label}
-                </option>
+        <div>
+          <Label>Categoria</Label>
+          <Select value={category} onValueChange={setCategory}>
+            <SelectTrigger className="mt-2">
+              <SelectValue placeholder="Categoria" />
+            </SelectTrigger>
+            <SelectContent>
+              {categories.map((item) => (
+                <SelectItem key={item} value={item}>
+                  {item}
+                </SelectItem>
               ))}
-            </select>
-          </label>
+            </SelectContent>
+          </Select>
+        </div>
 
-          <fieldset className="rounded-3xl border border-white/[0.08] bg-white/[0.04] p-4 md:col-span-2">
-            <legend className="px-1 text-sm font-medium text-zinc-200">
-              <span className="inline-flex items-center gap-2">
-                <Users className="h-4 w-4 text-zinc-500" strokeWidth={2} />
-                Dividir igualmente com
-              </span>
-            </legend>
-            <div className="mt-3 flex flex-wrap gap-2">
-              {dependentOptions.map((dependent) => {
-                const active = splitWith.includes(dependent.id);
+        <div className="col-span-2 grid grid-cols-2 gap-4">
+          <div>
+            <Label>
+              <CreditCard className="size-4 text-muted-foreground" />
+              Tipo
+            </Label>
+            <Select
+              value={transactionType}
+              disabled={isFixedMode}
+              onValueChange={(value) => {
+                const nextType = value as ExpenseTransactionType;
 
-                return (
-                  <button
-                    key={dependent.id}
-                    type="button"
-                    onClick={() => toggleSplitWith(dependent.id)}
-                    className="rounded-full border px-3 py-2 text-xs font-semibold transition"
-                    style={{
-                      borderColor: active ? dependent.color : "rgba(255,255,255,0.1)",
-                      backgroundColor: active
-                        ? `${dependent.color}22`
-                        : "rgba(255,255,255,0.04)",
-                      color: active ? dependent.color : "#a1a1aa",
-                    }}
-                  >
-                    {dependent.label}
-                  </button>
-                );
-              })}
-            </div>
-          </fieldset>
+                setTransactionType(nextType);
+                if (nextType !== "card") {
+                  setSelectedCardId("");
+                  setIsInstallmentPurchase(false);
+                }
 
-          <div className="grid gap-3 pt-2 md:col-span-2">
-            <button
-              type="submit"
-              className="inline-flex h-12 w-full items-center justify-center gap-2 rounded-2xl bg-brand-500 px-5 text-sm font-bold text-slate-950 shadow-[0_0_28px_rgba(16,185,129,0.14)] transition hover:bg-brand-400 hover:shadow-[0_0_36px_rgba(16,185,129,0.24)] focus:outline-none focus:ring-4 focus:ring-brand-500/30"
+                if (nextType !== "fixed") {
+                  setIsRecurring(false);
+                }
+              }}
             >
-              <Save className="h-4 w-4" strokeWidth={2} />
-              Salvar transacao
-            </button>
-            <button
-              type="button"
-              onClick={onClose}
-              className="h-12 rounded-2xl border border-white/[0.08] bg-white/[0.045] px-5 text-sm font-semibold text-zinc-300 transition hover:bg-white/[0.08] hover:text-white"
-            >
-              Cancelar
-            </button>
+              <SelectTrigger className="mt-2">
+                <SelectValue placeholder="Tipo" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="fixed">
+                  {isFixedMode ? "Gasto Fixo" : "Débito/PIX"}
+                </SelectItem>
+                <SelectItem value="card">Cartão de Crédito</SelectItem>
+              </SelectContent>
+            </Select>
           </div>
-        </form>
-      </div>
-    </div>
+        </div>
+
+        <div className="col-span-2 space-y-4 rounded-xl border border-border bg-muted/30 p-4">
+          {transactionType === "card" ? (
+            <>
+              <div>
+                <Label>Cartão</Label>
+                <Select
+                  value={selectedCardId}
+                  onValueChange={setSelectedCardId}
+                  disabled={!cards.length}
+                >
+                  <SelectTrigger className="mt-2">
+                    <SelectValue placeholder="Selecione um cartão" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {cards.map((card) => (
+                      <SelectItem key={card.id} value={card.id}>
+                        {card.name}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+
+              {!editingTransaction ? (
+                <>
+                  <div className="flex items-center justify-between gap-4">
+                    <span className="text-sm font-medium text-foreground">
+                      Compra parcelada?
+                    </span>
+                    <Switch
+                      checked={isInstallmentPurchase}
+                      onCheckedChange={setIsInstallmentPurchase}
+                    />
+                  </div>
+
+                  {isInstallmentPurchase ? (
+                    <div className="animate-in fade-in-0 slide-in-from-top-1 duration-150">
+                      <Label htmlFor="installments">Quantidade de Parcelas</Label>
+                      <Input
+                        id="installments"
+                        value={installmentCount}
+                        onChange={(event) => setInstallmentCount(event.target.value)}
+                        type="number"
+                        min={2}
+                        step={1}
+                        className="mt-2"
+                      />
+                    </div>
+                  ) : null}
+                </>
+              ) : null}
+            </>
+          ) : null}
+
+          {transactionType === "fixed" && !isFixedMode ? (
+            <div className="flex items-center justify-between gap-4">
+              <span className="text-sm font-medium text-foreground">
+                Gasto fixo recorrente?
+              </span>
+              <Switch checked={isRecurring} onCheckedChange={setIsRecurring} />
+            </div>
+          ) : null}
+        </div>
+
+        <div className="col-span-2 flex flex-col-reverse gap-3 pt-2 sm:flex-row sm:justify-end">
+          <Button type="button" variant="outline" onClick={onClose}>
+            Cancelar
+          </Button>
+          <Button type="submit" className="gap-2">
+            <Save className="size-4" />
+            Salvar transação
+          </Button>
+        </div>
+      </form>
+    </DialogContent>
   );
 }

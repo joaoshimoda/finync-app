@@ -3,6 +3,7 @@
 import { formatCurrency } from "@/lib/financeUtils";
 import { getDateOnlyParts } from "@/lib/dateUtils";
 import { ConfirmDialog } from "@/components/ui/ConfirmDialog";
+import { RecurringDeleteDialog } from "@/components/finance/RecurringDeleteDialog";
 import {
   useFinanceStore,
   type Card,
@@ -65,6 +66,9 @@ export function TransactionFeed({
   onEdit,
 }: TransactionFeedProps) {
   const deleteTransaction = useFinanceStore((state) => state.deleteTransaction);
+  const deleteTransactionGroup = useFinanceStore(
+    (state) => state.deleteTransactionGroup,
+  );
   const cardsById = new Map(cards.map((card) => [card.id, card]));
 
   async function handleDeleteTransaction(transactionId: string) {
@@ -74,6 +78,18 @@ export function TransactionFeed({
     } catch (error) {
       console.error("Erro ao remover transação:", error);
       toast.error("Erro ao remover item");
+    }
+  }
+
+  async function handleDeleteFutureTransactions(transaction: Transaction) {
+    if (!transaction.groupId) return;
+
+    try {
+      await deleteTransactionGroup(transaction.groupId, transaction.date);
+      toast.success("Recorrência atual e próximas removidas");
+    } catch (error) {
+      console.error("Erro ao remover recorrência:", error);
+      toast.error("Erro ao remover recorrência");
     }
   }
 
@@ -192,20 +208,38 @@ export function TransactionFeed({
                         <Pencil className="h-4 w-4" strokeWidth={2} />
                       </button>
                     ) : null}
-                    <ConfirmDialog
-                      title="Excluir transação"
-                      description="Esta ação remove o lançamento da sua lista e não pode ser desfeita."
-                      confirmLabel="Excluir"
-                      onConfirm={() => handleDeleteTransaction(transaction.id)}
-                    >
-                      <button
-                        type="button"
-                        className="flex h-8 w-8 items-center justify-center rounded-xl border border-white/[0.08] bg-white/[0.045] text-zinc-500 transition hover:border-red-400/20 hover:bg-red-500/10 hover:text-red-200"
-                        aria-label="Excluir transação"
+                    {transaction.groupId ? (
+                      <RecurringDeleteDialog
+                        transaction={transaction}
+                        onDeleteSingle={(item) =>
+                          handleDeleteTransaction(item.id)
+                        }
+                        onDeleteFuture={handleDeleteFutureTransactions}
                       >
-                        <Trash2 className="h-4 w-4" strokeWidth={2} />
-                      </button>
-                    </ConfirmDialog>
+                        <button
+                          type="button"
+                          className="flex h-8 w-8 items-center justify-center rounded-xl border border-white/[0.08] bg-white/[0.045] text-zinc-500 transition hover:border-red-400/20 hover:bg-red-500/10 hover:text-red-200"
+                          aria-label="Excluir transação"
+                        >
+                          <Trash2 className="h-4 w-4" strokeWidth={2} />
+                        </button>
+                      </RecurringDeleteDialog>
+                    ) : (
+                      <ConfirmDialog
+                        title="Excluir transação"
+                        description="Esta ação remove o lançamento da sua lista e não pode ser desfeita."
+                        confirmLabel="Excluir"
+                        onConfirm={() => handleDeleteTransaction(transaction.id)}
+                      >
+                        <button
+                          type="button"
+                          className="flex h-8 w-8 items-center justify-center rounded-xl border border-white/[0.08] bg-white/[0.045] text-zinc-500 transition hover:border-red-400/20 hover:bg-red-500/10 hover:text-red-200"
+                          aria-label="Excluir transação"
+                        >
+                          <Trash2 className="h-4 w-4" strokeWidth={2} />
+                        </button>
+                      </ConfirmDialog>
+                    )}
                   </div>
                 </div>
               </article>

@@ -2,20 +2,22 @@
 
 import Link from "next/link";
 import {
+  ArrowDown,
+  ArrowUp,
   CalendarDays,
-  ChevronLeft,
-  ChevronRight,
   CreditCard,
-  Plus,
+  PlusCircle,
   QrCode,
   ReceiptText,
   TrendingUp,
 } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 
+import { AnimatedMonthSelector } from "@/components/finance/AnimatedMonthSelector";
 import { AddCardModal } from "@/components/modals/AddCardModal";
 import { AddIncomeModal } from "@/components/modals/AddIncomeModal";
 import { AddTransactionModal } from "@/components/modals/AddTransactionModal";
+import { TransactionDescription } from "@/components/finance/TransactionDescription";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import {
@@ -51,11 +53,6 @@ import {
 const brlFormatter = new Intl.NumberFormat("pt-BR", {
   style: "currency",
   currency: "BRL",
-});
-
-const monthFormatter = new Intl.DateTimeFormat("pt-BR", {
-  month: "long",
-  year: "numeric",
 });
 
 const typeLabel: Record<string, string> = {
@@ -110,19 +107,21 @@ export default function DashboardPage() {
   const fetchTransactions = useFinanceStore((state) => state.fetchTransactions);
   const currentMonth = useFinanceStore((state) => state.currentMonth);
   const currentYear = useFinanceStore((state) => state.currentYear);
+  const fetchedMonth = useFinanceStore((state) => state.fetchedMonth);
+  const fetchedYear = useFinanceStore((state) => state.fetchedYear);
+  const isFetching = useFinanceStore((state) => state.isFetching);
   const nextMonth = useFinanceStore((state) => state.nextMonth);
   const prevMonth = useFinanceStore((state) => state.prevMonth);
 
-  const selectedPeriodLabel = monthFormatter.format(
-    new Date(currentYear, currentMonth - 1, 1),
-  );
+  const displayMonth = isFetching ? fetchedMonth : currentMonth;
+  const displayYear = isFetching ? fetchedYear : currentYear;
 
   const monthlyTransactions = useMemo(
     () =>
       transactions.filter((transaction) =>
-        isSameSelectedMonth(transaction, currentMonth, currentYear),
+        isSameSelectedMonth(transaction, displayMonth, displayYear),
       ),
-    [currentMonth, currentYear, transactions],
+    [displayMonth, displayYear, transactions],
   );
 
   const monthlyBalances = useMemo(() => {
@@ -194,73 +193,62 @@ export default function DashboardPage() {
   }
 
   return (
-    <div className="space-y-8">
-      <header className="flex flex-col gap-5 border-b border-border/60 pb-6 lg:flex-row lg:items-end lg:justify-between">
+    <div className="mx-auto flex w-full max-w-7xl flex-col gap-6 pb-10">
+      <div className="mb-2 flex flex-row items-center justify-between">
         <div>
-          <p className="text-sm font-medium text-muted-foreground">Dashboard</p>
-          <h1 className="mt-2 text-3xl font-semibold tracking-normal text-foreground">
+          <h1 className="text-3xl font-bold tracking-tight">
             Visão geral
           </h1>
+          <p className="text-muted-foreground">
+            Acompanhe saldos, faturas e movimentações do período.
+          </p>
         </div>
 
-        <div className="flex flex-wrap items-center gap-2">
-          <div className="flex h-9 items-center rounded-lg border border-border bg-card">
-            <Button
-              type="button"
-              variant="ghost"
-              size="icon-sm"
-              onClick={prevMonth}
-              aria-label="Mês anterior"
-              className="rounded-r-none"
-            >
-              <ChevronLeft />
-            </Button>
-            <span className="min-w-36 px-3 text-center text-sm font-medium capitalize text-foreground">
-              {selectedPeriodLabel}
-            </span>
-            <Button
-              type="button"
-              variant="ghost"
-              size="icon-sm"
-              onClick={nextMonth}
-              aria-label="Próximo mês"
-              className="rounded-l-none"
-            >
-              <ChevronRight />
-            </Button>
-          </div>
-
+        <div>
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
-              <Button variant="outline" size="lg">
-                <Plus />
+              <Button className="h-12 cursor-pointer gap-2 bg-primary px-6 text-base font-semibold text-primary-foreground shadow-lg transition-all duration-200 hover:-translate-y-0.5 hover:shadow-xl">
+                <PlusCircle className="h-5 w-5" />
                 Novo
               </Button>
             </DropdownMenuTrigger>
-            <DropdownMenuContent align="end" className="w-44">
-              <DropdownMenuItem
-                onClick={() => {
-                  setEditingTransaction(null);
-                  setIsAddIncomeModalOpen(true);
-                }}
-              >
-                Nova receita
-              </DropdownMenuItem>
+            <DropdownMenuContent align="end" className="w-52">
               <DropdownMenuItem
                 onClick={() => {
                   setEditingTransaction(null);
                   setIsAddTransactionModalOpen(true);
                 }}
               >
-                Nova despesa
+                <ArrowDown className="size-4 text-red-400" />
+                Nova Despesa
+              </DropdownMenuItem>
+              <DropdownMenuItem
+                onClick={() => {
+                  setEditingTransaction(null);
+                  setIsAddIncomeModalOpen(true);
+                }}
+              >
+                <ArrowUp className="size-4 text-emerald-400" />
+                Nova Receita
               </DropdownMenuItem>
               <DropdownMenuItem onClick={() => setIsAddCardModalOpen(true)}>
-                Novo cartão
+                <CreditCard className="size-4 text-muted-foreground" />
+                Novo Cartão
               </DropdownMenuItem>
             </DropdownMenuContent>
           </DropdownMenu>
         </div>
-      </header>
+      </div>
+
+      <div className="mb-4 flex w-full justify-center border-b border-border/50 py-6">
+        <AnimatedMonthSelector
+          currentMonth={currentMonth}
+          currentYear={currentYear}
+          onPreviousMonth={prevMonth}
+          onNextMonth={nextMonth}
+          isLoading={isFetching}
+        />
+      </div>
 
       <section className="grid grid-cols-1 gap-6 md:grid-cols-3">
         <Card className="rounded-lg border-border bg-card shadow-none">
@@ -403,7 +391,12 @@ export default function DashboardPage() {
           </Badge>
         </div>
 
-        <div className="overflow-hidden rounded-lg border border-border bg-card">
+        <div
+          className={cn(
+            "overflow-hidden rounded-lg border border-border bg-card transition-opacity",
+            isFetching && "pointer-events-none opacity-50",
+          )}
+        >
           <Table>
             <TableHeader>
               <TableRow className="hover:bg-transparent">
@@ -422,7 +415,7 @@ export default function DashboardPage() {
                     </TableCell>
                     <TableCell>
                       <div className="font-medium text-foreground">
-                        {transaction.description}
+                        <TransactionDescription transaction={transaction} />
                       </div>
                       <div className="mt-1 text-xs text-muted-foreground md:hidden">
                         {transaction.category || typeLabel[transaction.type]}
