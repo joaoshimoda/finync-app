@@ -1,9 +1,10 @@
 "use client";
 
-import { FormEvent, useState } from "react";
+import { FormEvent, useEffect, useState } from "react";
 import { ArrowUp, Save } from "lucide-react";
 import { toast } from "sonner";
 
+import { TagSelect } from "@/components/finance/TagSelect";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -68,6 +69,8 @@ function IncomeModalContent({
   onClose: () => void;
 }) {
   const authUser = useFinanceStore((state) => state.authUser);
+  const tags = useFinanceStore((state) => state.tags);
+  const fetchTags = useFinanceStore((state) => state.fetchTags);
   const addTransaction = useFinanceStore((state) => state.addTransaction);
   const fetchTransactions = useFinanceStore((state) => state.fetchTransactions);
   const updateTransaction = useFinanceStore((state) => state.updateTransaction);
@@ -86,7 +89,14 @@ function IncomeModalContent({
   const [category, setCategory] = useState(
     editingTransaction?.category || "Receita",
   );
+  const [selectedTagId, setSelectedTagId] = useState(
+    editingTransaction?.tagIds?.[0] ?? "",
+  );
   const [isSubmitting, setIsSubmitting] = useState(false);
+
+  useEffect(() => {
+    void fetchTags();
+  }, [fetchTags]);
 
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -110,7 +120,7 @@ function IncomeModalContent({
       dependentIds: editingTransaction?.dependentIds?.length
         ? editingTransaction.dependentIds
         : ["eu"],
-      tagIds: [],
+      tagIds: selectedTagId ? [selectedTagId] : [],
       notes: "Receita",
     };
 
@@ -212,6 +222,14 @@ function IncomeModalContent({
                 ))}
               </SelectContent>
             </Select>
+          </div>
+
+          <div className="col-span-2">
+            <TagSelect
+              tags={tags}
+              value={selectedTagId}
+              onValueChange={setSelectedTagId}
+            />
           </div>
         </div>
         <div className="col-span-2 flex flex-col-reverse gap-3 pt-2 sm:flex-row sm:justify-end">

@@ -16,6 +16,7 @@ import {
 import { useEffect, useMemo, useState } from "react";
 
 import { AnimatedMonthSelector } from "@/components/finance/AnimatedMonthSelector";
+import { DependentSpendingSummary } from "@/components/finance/DependentSpendingSummary";
 import { AddCardModal } from "@/components/modals/AddCardModal";
 import { AddIncomeModal } from "@/components/modals/AddIncomeModal";
 import { AddTransactionModal } from "@/components/modals/AddTransactionModal";
@@ -249,6 +250,7 @@ export default function DashboardPage() {
     useState<Transaction | null>(null);
 
   const cards = useFinanceStore((state) => state.cards);
+  const dependents = useFinanceStore((state) => state.dependents);
   const transactions = useFinanceStore((state) => state.transactions);
   const fetchCards = useFinanceStore((state) => state.fetchCards);
   const fetchTransactions = useFinanceStore((state) => state.fetchTransactions);
@@ -386,6 +388,11 @@ export default function DashboardPage() {
     })
     .reduce((total, transaction) => total + transaction.amount, 0);
 
+  const totalMonthlyOutflow =
+    monthlyBalances.creditCardProjected +
+    fixedSpendingTotal +
+    debitPixSpendingTotal;
+
   useEffect(() => {
     void fetchCards();
     void fetchTransactions();
@@ -435,8 +442,8 @@ export default function DashboardPage() {
 
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
-              <Button className="h-10 cursor-pointer gap-2 bg-emerald-600 px-4 text-sm font-semibold text-white shadow-lg shadow-emerald-950/20 transition-all duration-200 hover:-translate-y-0.5 hover:bg-emerald-700 hover:shadow-xl">
-                <PlusCircle className="h-4 w-4" />
+              <Button className="h-12 gap-2 bg-emerald-600 px-6 text-base font-semibold text-white hover:bg-emerald-700">
+                <PlusCircle className="size-5" />
                 Novo
               </Button>
             </DropdownMenuTrigger>
@@ -495,6 +502,23 @@ export default function DashboardPage() {
       </div>
 
       <section>
+        <Card className="mb-4 border-zinc-800 bg-zinc-950 px-5 py-5 shadow-none lg:px-6">
+          <CardContent className="flex flex-col justify-between gap-5 p-0 sm:flex-row sm:items-end">
+            <div>
+              <CardDescription className="font-medium text-zinc-400">
+                Total de Gastos
+              </CardDescription>
+              <CardTitle className="mt-2 text-3xl font-semibold tracking-tight text-zinc-50 lg:text-4xl">
+                {brlFormatter.format(totalMonthlyOutflow)}
+              </CardTitle>
+            </div>
+            <p className="max-w-md text-sm leading-6 text-zinc-500 sm:text-right">
+              Faturas projetadas, contas fixas e pagamentos por Débito/PIX no
+              período selecionado.
+            </p>
+          </CardContent>
+        </Card>
+
         <div className="grid grid-cols-2 gap-3 lg:grid-cols-4 lg:gap-2">
           <Card className="w-full rounded-lg border border-border/50 bg-card p-3 shadow-none transition-colors hover:bg-accent/10">
             <CardHeader className="p-0">
@@ -548,6 +572,13 @@ export default function DashboardPage() {
             </CardContent>
           </Card>
         </div>
+      </section>
+
+      <section>
+        <DependentSpendingSummary
+          dependents={dependents}
+          transactions={monthlyTransactions}
+        />
       </section>
 
       <section className="space-y-1">

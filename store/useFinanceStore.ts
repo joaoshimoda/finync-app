@@ -26,6 +26,21 @@ export interface Card {
   updatedAt?: string;
 }
 
+export interface FinanceTag {
+  id: string;
+  label: string;
+  icon: string;
+  color?: string;
+  createdAt?: string;
+  updatedAt?: string;
+}
+
+export interface Dependent {
+  id: string;
+  name: string;
+  createdAt?: string;
+}
+
 export interface Transaction {
   id: string;
   description: string;
@@ -35,6 +50,7 @@ export interface Transaction {
   type: TransactionType;
   status: TransactionStatus;
   cardId?: string | null;
+  dependentId?: string | null;
   groupId?: string | null;
   owner?: string;
   dependentIds?: string[];
@@ -49,13 +65,6 @@ export interface Transaction {
   updatedAt?: string;
 }
 
-export interface FinanceBalances {
-  totalIncome: number;
-  totalExpenseDebit: number;
-  totalCreditCardInvoice: number;
-  availableBalance: number;
-}
-
 export type CreateTransactionInput = Omit<
   Transaction,
   "id" | "createdAt" | "updatedAt"
@@ -64,6 +73,8 @@ export type UpdateTransactionInput = Partial<CreateTransactionInput>;
 
 export type CreateCardInput = Omit<Card, "id" | "createdAt" | "updatedAt">;
 export type UpdateCardInput = Partial<CreateCardInput>;
+export type CreateTagInput = Pick<FinanceTag, "label" | "icon">;
+export type CreateDependentInput = Pick<Dependent, "name">;
 
 interface CardRow {
   id: string;
@@ -81,6 +92,7 @@ interface CardRow {
 interface TransactionRow {
   id: string;
   card_id: string | null;
+  dependent_id: string | null;
   group_id: string | null;
   month_start: string;
   month_label: string | null;
@@ -98,10 +110,28 @@ interface TransactionRow {
   split_with: string[] | null;
   created_at: string;
   updated_at: string;
+  transaction_tags?: { tag_id: string }[] | null;
+}
+
+interface TagRow {
+  id: string;
+  label: string;
+  icon: string | null;
+  color: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+interface DependentRow {
+  id: string;
+  name: string;
+  created_at: string;
 }
 
 interface FinanceState {
   cards: Card[];
+  tags: FinanceTag[];
+  dependents: Dependent[];
   transactions: Transaction[];
   authUser: User | null;
   isAuthReady: boolean;
@@ -115,6 +145,11 @@ interface FinanceState {
   nextMonth: () => void;
   prevMonth: () => void;
   fetchCards: () => Promise<void>;
+  fetchTags: () => Promise<void>;
+  addTag: (tag: CreateTagInput) => Promise<void>;
+  fetchDependents: () => Promise<void>;
+  addDependent: (dependent: CreateDependentInput) => Promise<void>;
+  deleteDependent: (dependentId: string) => Promise<void>;
   addCard: (card: CreateCardInput) => Promise<void>;
   editCard: (cardId: string, card: UpdateCardInput) => Promise<void>;
   deleteCard: (cardId: string) => Promise<void>;
@@ -131,7 +166,6 @@ interface FinanceState {
   ) => Promise<void>;
   deleteTransaction: (transactionId: string) => Promise<void>;
   deleteTransactionGroup: (groupId: string, fromDate: string) => Promise<void>;
-  calculateBalances: () => FinanceBalances;
   clearFinanceState: () => void;
 }
 
@@ -237,6 +271,7 @@ function mapTransaction(row: TransactionRow): Transaction {
     type: toTransactionType(row.type),
     status: fromDbStatus(row.status),
     cardId: row.card_id,
+    dependentId: row.dependent_id,
     groupId: row.group_id,
     owner: row.owner ?? "eu",
     dependentIds: row.split_with ?? ["eu"],
@@ -246,9 +281,28 @@ function mapTransaction(row: TransactionRow): Transaction {
     installmentNumber: row.installment_number ?? undefined,
     installmentsTotal: row.installments_total ?? undefined,
     notes: row.notes ?? undefined,
-    tagIds: [],
+    tagIds: row.transaction_tags?.map((relation) => relation.tag_id) ?? [],
     createdAt: row.created_at,
     updatedAt: row.updated_at,
+  };
+}
+
+function mapTag(row: TagRow): FinanceTag {
+  return {
+    id: row.id,
+    label: row.label,
+    icon: row.icon ?? "Tag",
+    color: row.color ?? undefined,
+    createdAt: row.created_at,
+    updatedAt: row.updated_at,
+  };
+}
+
+function mapDependent(row: DependentRow): Dependent {
+  return {
+    id: row.id,
+    name: row.name,
+    createdAt: row.created_at,
   };
 }
 
@@ -266,6 +320,7 @@ function toTransactionInsertPayload(
   return {
     user_id: userId,
     card_id: transaction.type === "card" ? transaction.cardId ?? null : null,
+    dependent_id: transaction.dependentId ?? null,
     group_id: transaction.groupId ?? null,
     month_start: monthStart,
     type: transaction.type,
@@ -318,6 +373,8 @@ async function getCurrentUser(): Promise<User | null> {
 
 export const useFinanceStore = create<FinanceState>()((set, get) => ({
   cards: [],
+  tags: [],
+  dependents: [],
   transactions: [],
   authUser: null,
   isAuthReady: false,
@@ -378,7 +435,12 @@ export const useFinanceStore = create<FinanceState>()((set, get) => ({
         });
 
         window.setTimeout(() => {
-          void Promise.all([get().fetchCards(), get().fetchTransactions()]).finally(() => {
+          void Promise.all([
+            get().fetchCards(),
+            get().fetchTags(),
+            get().fetchDependents(),
+            get().fetchTransactions(),
+          ]).finally(() => {
             if (isFirstAuthCheck) {
               set({ isLoading: false });
             }
@@ -392,6 +454,8 @@ export const useFinanceStore = create<FinanceState>()((set, get) => ({
         set({
           authUser: null,
           cards: [],
+          tags: [],
+          dependents: [],
           transactions: [],
           isAuthReady: true,
           isLoading: false,
@@ -409,11 +473,147 @@ export const useFinanceStore = create<FinanceState>()((set, get) => ({
     set({
       authUser: null,
       cards: [],
+      tags: [],
+      dependents: [],
       transactions: [],
       isAuthReady: true,
       isLoading: false,
       isFetching: false,
     });
+  },
+
+  fetchTags: async () => {
+    try {
+      const user = await getCurrentUser();
+      if (!user) return;
+
+      const { data, error } = await supabase
+        .from("tags")
+        .select("*")
+        .eq("user_id", user.id)
+        .order("label", { ascending: true });
+
+      if (error) throw error;
+
+      set({ tags: (data as TagRow[]).map(mapTag) });
+    } catch (error) {
+      console.error("Erro ao buscar tags:", error);
+      throw error;
+    }
+  },
+
+  addTag: async (tag) => {
+    try {
+      const user = await getCurrentUser();
+      if (!user) throw new Error("Usuário não autenticado.");
+
+      const { data, error } = await supabase
+        .from("tags")
+        .insert({
+          user_id: user.id,
+          legacy_key: slugify(tag.label),
+          label: tag.label.trim(),
+          icon: tag.icon,
+        })
+        .select("*")
+        .single();
+
+      if (error) throw error;
+
+      set((state) => ({
+        tags: [...state.tags, mapTag(data as TagRow)].sort((left, right) =>
+          left.label.localeCompare(right.label, "pt-BR"),
+        ),
+      }));
+    } catch (error) {
+      console.error("Erro ao adicionar tag:", error);
+      throw error;
+    }
+  },
+
+  fetchDependents: async () => {
+    try {
+      const user = await getCurrentUser();
+      if (!user) return;
+
+      const { data, error } = await supabase
+        .from("dependents")
+        .select("*")
+        .eq("user_id", user.id)
+        .order("name", { ascending: true });
+
+      if (error) throw error;
+
+      set({ dependents: (data as DependentRow[]).map(mapDependent) });
+    } catch (error) {
+      console.error("Erro ao buscar dependentes:", error);
+      throw error;
+    }
+  },
+
+  addDependent: async (dependent) => {
+    try {
+      const user = await getCurrentUser();
+      if (!user) throw new Error("Usuário não autenticado.");
+
+      const { error: profileError } = await supabase.from("users").upsert(
+        {
+          id: user.id,
+          email: user.email,
+          plan: "free",
+        },
+        { onConflict: "id" },
+      );
+
+      if (profileError) throw profileError;
+
+      const { data, error } = await supabase
+        .from("dependents")
+        .insert({ user_id: user.id, name: dependent.name.trim() })
+        .select("*")
+        .single();
+
+      if (error) throw error;
+
+      set((state) => ({
+        dependents: [
+          ...state.dependents,
+          mapDependent(data as DependentRow),
+        ].sort((left, right) => left.name.localeCompare(right.name, "pt-BR")),
+      }));
+    } catch (error) {
+      console.error("Erro ao adicionar dependente:", error);
+      throw error;
+    }
+  },
+
+  deleteDependent: async (dependentId) => {
+    try {
+      const user = await getCurrentUser();
+      if (!user) throw new Error("Usuário não autenticado.");
+
+      const { error } = await supabase
+        .from("dependents")
+        .delete()
+        .eq("id", dependentId)
+        .eq("user_id", user.id);
+
+      if (error) throw error;
+
+      set((state) => ({
+        dependents: state.dependents.filter(
+          (dependent) => dependent.id !== dependentId,
+        ),
+        transactions: state.transactions.map((transaction) =>
+          transaction.dependentId === dependentId
+            ? { ...transaction, dependentId: null }
+            : transaction,
+        ),
+      }));
+    } catch (error) {
+      console.error("Erro ao remover dependente:", error);
+      throw error;
+    }
   },
 
   fetchCards: async () => {
@@ -563,11 +763,8 @@ export const useFinanceStore = create<FinanceState>()((set, get) => ({
 
       const user = await getCurrentUser();
       if (!user) {
-        console.log("fetchTransactions: usuário não autenticado.");
         return;
       }
-
-      console.log("fetchTransactions: buscando transações para usuário:", user.id);
 
       const selectedMonth = get().currentMonth;
       const selectedYear = get().currentYear;
@@ -576,18 +773,14 @@ export const useFinanceStore = create<FinanceState>()((set, get) => ({
         selectedYear,
       );
 
-      console.log("Período selecionado:", { startDate, endDate });
-
       const { data, error } = await supabase
         .from("transactions")
-        .select("*")
+        .select("*, transaction_tags(tag_id)")
         .eq("user_id", user.id)
         .gte("month_start", startDate)
         .lt("month_start", endDate)
         .order("month_start", { ascending: false })
         .order("day", { ascending: false });
-
-      console.log("Dados do Supabase:", data);
 
       if (error) throw error;
 
@@ -652,7 +845,41 @@ export const useFinanceStore = create<FinanceState>()((set, get) => ({
         throw new Error("Supabase não retornou as transações inseridas.");
       }
 
-      const newTransactions = (data as TransactionRow[]).map(mapTransaction);
+      const transactionRows = data as TransactionRow[];
+      const tagRelations = transactionRows.flatMap((row, index) =>
+        (transactionsToCreate[index]?.tagIds ?? []).map((tagId) => ({
+          transaction_id: row.id,
+          tag_id: tagId,
+          user_id: user.id,
+        })),
+      );
+
+      if (tagRelations.length) {
+        const { error: tagRelationError } = await supabase
+          .from("transaction_tags")
+          .insert(tagRelations);
+
+        if (tagRelationError) {
+          await supabase
+            .from("transactions")
+            .delete()
+            .in(
+              "id",
+              transactionRows.map((row) => row.id),
+            )
+            .eq("user_id", user.id);
+          throw tagRelationError;
+        }
+      }
+
+      const newTransactions = transactionRows.map((row, index) =>
+        mapTransaction({
+          ...row,
+          transaction_tags: (transactionsToCreate[index]?.tagIds ?? []).map(
+            (tagId) => ({ tag_id: tagId }),
+          ),
+        }),
+      );
       const visibleTransactions = newTransactions.filter((transaction) =>
         isTransactionInSelectedRange(
           transaction,
@@ -743,6 +970,10 @@ export const useFinanceStore = create<FinanceState>()((set, get) => ({
         updatePayload.card_id = transaction.cardId;
       }
 
+      if (transaction.dependentId !== undefined) {
+        updatePayload.dependent_id = transaction.dependentId;
+      }
+
       if (transaction.status !== undefined) {
         updatePayload.status = toDbStatus(transaction.status);
       }
@@ -790,7 +1021,37 @@ export const useFinanceStore = create<FinanceState>()((set, get) => ({
       if (error) throw error;
       if (!data) throw new Error("Supabase não retornou a transação atualizada.");
 
-      const updatedTransaction = mapTransaction(data as TransactionRow);
+      const nextTagIds =
+        transaction.tagIds ?? currentTransaction?.tagIds ?? [];
+
+      if (transaction.tagIds !== undefined) {
+        const { error: deleteTagError } = await supabase
+          .from("transaction_tags")
+          .delete()
+          .eq("transaction_id", transactionId)
+          .eq("user_id", user.id);
+
+        if (deleteTagError) throw deleteTagError;
+
+        if (nextTagIds.length) {
+          const { error: insertTagError } = await supabase
+            .from("transaction_tags")
+            .insert(
+              nextTagIds.map((tagId) => ({
+                transaction_id: transactionId,
+                tag_id: tagId,
+                user_id: user.id,
+              })),
+            );
+
+          if (insertTagError) throw insertTagError;
+        }
+      }
+
+      const updatedTransaction = mapTransaction({
+        ...(data as TransactionRow),
+        transaction_tags: nextTagIds.map((tagId) => ({ tag_id: tagId })),
+      });
 
       set((state) => ({
         transactions: state.transactions.map((currentTransaction) =>
@@ -915,34 +1176,4 @@ export const useFinanceStore = create<FinanceState>()((set, get) => ({
     }
   },
 
-  calculateBalances: () => {
-    const transactions = get().transactions;
-    console.log("Transações no Store:", transactions);
-
-    const totalIncome =
-      transactions
-        .filter((transaction) => transaction.type === "income")
-        .reduce((acc, transaction) => acc + toAmount(transaction.amount), 0) || 0;
-    const totalExpenseDebit =
-      transactions
-        .filter((transaction) => transaction.type === "fixed")
-        .reduce((acc, transaction) => acc + toAmount(transaction.amount), 0) || 0;
-    const totalCreditCardInvoice =
-      transactions
-        .filter(
-          (transaction) =>
-            transaction.type === "card" ||
-            (transaction.type !== "income" && Boolean(transaction.cardId)),
-        )
-        .reduce((acc, transaction) => acc + toAmount(transaction.amount), 0) || 0;
-    const availableBalance =
-      totalIncome - totalExpenseDebit - totalCreditCardInvoice;
-
-    return {
-      totalIncome,
-      totalExpenseDebit,
-      totalCreditCardInvoice,
-      availableBalance,
-    };
-  },
 }));

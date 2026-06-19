@@ -273,9 +273,9 @@ export default function TransactionsPage() {
           <DropdownMenuTrigger asChild>
             <Button
               type="button"
-              className="h-11 cursor-pointer bg-emerald-600 px-5 font-semibold text-white shadow-lg transition-all duration-200 hover:-translate-y-0.5 hover:bg-emerald-700 hover:shadow-xl"
+              className="h-12 gap-2 bg-emerald-600 px-6 text-base font-semibold text-white hover:bg-emerald-700"
             >
-              <PlusCircle className="mr-2 h-4 w-4" />
+              <PlusCircle className="size-5" />
               Nova Transação
             </Button>
           </DropdownMenuTrigger>

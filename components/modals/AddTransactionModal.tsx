@@ -4,6 +4,8 @@ import { FormEvent, useEffect, useMemo, useState } from "react";
 import { CalendarDays, CreditCard, ReceiptText, Save } from "lucide-react";
 import { toast } from "sonner";
 
+import { TagSelect } from "@/components/finance/TagSelect";
+import { DependentSelect } from "@/components/finance/DependentSelect";
 import {
   getDateOnlyParts,
   getLocalTodayDateOnly,
@@ -105,7 +107,11 @@ function TransactionModalContent({
   mode: "expense" | "fixed";
 }) {
   const cards = useFinanceStore((state) => state.cards);
+  const tags = useFinanceStore((state) => state.tags);
+  const dependents = useFinanceStore((state) => state.dependents);
   const fetchCards = useFinanceStore((state) => state.fetchCards);
+  const fetchTags = useFinanceStore((state) => state.fetchTags);
+  const fetchDependents = useFinanceStore((state) => state.fetchDependents);
   const fetchTransactions = useFinanceStore((state) => state.fetchTransactions);
   const authUser = useFinanceStore((state) => state.authUser);
   const addTransaction = useFinanceStore((state) => state.addTransaction);
@@ -129,10 +135,16 @@ function TransactionModalContent({
   );
   const [transactionType, setTransactionType] =
     useState<ExpenseTransactionType>(
-      isFixedMode || editingTransaction?.type !== "card" ? "fixed" : "card",
+      editingTransaction?.type === "card" ? "card" : "fixed",
     );
   const [selectedCardId, setSelectedCardId] = useState(
     editingTransaction?.cardId ?? "",
+  );
+  const [selectedTagId, setSelectedTagId] = useState(
+    editingTransaction?.tagIds?.[0] ?? "",
+  );
+  const [selectedDependentId, setSelectedDependentId] = useState(
+    editingTransaction?.dependentId ?? "",
   );
   const [isInstallmentPurchase, setIsInstallmentPurchase] = useState(false);
   const [installmentCount, setInstallmentCount] = useState("2");
@@ -142,8 +154,8 @@ function TransactionModalContent({
   const [isSubmitting, setIsSubmitting] = useState(false);
 
   useEffect(() => {
-    void fetchCards();
-  }, [fetchCards]);
+    void Promise.all([fetchCards(), fetchTags(), fetchDependents()]);
+  }, [fetchCards, fetchDependents, fetchTags]);
 
   const selectedCard = useMemo(() => {
     if (transactionType !== "card") return null;
@@ -191,9 +203,10 @@ function TransactionModalContent({
       type: transactionType,
       status: baseStatus,
       cardId: transactionCardId,
+      dependentId: selectedDependentId || null,
       owner: "eu",
       dependentIds: ["eu"],
-      tagIds: [],
+      tagIds: selectedTagId ? [selectedTagId] : [],
       installments: 1,
       current_installment: 1,
       installmentsTotal: 1,
@@ -305,7 +318,7 @@ function TransactionModalContent({
           {editingTransaction
             ? "Editar transação"
             : isFixedMode
-              ? "Nova conta fixa"
+              ? "Nova recorrência"
               : "Nova transação"}
         </DialogTitle>
         <DialogDescription>
@@ -381,14 +394,25 @@ function TransactionModalContent({
             </Select>
           </div>
 
+          <TagSelect
+            tags={tags}
+            value={selectedTagId}
+            onValueChange={setSelectedTagId}
+          />
+
+          <DependentSelect
+            dependents={dependents}
+            value={selectedDependentId}
+            onValueChange={setSelectedDependentId}
+          />
+
           <div className="space-y-2">
             <Label>
               <CreditCard className="size-4 text-muted-foreground" />
-              Tipo
+              {isFixedMode ? "Método de Pagamento" : "Tipo"}
             </Label>
             <Select
               value={transactionType}
-              disabled={isFixedMode}
               onValueChange={(value) => {
                 const nextType = value as ExpenseTransactionType;
 
@@ -403,9 +427,7 @@ function TransactionModalContent({
                 <SelectValue placeholder="Tipo" />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="fixed">
-                  {isFixedMode ? "Gasto Fixo" : "Débito/PIX"}
-                </SelectItem>
+                <SelectItem value="fixed">Débito/PIX</SelectItem>
                 <SelectItem value="card">Cartão de Crédito</SelectItem>
               </SelectContent>
             </Select>
@@ -459,7 +481,7 @@ function TransactionModalContent({
               </Select>
             </div>
 
-            {!editingTransaction ? (
+            {!isFixedMode && !editingTransaction ? (
               <>
                 <div className="flex items-center justify-between gap-4">
                   <span className="text-sm font-medium text-foreground">
