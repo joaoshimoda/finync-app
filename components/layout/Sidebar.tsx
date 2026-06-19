@@ -2,8 +2,16 @@
 
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
-import { Landmark, LogOut } from "lucide-react";
+import { ChevronsUpDown, Landmark, LogOut, UserRound } from "lucide-react";
 import { navigationItems } from "./navigationItems";
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 import { supabase } from "@/lib/supabaseClient";
 import { useFinanceStore } from "@/store/useFinanceStore";
 import { toast } from "sonner";
@@ -16,7 +24,24 @@ function isActiveRoute(pathname: string, href: string) {
 export function Sidebar() {
   const pathname = usePathname();
   const router = useRouter();
+  const authUser = useFinanceStore((state) => state.authUser);
   const clearFinanceState = useFinanceStore((state) => state.clearFinanceState);
+  const metadataName = authUser?.user_metadata?.name;
+  const displayName =
+    typeof metadataName === "string" && metadataName.trim()
+      ? metadataName.trim()
+      : authUser?.email?.split("@")[0] || "Usuário";
+  const email = authUser?.email || "usuario@finync.com";
+  const metadataAvatarUrl = authUser?.user_metadata?.avatar_url;
+  const avatarUrl =
+    typeof metadataAvatarUrl === "string" ? metadataAvatarUrl : undefined;
+  const initials = displayName
+    .split(/\s+/)
+    .filter(Boolean)
+    .slice(0, 2)
+    .map((part) => part[0])
+    .join("")
+    .toUpperCase() || "US";
 
   async function handleSignOut() {
     const { error } = await supabase.auth.signOut();
@@ -72,22 +97,47 @@ export function Sidebar() {
         })}
       </nav>
 
-      <div className="space-y-3">
-        <div className="rounded-3xl border border-white/[0.08] bg-black/20 p-4">
-          <p className="text-xs font-medium uppercase tracking-wide text-brand-300">
-            Plano atual
-          </p>
-          <p className="mt-1 text-sm font-semibold text-white">Grátis</p>
-        </div>
-        <button
-          type="button"
-          onClick={handleSignOut}
-          className="group flex h-12 w-full items-center gap-3 rounded-2xl border border-white/[0.08] bg-white/[0.045] px-4 text-sm font-medium text-zinc-400 transition hover:border-red-400/20 hover:bg-red-500/10 hover:text-red-100"
+      <DropdownMenu>
+        <DropdownMenuTrigger asChild>
+          <button
+            type="button"
+            className="flex w-full cursor-pointer items-center gap-3 rounded-2xl border border-white/[0.08] bg-white/[0.045] p-3 text-left transition hover:border-white/[0.14] hover:bg-white/[0.075]"
+          >
+            <Avatar>
+              <AvatarImage src={avatarUrl} alt={displayName} />
+              <AvatarFallback>{initials}</AvatarFallback>
+            </Avatar>
+            <div className="min-w-0 flex-1">
+              <p className="truncate text-sm font-semibold text-white">
+                {displayName}
+              </p>
+              <p className="truncate text-xs text-zinc-400">{email}</p>
+            </div>
+            <ChevronsUpDown className="size-4 shrink-0 text-zinc-500" />
+          </button>
+        </DropdownMenuTrigger>
+        <DropdownMenuContent
+          side="top"
+          align="start"
+          sideOffset={8}
+          className="w-64"
         >
-          <LogOut className="h-5 w-5 text-zinc-500 transition group-hover:text-red-200" />
-          Sair
-        </button>
-      </div>
+          <DropdownMenuItem asChild className="cursor-pointer">
+            <Link href="/configuracoes">
+              <UserRound className="size-4" />
+              Meu Perfil
+            </Link>
+          </DropdownMenuItem>
+          <DropdownMenuSeparator />
+          <DropdownMenuItem
+            className="cursor-pointer text-red-500 focus:bg-red-500/10 focus:text-red-400"
+            onClick={() => void handleSignOut()}
+          >
+            <LogOut className="size-4" />
+            Sair
+          </DropdownMenuItem>
+        </DropdownMenuContent>
+      </DropdownMenu>
     </aside>
   );
 }

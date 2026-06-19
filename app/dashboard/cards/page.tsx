@@ -14,6 +14,16 @@ import { toast } from "sonner";
 
 import { AddCardModal } from "@/components/modals/AddCardModal";
 import { TransactionDescription } from "@/components/finance/TransactionDescription";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import {
@@ -68,7 +78,7 @@ function FlippableManagedCard({
   onSelect: (cardId: string) => void;
   onKeyDown: (event: KeyboardEvent<HTMLDivElement>, cardId: string) => void;
   onEdit: (card: FinanceCard) => void;
-  onDelete: (cardId: string) => void;
+  onDelete: (card: FinanceCard) => void;
   onPayInvoice: (cardId: string) => void;
 }) {
   const [isFlipped, setIsFlipped] = useState(false);
@@ -187,7 +197,7 @@ function FlippableManagedCard({
               size="sm"
               variant="outline"
               className="h-8 border-white/25 bg-white/10 text-white hover:bg-red-500/30 hover:text-white"
-              onClick={() => onDelete(card.id)}
+              onClick={() => onDelete(card)}
             >
               <Trash2 className="size-4" />
               Excluir
@@ -202,6 +212,10 @@ function FlippableManagedCard({
 export default function CardsPage() {
   const [isAddCardModalOpen, setIsAddCardModalOpen] = useState(false);
   const [editingCard, setEditingCard] = useState<FinanceCard | null>(null);
+  const [deleteTargetCard, setDeleteTargetCard] = useState<FinanceCard | null>(
+    null,
+  );
+  const [isDeletingCard, setIsDeletingCard] = useState(false);
   const [selectedCardId, setSelectedCardId] = useState<string | null>(null);
 
   const cards = useFinanceStore((state) => state.cards);
@@ -279,15 +293,25 @@ export default function CardsPage() {
     }
   }
 
-  async function handleDeleteCard(cardId: string) {
+  async function handleDeleteCard() {
+    if (!deleteTargetCard || isDeletingCard) return;
+
+    setIsDeletingCard(true);
+
     try {
-      await deleteCard(cardId);
+      await deleteCard(deleteTargetCard.id);
+      if (selectedCardId === deleteTargetCard.id) {
+        setSelectedCardId(null);
+      }
+      setDeleteTargetCard(null);
       toast.success("Cartão removido.");
     } catch (error) {
       console.error("Erro ao remover cartão:", error);
       toast.error(
         error instanceof Error ? error.message : "Erro ao remover cartão.",
       );
+    } finally {
+      setIsDeletingCard(false);
     }
   }
 
@@ -351,7 +375,7 @@ export default function CardsPage() {
                     onSelect={setSelectedCardId}
                     onKeyDown={handleCardKeyDown}
                     onEdit={openEditModal}
-                    onDelete={(cardId) => void handleDeleteCard(cardId)}
+                    onDelete={setDeleteTargetCard}
                     onPayInvoice={(cardId) => void handlePayInvoiceClick(cardId)}
                   />
                 </CarouselItem>
@@ -456,6 +480,41 @@ export default function CardsPage() {
         onClose={closeCardModal}
         editingCard={editingCard}
       />
+
+      <AlertDialog
+        open={Boolean(deleteTargetCard)}
+        onOpenChange={(open) => {
+          if (!open && !isDeletingCard) setDeleteTargetCard(null);
+        }}
+      >
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Excluir cartão?</AlertDialogTitle>
+            <AlertDialogDescription>
+              Esta ação não pode ser desfeita. Isso excluirá permanentemente o
+              cartão {deleteTargetCard?.name} e todas as transações e faturas
+              vinculadas a ele.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel asChild>
+              <Button variant="outline" disabled={isDeletingCard}>
+                Cancelar
+              </Button>
+            </AlertDialogCancel>
+            <AlertDialogAction asChild>
+              <Button
+                variant="destructive"
+                disabled={isDeletingCard}
+                className="bg-red-600 text-white hover:bg-red-700"
+                onClick={() => void handleDeleteCard()}
+              >
+                {isDeletingCard ? "Excluindo..." : "Sim, excluir cartão"}
+              </Button>
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }

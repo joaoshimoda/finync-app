@@ -72,6 +72,13 @@ const typeLabel: Record<string, string> = {
 };
 
 function getTransactionFallbackLabel(transaction: Transaction) {
+  if (
+    transaction.is_recurring &&
+    (transaction.type === "card" || Boolean(transaction.cardId))
+  ) {
+    return "Assinatura";
+  }
+
   if (transaction.type === "fixed" && transaction.is_recurring) return "Fixo";
 
   return typeLabel[transaction.type];
@@ -98,7 +105,15 @@ function getTransactionOrigin(
   cards: ReturnType<typeof useFinanceStore.getState>["cards"],
 ) {
   if (transaction.type === "income") return "Receita";
-  if (transaction.type === "fixed") return "Débito/PIX";
+  if (
+    transaction.is_recurring &&
+    (transaction.type === "card" || Boolean(transaction.cardId))
+  ) {
+    return "Assinatura";
+  }
+  if (transaction.type === "fixed") {
+    return transaction.is_recurring ? "Gasto Fixo" : "Débito/PIX";
+  }
 
   return (
     cards.find((card) => card.id === transaction.cardId)?.name ?? "Cartão"
@@ -264,26 +279,40 @@ export default function TransactionsPage() {
               Nova Transação
             </Button>
           </DropdownMenuTrigger>
-          <DropdownMenuContent align="end" className="w-44">
+          <DropdownMenuContent align="end" className="w-72 p-2">
             <DropdownMenuItem
-              className="cursor-pointer"
+              className="flex cursor-pointer items-center gap-4 rounded-md p-3 hover:bg-muted"
               onClick={() => {
                 setEditingTransaction(null);
                 setIsAddIncomeModalOpen(true);
               }}
             >
-              <ArrowUpRight className="size-4 text-emerald-400" />
-              Receita
+              <div className="rounded-full bg-emerald-500/10 p-2 text-emerald-500">
+                <ArrowUpRight className="size-5" />
+              </div>
+              <div className="flex flex-col">
+                <span className="font-medium">Receita</span>
+                <span className="text-xs text-muted-foreground">
+                  Registrar nova entrada
+                </span>
+              </div>
             </DropdownMenuItem>
             <DropdownMenuItem
-              className="cursor-pointer"
+              className="flex cursor-pointer items-center gap-4 rounded-md p-3 hover:bg-muted"
               onClick={() => {
                 setEditingTransaction(null);
                 setIsAddTransactionModalOpen(true);
               }}
             >
-              <ArrowDownRight className="size-4 text-red-400" />
-              Despesa
+              <div className="rounded-full bg-red-500/10 p-2 text-red-500">
+                <ArrowDownRight className="size-5" />
+              </div>
+              <div className="flex flex-col">
+                <span className="font-medium">Despesa</span>
+                <span className="text-xs text-muted-foreground">
+                  Registrar novo gasto
+                </span>
+              </div>
             </DropdownMenuItem>
           </DropdownMenuContent>
         </DropdownMenu>

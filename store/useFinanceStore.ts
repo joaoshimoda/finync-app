@@ -12,6 +12,7 @@ import { create } from "zustand";
 
 export type TransactionType = "income" | "fixed" | "card";
 export type TransactionStatus = "pending" | "confirmed" | "paid";
+type DbTransactionStatus = "PAGO" | "PENDENTE" | "CONFIRMADO";
 
 export interface Card {
   id: string;
@@ -32,7 +33,7 @@ export interface Transaction {
   date: string;
   category: string;
   type: TransactionType;
-  status?: TransactionStatus;
+  status: TransactionStatus;
   cardId?: string | null;
   groupId?: string | null;
   owner?: string;
@@ -88,7 +89,7 @@ interface TransactionRow {
   category: string | null;
   amount: number | string | null;
   day: number;
-  status: string | null;
+  status: DbTransactionStatus;
   owner: string | null;
   installment_number: number | null;
   installments_total: number | null;
@@ -144,13 +145,13 @@ function slugify(value: string) {
     .replace(/[^a-z0-9_]/g, "");
 }
 
-function toDbStatus(status?: TransactionStatus) {
+function toDbStatus(status?: TransactionStatus): DbTransactionStatus {
   if (status === "paid") return "PAGO";
   if (status === "pending") return "PENDENTE";
   return "CONFIRMADO";
 }
 
-function fromDbStatus(status?: string | null): TransactionStatus {
+function fromDbStatus(status: DbTransactionStatus): TransactionStatus {
   if (status === "PAGO") return "paid";
   if (status === "PENDENTE") return "pending";
   return "confirmed";
@@ -160,6 +161,19 @@ function getMonthStart(date: string) {
   const { month, year } = getDateOnlyParts(date);
 
   return toDateOnly(year, month, 1);
+}
+
+function getCardInvoiceMonthStart(date: string, closingDay?: number) {
+  const { day, month, year } = getDateOnlyParts(date);
+
+  if (!closingDay || day < closingDay) {
+    return toDateOnly(year, month, 1);
+  }
+
+  const nextMonth = month === 12 ? 1 : month + 1;
+  const nextYear = month === 12 ? year + 1 : year;
+
+  return toDateOnly(nextYear, nextMonth, 1);
 }
 
 function getSelectedMonthRange(month: number, year: number) {
@@ -241,14 +255,19 @@ function mapTransaction(row: TransactionRow): Transaction {
 function toTransactionInsertPayload(
   transaction: CreateTransactionInput,
   userId: string,
+  cardClosingDay?: number,
 ) {
   const normalizedDate = normalizeDateOnly(transaction.date);
+  const monthStart =
+    transaction.type === "card"
+      ? getCardInvoiceMonthStart(normalizedDate, cardClosingDay)
+      : getMonthStart(normalizedDate);
 
   return {
     user_id: userId,
     card_id: transaction.type === "card" ? transaction.cardId ?? null : null,
     group_id: transaction.groupId ?? null,
-    month_start: getMonthStart(normalizedDate),
+    month_start: monthStart,
     type: transaction.type,
     description: transaction.description,
     category: transaction.category,
@@ -516,12 +535,12 @@ export const useFinanceStore = create<FinanceState>()((set, get) => ({
 
       if (error) throw error;
 
-      set({
-        cards: get().cards.filter((card) => card.id !== cardId),
-        transactions: get().transactions.filter(
+      set((state) => ({
+        cards: state.cards.filter((card) => card.id !== cardId),
+        transactions: state.transactions.filter(
           (transaction) => transaction.cardId !== cardId,
         ),
-      });
+      }));
     } catch (error) {
       console.error("Erro ao excluir cartão:", error);
       if (
@@ -613,9 +632,18 @@ export const useFinanceStore = create<FinanceState>()((set, get) => ({
       const { data, error } = await supabase
         .from("transactions")
         .insert(
-          transactionsToCreate.map((transaction) =>
-            toTransactionInsertPayload(transaction, user.id),
-          ),
+          transactionsToCreate.map((transaction) => {
+            const cardClosingDay = transaction.cardId
+              ? get().cards.find((card) => card.id === transaction.cardId)
+                  ?.closingDay
+              : undefined;
+
+            return toTransactionInsertPayload(
+              transaction,
+              user.id,
+              cardClosingDay,
+            );
+          }),
         )
         .select("*");
 
@@ -647,6 +675,31 @@ export const useFinanceStore = create<FinanceState>()((set, get) => ({
       const user = await getCurrentUser();
       if (!user) throw new Error("Usuário não autenticado.");
 
+      const currentTransaction = get().transactions.find(
+        (current) => current.id === transactionId,
+      );
+      const nextType = transaction.type ?? currentTransaction?.type;
+      const nextCardId =
+        transaction.cardId !== undefined
+          ? transaction.cardId
+          : currentTransaction?.cardId;
+      const normalizedCurrentDate = currentTransaction
+        ? normalizeDateOnly(currentTransaction.date)
+        : null;
+      const normalizedNextDate =
+        transaction.date !== undefined
+          ? normalizeDateOnly(transaction.date)
+          : normalizedCurrentDate;
+      const dateChanged =
+        transaction.date !== undefined &&
+        normalizedNextDate !== normalizedCurrentDate;
+      const billingContextChanged =
+        (transaction.type !== undefined &&
+          transaction.type !== currentTransaction?.type) ||
+        (transaction.cardId !== undefined &&
+          (transaction.cardId ?? null) !==
+            (currentTransaction?.cardId ?? null));
+
       const updatePayload: Record<
         string,
         string | number | boolean | string[] | null
@@ -661,10 +714,21 @@ export const useFinanceStore = create<FinanceState>()((set, get) => ({
       }
 
       if (transaction.date !== undefined) {
-        updatePayload.month_start = getMonthStart(
-          normalizeDateOnly(transaction.date),
-        );
-        updatePayload.day = getDayFromDate(normalizeDateOnly(transaction.date));
+        updatePayload.day = getDayFromDate(transaction.date);
+      }
+
+      if (
+        normalizedNextDate &&
+        (dateChanged || billingContextChanged || !currentTransaction)
+      ) {
+        const cardClosingDay = nextCardId
+          ? get().cards.find((card) => card.id === nextCardId)?.closingDay
+          : undefined;
+
+        updatePayload.month_start =
+          nextType === "card"
+            ? getCardInvoiceMonthStart(normalizedNextDate, cardClosingDay)
+            : getMonthStart(normalizedNextDate);
       }
 
       if (transaction.category !== undefined) {

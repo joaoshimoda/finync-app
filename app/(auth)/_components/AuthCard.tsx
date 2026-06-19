@@ -1,6 +1,10 @@
 "use client";
 
-import { supabase } from "@/lib/supabaseClient";
+import { Checkbox } from "@/components/ui/checkbox";
+import {
+  configureAuthPersistence,
+  supabase,
+} from "@/lib/supabaseClient";
 import { Landmark, Loader2 } from "lucide-react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
@@ -37,6 +41,7 @@ export function AuthCard({ mode }: AuthCardProps) {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [name, setName] = useState("");
+  const [rememberConnected, setRememberConnected] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
 
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {
@@ -46,6 +51,9 @@ export function AuthCard({ mode }: AuthCardProps) {
     try {
       const normalizedEmail = email.trim();
       const normalizedPassword = password.trim();
+      if (!isSignup) {
+        configureAuthPersistence(rememberConnected);
+      }
 
       const { error } = isSignup
         ? await supabase.auth.signUp({
@@ -65,8 +73,8 @@ export function AuthCard({ mode }: AuthCardProps) {
       if (error) throw error;
 
       toast.success(isSignup ? "Conta criada com sucesso!" : "Acesso realizado com sucesso!");
-      router.push("/dashboard");
       router.refresh();
+      router.replace("/dashboard");
     } catch (error) {
       const message =
         error instanceof Error
@@ -147,6 +155,25 @@ export function AuthCard({ mode }: AuthCardProps) {
               required
             />
           </label>
+
+          {!isSignup ? (
+            <div className="flex items-center gap-2">
+              <Checkbox
+                id="remember-connected"
+                checked={rememberConnected}
+                disabled={isSubmitting}
+                onCheckedChange={(checked) =>
+                  setRememberConnected(checked === true)
+                }
+              />
+              <label
+                htmlFor="remember-connected"
+                className="cursor-pointer text-sm font-medium text-zinc-300"
+              >
+                Manter-me conectado
+              </label>
+            </div>
+          ) : null}
 
           <button
             type="submit"

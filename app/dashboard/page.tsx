@@ -75,6 +75,13 @@ const typeLabel: Record<string, string> = {
 };
 
 function getTransactionFallbackLabel(transaction: Transaction) {
+  if (
+    transaction.is_recurring &&
+    (transaction.type === "card" || Boolean(transaction.cardId))
+  ) {
+    return "Assinatura";
+  }
+
   if (transaction.type === "fixed" && transaction.is_recurring) return "Fixo";
 
   return typeLabel[transaction.type];
@@ -660,10 +667,13 @@ export default function DashboardPage() {
               {recentTransactions.length ? (
                 recentTransactions.map((transaction) => {
                   const originLabel =
-                    transaction.type === "card"
-                      ? cards.find((card) => card.id === transaction.cardId)
-                          ?.name ?? "Crédito"
-                      : getTransactionFallbackLabel(transaction);
+                    transaction.is_recurring &&
+                    (transaction.type === "card" || Boolean(transaction.cardId))
+                      ? "Assinatura"
+                      : transaction.type === "card"
+                        ? cards.find((card) => card.id === transaction.cardId)
+                            ?.name ?? "Crédito"
+                        : getTransactionFallbackLabel(transaction);
 
                   return (
                     <TableRow
