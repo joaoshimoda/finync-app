@@ -1,7 +1,7 @@
 "use client";
 
 import { FormEvent, useEffect, useMemo, useState } from "react";
-import { CalendarDays, CreditCard, DollarSign, ReceiptText, Save } from "lucide-react";
+import { CalendarDays, CreditCard, ReceiptText, Save } from "lucide-react";
 import { toast } from "sonner";
 
 import {
@@ -316,12 +316,14 @@ function TransactionModalContent({
       </DialogHeader>
 
       <form className="grid grid-cols-2 gap-4" onSubmit={handleSubmit}>
-        <div className="col-span-2">
+        <div className="col-span-2 space-y-2">
           <Label htmlFor="transaction-amount" className="justify-center">
             Valor (R$)
           </Label>
-          <div className="relative mt-2">
-            <DollarSign className="pointer-events-none absolute left-4 top-1/2 size-5 -translate-y-1/2 text-muted-foreground" />
+          <div className="relative">
+            <span className="pointer-events-none absolute left-4 top-1/2 -translate-y-1/2 text-sm font-semibold text-muted-foreground">
+              R$
+            </span>
             <Input
               id="transaction-amount"
               value={amount}
@@ -335,52 +337,51 @@ function TransactionModalContent({
           </div>
         </div>
 
-        <div className="col-span-2">
-          <Label htmlFor="transaction-description">Descrição</Label>
-          <Input
-            id="transaction-description"
-            value={description}
-            onChange={(event) => setDescription(event.target.value)}
-            type="text"
-            placeholder="Ex: Mercado, assinatura, transporte"
-            className="mt-2"
-            required
-          />
-        </div>
-
-        <div>
-          <Label htmlFor="transaction-date">
-            <CalendarDays className="size-4 text-muted-foreground" />
-            Data
-          </Label>
-          <Input
-            id="transaction-date"
-            value={date}
-            onChange={(event) => setDate(event.target.value)}
-            type="date"
-            className="mt-2 [color-scheme:dark]"
-            required
-          />
-        </div>
-
-        <div>
-          <Label>Categoria</Label>
-          <Select value={category} onValueChange={setCategory}>
-            <SelectTrigger className="mt-2">
-              <SelectValue placeholder="Categoria" />
-            </SelectTrigger>
-            <SelectContent>
-              {categories.map((item) => (
-                <SelectItem key={item} value={item}>
-                  {item}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-        </div>
-
         <div className="col-span-2 grid grid-cols-2 gap-4">
-          <div>
+          <div className="col-span-2 space-y-2">
+            <Label htmlFor="transaction-description">Descrição</Label>
+            <Input
+              id="transaction-description"
+              value={description}
+              onChange={(event) => setDescription(event.target.value)}
+              type="text"
+              placeholder="Ex: Mercado, assinatura, transporte"
+              required
+            />
+          </div>
+
+          <div className="space-y-2">
+            <Label htmlFor="transaction-date">
+              <CalendarDays className="size-4 text-muted-foreground" />
+              Data
+            </Label>
+            <Input
+              id="transaction-date"
+              value={date}
+              onChange={(event) => setDate(event.target.value)}
+              type="date"
+              className="[color-scheme:dark]"
+              required
+            />
+          </div>
+
+          <div className="space-y-2">
+            <Label>Categoria</Label>
+            <Select value={category} onValueChange={setCategory}>
+              <SelectTrigger>
+                <SelectValue placeholder="Categoria" />
+              </SelectTrigger>
+              <SelectContent>
+                {categories.map((item) => (
+                  <SelectItem key={item} value={item}>
+                    {item}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+
+          <div className="space-y-2">
             <Label>
               <CreditCard className="size-4 text-muted-foreground" />
               Tipo
@@ -398,7 +399,7 @@ function TransactionModalContent({
                 }
               }}
             >
-              <SelectTrigger className="mt-2">
+              <SelectTrigger>
                 <SelectValue placeholder="Tipo" />
               </SelectTrigger>
               <SelectContent>
@@ -409,92 +410,90 @@ function TransactionModalContent({
               </SelectContent>
             </Select>
           </div>
-        </div>
 
-        <div className="col-span-2 space-y-4 rounded-xl border border-border bg-muted/30 p-4">
-          {transactionType === "card" ? (
-            <>
-              <div>
-                <Label>Cartão</Label>
-                <Select
-                  value={selectedCardId}
-                  onValueChange={setSelectedCardId}
-                  disabled={!cards.length}
-                >
-                  <SelectTrigger className="mt-2">
-                    <SelectValue placeholder="Selecione um cartão" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {cards.map((card) => (
-                      <SelectItem key={card.id} value={card.id}>
-                        {card.name}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
+          {!isFixedMode ? (
+            <div className="space-y-2">
+              <Label htmlFor="recurring-toggle">
+                {transactionType === "card"
+                  ? "Assinatura mensal"
+                  : "Gasto fixo recorrente"}
+              </Label>
+              <div className="flex h-9 items-center justify-between rounded-lg border border-input bg-background px-3">
+                <span className="text-sm text-muted-foreground">
+                  {isRecurring ? "Ativo" : "Inativo"}
+                </span>
+                <Switch
+                  id="recurring-toggle"
+                  checked={isRecurring}
+                  onCheckedChange={(checked) => {
+                    setIsRecurring(checked);
+                    if (checked) {
+                      setIsInstallmentPurchase(false);
+                    }
+                  }}
+                />
               </div>
-
-              {!editingTransaction ? (
-                <>
-                  <div className="flex items-center justify-between gap-4">
-                    <span className="text-sm font-medium text-foreground">
-                      Compra parcelada?
-                    </span>
-                    <Switch
-                      checked={isInstallmentPurchase}
-                      onCheckedChange={(checked) => {
-                        setIsInstallmentPurchase(checked);
-                        if (checked) {
-                          setIsRecurring(false);
-                        }
-                      }}
-                    />
-                  </div>
-
-                  {isInstallmentPurchase ? (
-                    <div className="animate-in fade-in-0 slide-in-from-top-1 duration-150">
-                      <Label htmlFor="installments">Quantidade de Parcelas</Label>
-                      <Input
-                        id="installments"
-                        value={installmentCount}
-                        onChange={(event) => setInstallmentCount(event.target.value)}
-                        type="number"
-                        min={2}
-                        step={1}
-                        className="mt-2"
-                      />
-                    </div>
-                  ) : null}
-
-                  <div className="flex items-center justify-between gap-4">
-                    <span className="text-sm font-medium text-foreground">
-                      Assinatura mensal no cartão?
-                    </span>
-                    <Switch
-                      checked={isRecurring}
-                      onCheckedChange={(checked) => {
-                        setIsRecurring(checked);
-                        if (checked) {
-                          setIsInstallmentPurchase(false);
-                        }
-                      }}
-                    />
-                  </div>
-                </>
-              ) : null}
-            </>
-          ) : null}
-
-          {transactionType === "fixed" && !isFixedMode ? (
-            <div className="flex items-center justify-between gap-4">
-              <span className="text-sm font-medium text-foreground">
-                Gasto fixo recorrente?
-              </span>
-              <Switch checked={isRecurring} onCheckedChange={setIsRecurring} />
             </div>
           ) : null}
         </div>
 
+        {transactionType === "card" ? (
+          <div className="col-span-2 space-y-4 rounded-xl border border-border bg-muted/30 p-4">
+            <div>
+              <Label>Cartão</Label>
+              <Select
+                value={selectedCardId}
+                onValueChange={setSelectedCardId}
+                disabled={!cards.length}
+              >
+                <SelectTrigger className="mt-2">
+                  <SelectValue placeholder="Selecione um cartão" />
+                </SelectTrigger>
+                <SelectContent>
+                  {cards.map((card) => (
+                    <SelectItem key={card.id} value={card.id}>
+                      {card.name}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+
+            {!editingTransaction ? (
+              <>
+                <div className="flex items-center justify-between gap-4">
+                  <span className="text-sm font-medium text-foreground">
+                    Compra parcelada?
+                  </span>
+                  <Switch
+                    checked={isInstallmentPurchase}
+                    onCheckedChange={(checked) => {
+                      setIsInstallmentPurchase(checked);
+                      if (checked) {
+                        setIsRecurring(false);
+                      }
+                    }}
+                  />
+                </div>
+
+                {isInstallmentPurchase ? (
+                  <div className="animate-in fade-in-0 slide-in-from-top-1 duration-150">
+                    <Label htmlFor="installments">Quantidade de Parcelas</Label>
+                    <Input
+                      id="installments"
+                      value={installmentCount}
+                      onChange={(event) => setInstallmentCount(event.target.value)}
+                      type="number"
+                      min={2}
+                      step={1}
+                      className="mt-2"
+                    />
+                  </div>
+                ) : null}
+              </>
+            ) : null}
+          </div>
+        ) : null}
         <div className="col-span-2 flex flex-col-reverse gap-3 pt-2 sm:flex-row sm:justify-end">
           <Button
             type="button"

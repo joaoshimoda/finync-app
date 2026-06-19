@@ -156,58 +156,64 @@ function IncomeModalContent({
       <form className="grid grid-cols-2 gap-4" onSubmit={handleSubmit}>
         <div className="col-span-2 space-y-2">
           <Label htmlFor="income-amount">Valor (R$)</Label>
-          <Input
-            id="income-amount"
-            value={amount}
-            onChange={(event) => setAmount(event.target.value)}
-            type="text"
-            inputMode="decimal"
-            placeholder="0,00"
-            className="h-16 px-12 text-center text-3xl font-bold text-emerald-400 placeholder:text-zinc-700"
-            required
-          />
+          <div className="relative">
+            <span className="pointer-events-none absolute left-4 top-1/2 -translate-y-1/2 text-sm font-semibold text-muted-foreground">
+              R$
+            </span>
+            <Input
+              id="income-amount"
+              value={amount}
+              onChange={(event) => setAmount(event.target.value)}
+              type="text"
+              inputMode="decimal"
+              placeholder="0,00"
+              className="h-16 px-12 text-center text-3xl font-bold text-emerald-400 placeholder:text-zinc-700"
+              required
+            />
+          </div>
         </div>
 
-        <div className="col-span-2 space-y-2">
-          <Label htmlFor="income-description">Descrição</Label>
-          <Input
-            id="income-description"
-            value={description}
-            onChange={(event) => setDescription(event.target.value)}
-            type="text"
-            placeholder="Ex: Salário, freelance"
-            required
-          />
-        </div>
+        <div className="col-span-2 grid grid-cols-2 gap-4">
+          <div className="col-span-2 space-y-2">
+            <Label htmlFor="income-description">Descrição</Label>
+            <Input
+              id="income-description"
+              value={description}
+              onChange={(event) => setDescription(event.target.value)}
+              type="text"
+              placeholder="Ex: Salário, freelance"
+              required
+            />
+          </div>
 
-        <div className="space-y-2">
-          <Label htmlFor="income-date">Data</Label>
-          <Input
-            id="income-date"
-            value={date}
-            onChange={(event) => setDate(event.target.value)}
-            type="date"
-            className="[color-scheme:dark]"
-            required
-          />
-        </div>
+          <div className="space-y-2">
+            <Label htmlFor="income-date">Data</Label>
+            <Input
+              id="income-date"
+              value={date}
+              onChange={(event) => setDate(event.target.value)}
+              type="date"
+              className="[color-scheme:dark]"
+              required
+            />
+          </div>
 
-        <div className="space-y-2">
-          <Label>Categoria</Label>
-          <Select value={category} onValueChange={setCategory}>
-            <SelectTrigger>
-              <SelectValue placeholder="Selecione" />
-            </SelectTrigger>
-            <SelectContent>
-              {incomeCategories.map((incomeCategory) => (
-                <SelectItem key={incomeCategory} value={incomeCategory}>
-                  {incomeCategory}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
+          <div className="space-y-2">
+            <Label>Categoria</Label>
+            <Select value={category} onValueChange={setCategory}>
+              <SelectTrigger>
+                <SelectValue placeholder="Selecione" />
+              </SelectTrigger>
+              <SelectContent>
+                {incomeCategories.map((incomeCategory) => (
+                  <SelectItem key={incomeCategory} value={incomeCategory}>
+                    {incomeCategory}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
         </div>
-
         <div className="col-span-2 flex flex-col-reverse gap-3 pt-2 sm:flex-row sm:justify-end">
           <Button
             type="button"

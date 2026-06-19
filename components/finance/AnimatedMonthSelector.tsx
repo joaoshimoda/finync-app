@@ -51,7 +51,7 @@ export function AnimatedMonthSelector({
   const nextMonth = getMonthDate(currentMonth, currentYear, 1);
 
   return (
-    <div className="mx-auto flex w-full max-w-xl flex-row items-center justify-center gap-6 overflow-hidden rounded-full border border-border/50 bg-muted/30 px-8 py-3 shadow-inner lg:gap-10">
+    <div className="mx-auto flex w-full max-w-lg flex-row items-center justify-center gap-3 overflow-hidden rounded-full border border-border/50 bg-muted/30 px-4 py-2 shadow-inner lg:gap-5 lg:px-6 lg:py-1.5">
       <Button
         type="button"
         variant="ghost"
@@ -66,14 +66,14 @@ export function AnimatedMonthSelector({
       <button
         type="button"
         onClick={onPreviousMonth}
-        className="min-w-16 scale-75 cursor-pointer px-3 py-3 text-base font-medium opacity-40 blur-[1px] transition-all duration-300 ease-in-out hover:scale-90 hover:opacity-80 hover:blur-none lg:text-lg"
+        className="min-w-12 scale-75 cursor-pointer px-2 py-2 text-sm font-medium opacity-40 blur-[1px] transition-all duration-300 ease-in-out hover:scale-90 hover:opacity-80 hover:blur-none lg:text-base"
       >
         {formatShortMonth(previousMonth)}
       </button>
 
       <div
         className={cn(
-          "scale-110 whitespace-nowrap text-2xl font-bold text-primary opacity-100 blur-none transition-all duration-300 ease-in-out",
+          "whitespace-nowrap text-lg font-bold text-primary opacity-100 blur-none transition-all duration-300 ease-in-out lg:text-xl",
           isLoading && "opacity-70",
         )}
       >
@@ -83,7 +83,7 @@ export function AnimatedMonthSelector({
       <button
         type="button"
         onClick={onNextMonth}
-        className="min-w-16 scale-75 cursor-pointer px-3 py-3 text-base font-medium opacity-40 blur-[1px] transition-all duration-300 ease-in-out hover:scale-90 hover:opacity-80 hover:blur-none lg:text-lg"
+        className="min-w-12 scale-75 cursor-pointer px-2 py-2 text-sm font-medium opacity-40 blur-[1px] transition-all duration-300 ease-in-out hover:scale-90 hover:opacity-80 hover:blur-none lg:text-base"
       >
         {formatShortMonth(nextMonth)}
       </button>

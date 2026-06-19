@@ -126,11 +126,11 @@ function CardModalContent({
       </DialogHeader>
 
       <form className="grid grid-cols-2 gap-4" onSubmit={handleSubmit}>
-        <div className="col-span-2 rounded-xl border border-border bg-muted/30 p-4">
-          <div className="flex justify-center">
+        <div className="col-span-2 flex min-h-[220px] items-center justify-center rounded-xl border border-border bg-muted/30 px-4 py-8">
+          <div className="flex w-full justify-center">
             <div
               className={cn(
-                "relative h-36 w-full max-w-72 overflow-hidden rounded-2xl p-5 text-white shadow-lg",
+                "relative h-[176px] w-full max-w-[280px] rounded-2xl p-5 text-white shadow-lg",
                 previewGradient,
               )}
             >

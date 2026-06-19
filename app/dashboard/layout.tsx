@@ -56,11 +56,11 @@ export default function DashboardLayout({
   }
 
   return (
-    <div className="min-h-screen bg-background text-white">
+    <div className="min-h-screen w-full overflow-x-hidden bg-background text-white">
       <div className="pointer-events-none fixed inset-0 bg-[linear-gradient(rgba(255,255,255,0.025)_1px,transparent_1px),linear-gradient(90deg,rgba(255,255,255,0.025)_1px,transparent_1px)] bg-[size:72px_72px] opacity-35" />
-      <div className="relative flex min-h-screen">
+      <div className="relative flex h-screen w-full">
         <Sidebar />
-        <main className="mx-auto w-full flex-1 overflow-y-auto px-4 py-8 pb-28 md:px-8 lg:pb-10">
+        <main className="mx-auto h-screen w-full flex-1 overflow-x-hidden overflow-y-auto px-4 py-5 pb-24 lg:px-8 lg:py-4 lg:pb-4">
           {children}
         </main>
       </div>

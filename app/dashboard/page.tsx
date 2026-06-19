@@ -6,9 +6,11 @@ import {
   ArrowUp,
   CalendarDays,
   CreditCard,
+  Inbox,
   PlusCircle,
   QrCode,
   ReceiptText,
+  RotateCcw,
   TrendingUp,
 } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
@@ -93,6 +95,116 @@ function isSameSelectedMonth(
 
 function sortByRecentDate(left: Transaction, right: Transaction) {
   return right.date.localeCompare(left.date);
+}
+
+interface CardSpendingSummary {
+  id: string;
+  name: string;
+  closingDay?: number;
+  dueDay?: number;
+  gradient: string;
+  current: number;
+  projected: number;
+}
+
+function FlippableWalletCard({
+  cardSummary,
+  onPayInvoice,
+}: {
+  cardSummary: CardSpendingSummary;
+  onPayInvoice: (cardId: string) => void;
+}) {
+  const [isFlipped, setIsFlipped] = useState(false);
+
+  return (
+    <div className="h-[176px] w-full perspective-[1000px] lg:w-[280px]">
+      <div
+        className={cn(
+          "relative h-full w-full transition-all duration-500 [transform-style:preserve-3d]",
+          isFlipped && "[transform:rotateY(180deg)]",
+        )}
+      >
+        <div
+          className={cn(
+            "absolute inset-0 overflow-hidden rounded-2xl p-4 text-white shadow-lg [backface-visibility:hidden]",
+            cardSummary.gradient,
+          )}
+        >
+          <div className="pointer-events-none absolute -right-10 -top-10 size-28 rounded-full bg-white/10" />
+          <div className="pointer-events-none absolute -bottom-12 left-8 size-28 rounded-full bg-black/20" />
+          <div className="relative flex items-start justify-between gap-4">
+            <div>
+              <div className="mb-3 h-6 w-9 rounded-md border border-white/25 bg-gradient-to-br from-white/40 to-white/10 shadow-inner" />
+              <p className="max-w-36 truncate text-xs font-medium text-white">
+                {cardSummary.name}
+              </p>
+            </div>
+            <button
+              type="button"
+              className="inline-flex size-7 items-center justify-center rounded-full bg-white/10 text-white/80 transition hover:bg-white/20 hover:text-white"
+              onClick={() => setIsFlipped(true)}
+              aria-label={`Virar cartão ${cardSummary.name}`}
+            >
+              <RotateCcw className="size-4" />
+            </button>
+          </div>
+          <p className="relative mt-2 text-xs text-white/65">
+            {cardSummary.closingDay
+              ? `Fecha dia ${cardSummary.closingDay}`
+              : "Fechamento livre"}
+            {" • "}
+            {cardSummary.dueDay
+              ? `Vence dia ${cardSummary.dueDay}`
+              : "Sem vencimento"}
+          </p>
+          <div className="relative mt-5 text-right">
+            <p className="text-xs font-medium uppercase text-white/60">
+              Fatura atual
+            </p>
+            <strong className="mt-1 block text-xl font-bold tracking-normal text-white">
+              {brlFormatter.format(cardSummary.current)}
+            </strong>
+          </div>
+        </div>
+
+        <div
+          className={cn(
+            "absolute inset-0 flex flex-col justify-between overflow-hidden rounded-2xl p-4 text-white shadow-lg [backface-visibility:hidden] [transform:rotateY(180deg)]",
+            cardSummary.gradient,
+          )}
+        >
+          <div className="pointer-events-none absolute -left-10 -top-10 size-28 rounded-full bg-white/10" />
+          <div className="relative">
+            <p className="text-xs font-medium uppercase text-white/60">
+              Fatura projetada
+            </p>
+            <strong className="mt-1 block text-2xl font-bold text-white">
+              {brlFormatter.format(cardSummary.projected)}
+            </strong>
+          </div>
+          <div className="relative grid gap-2">
+            <Button
+              type="button"
+              size="sm"
+              className="h-8 bg-white text-zinc-950 hover:bg-white/90"
+              onClick={() => onPayInvoice(cardSummary.id)}
+            >
+              Pagar Fatura
+            </Button>
+            <Button
+              type="button"
+              size="sm"
+              variant="outline"
+              className="h-8 border-white/25 bg-white/10 text-white hover:bg-white/20 hover:text-white"
+              onClick={() => setIsFlipped(false)}
+            >
+              Voltar
+            </Button>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
 }
 
 export default function DashboardPage() {
@@ -195,6 +307,8 @@ export default function DashboardPage() {
   const cardSpendingSummaries = cards.map((card) => ({
     id: card.id,
     name: card.name,
+    closingDay: card.closingDay,
+    dueDay: card.dueDay,
     gradient: getCardGradient(card.name),
     ...monthlyTransactions
       .filter((transaction) => {
@@ -266,13 +380,13 @@ export default function DashboardPage() {
   }
 
   return (
-    <div className="flex w-full flex-col gap-8">
-      <div className="mb-2 flex flex-col items-start justify-between gap-4 sm:flex-row sm:items-center">
+    <div className="flex w-full flex-col gap-3 lg:gap-2">
+      <div className="flex flex-col items-start justify-between gap-4 lg:flex-row lg:items-center">
         <div>
-          <h1 className="text-2xl font-bold tracking-tight md:text-3xl">
+          <h1 className="text-2xl font-bold tracking-tight lg:text-3xl">
             Visão geral
           </h1>
-          <p className="text-sm text-muted-foreground md:text-base">
+          <p className="text-sm text-muted-foreground lg:text-base">
             Acompanhe saldos, faturas e movimentações do período.
           </p>
         </div>
@@ -280,8 +394,8 @@ export default function DashboardPage() {
         <div>
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
-              <Button className="h-12 cursor-pointer gap-2 bg-primary px-6 text-base font-semibold text-primary-foreground shadow-lg transition-all duration-200 hover:-translate-y-0.5 hover:shadow-xl">
-                <PlusCircle className="h-5 w-5" />
+              <Button className="h-10 cursor-pointer gap-2 bg-emerald-600 px-4 text-sm font-semibold text-white shadow-lg shadow-emerald-950/20 transition-all duration-200 hover:-translate-y-0.5 hover:bg-emerald-700 hover:shadow-xl">
+                <PlusCircle className="h-4 w-4" />
                 Novo
               </Button>
             </DropdownMenuTrigger>
@@ -339,7 +453,7 @@ export default function DashboardPage() {
         </div>
       </div>
 
-      <div className="mb-4 flex w-full justify-center border-b border-border/50 py-6">
+      <div className="flex w-full justify-center border-b border-border/50 py-2">
         <AnimatedMonthSelector
           currentMonth={currentMonth}
           currentYear={currentYear}
@@ -350,67 +464,67 @@ export default function DashboardPage() {
       </div>
 
       <section>
-        <div className="mb-8 grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5">
-          <Card className="w-full rounded-lg border-border bg-card p-6 shadow-none">
+        <div className="grid grid-cols-2 gap-3 lg:grid-cols-5 lg:gap-2">
+          <Card className="w-full rounded-lg border border-border/50 bg-card p-3 shadow-none transition-colors hover:bg-accent/10">
             <CardHeader className="p-0">
               <CardDescription>Saldo Disponível Total</CardDescription>
-              <CardTitle className="text-2xl tracking-normal md:text-3xl lg:text-4xl">
+              <CardTitle className="text-lg tracking-normal lg:text-xl">
                 {brlFormatter.format(monthlyBalances.projectedBalance)}
               </CardTitle>
             </CardHeader>
-            <CardContent className="flex items-center gap-2 p-0 pt-5 text-sm text-muted-foreground">
+            <CardContent className="flex items-center gap-2 p-0 pt-2 text-xs text-muted-foreground">
               <ReceiptText className="size-4 text-brand-300" />
               Após todos os compromissos do mês
             </CardContent>
           </Card>
 
-          <Card className="w-full rounded-lg border-border bg-card p-6 shadow-none">
+          <Card className="w-full rounded-lg border border-border/50 bg-card p-3 shadow-none transition-colors hover:bg-accent/10">
             <CardHeader className="p-0">
               <CardDescription>Receitas</CardDescription>
-              <CardTitle className="text-2xl tracking-normal text-emerald-300 md:text-3xl lg:text-4xl">
+              <CardTitle className="text-lg tracking-normal text-emerald-300 lg:text-xl">
                 {brlFormatter.format(monthlyBalances.totalIncome)}
               </CardTitle>
             </CardHeader>
-            <CardContent className="flex items-center gap-2 p-0 pt-5 text-sm text-muted-foreground">
+            <CardContent className="flex items-center gap-2 p-0 pt-2 text-xs text-muted-foreground">
               <TrendingUp className="size-4 text-emerald-300" />
               Entradas registradas no mês
             </CardContent>
           </Card>
 
-          <Card className="w-full rounded-lg border-border bg-card shadow-none">
-            <CardHeader>
+          <Card className="w-full rounded-lg border border-border/50 bg-card p-3 shadow-none transition-colors hover:bg-accent/10">
+            <CardHeader className="p-0">
               <CardDescription>Fatura Atual</CardDescription>
-              <CardTitle className="text-xl tracking-normal text-red-300 md:text-2xl">
+              <CardTitle className="text-xl tracking-normal text-red-300">
                 {brlFormatter.format(monthlyBalances.creditCardUntilToday)}
               </CardTitle>
             </CardHeader>
-            <CardContent className="flex items-center gap-2 text-sm text-muted-foreground">
+            <CardContent className="flex items-center gap-2 p-0 pt-2 text-xs text-muted-foreground">
               <CreditCard className="size-4 text-red-300" />
               Cartão lançado até hoje
             </CardContent>
           </Card>
 
-          <Card className="w-full rounded-lg border-border bg-card shadow-none">
-            <CardHeader>
+          <Card className="w-full rounded-lg border border-border/50 bg-card p-3 shadow-none transition-colors hover:bg-accent/10">
+            <CardHeader className="p-0">
               <CardDescription>Fatura Total</CardDescription>
-              <CardTitle className="text-xl tracking-normal text-amber-200 md:text-2xl">
+              <CardTitle className="text-xl tracking-normal text-amber-200">
                 {brlFormatter.format(monthlyBalances.creditCardProjected)}
               </CardTitle>
             </CardHeader>
-            <CardContent className="flex items-center gap-2 text-sm text-muted-foreground">
+            <CardContent className="flex items-center gap-2 p-0 pt-2 text-xs text-muted-foreground">
               <CreditCard className="size-4 text-amber-200" />
               Total projetado do cartão no mês
             </CardContent>
           </Card>
 
-          <Card className="w-full rounded-lg border-border bg-card shadow-none">
-            <CardHeader>
+          <Card className="w-full rounded-lg border border-border/50 bg-card p-3 shadow-none transition-colors hover:bg-accent/10">
+            <CardHeader className="p-0">
               <CardDescription>Gastos Totais Pendentes</CardDescription>
-              <CardTitle className="text-xl tracking-normal text-orange-300 md:text-2xl">
+              <CardTitle className="text-xl tracking-normal text-orange-300">
                 {brlFormatter.format(monthlyBalances.totalPendingObligations)}
               </CardTitle>
             </CardHeader>
-            <CardContent className="flex items-center gap-2 text-sm text-muted-foreground">
+            <CardContent className="flex items-center gap-2 p-0 pt-2 text-xs text-muted-foreground">
               <ReceiptText className="size-4 text-orange-300" />
               Pendências manuais e fatura do cartão
             </CardContent>
@@ -418,116 +532,79 @@ export default function DashboardPage() {
         </div>
       </section>
 
-      <section className="space-y-4">
+      <section className="space-y-1">
         <div>
           <h2 className="text-lg font-medium tracking-normal text-foreground">
             Minha Carteira
           </h2>
-          <p className="mt-1 text-sm text-muted-foreground">
+          <p className="text-sm text-muted-foreground">
             Cartões, fixos e pagamentos à vista do período.
           </p>
         </div>
 
         <Carousel opts={{ dragFree: true }} className="w-full">
-          <CarouselContent className="-ml-4 py-4 px-2">
+          <CarouselContent className="-ml-4 px-2 pt-2 pb-6">
           {cardSpendingSummaries.map((cardSummary) => (
-            <CarouselItem
-              key={cardSummary.id}
-              className="basis-[86%] pl-4 sm:basis-1/2 lg:basis-1/3 xl:basis-1/4"
-            >
-              <div
-                className={cn(
-                  "relative aspect-[340/214] w-full shrink-0 overflow-hidden rounded-2xl p-5 text-white shadow-lg",
-                  cardSummary.gradient,
-                )}
-              >
-              <div className="pointer-events-none absolute -right-10 -top-10 size-28 rounded-full bg-white/10" />
-              <div className="pointer-events-none absolute -bottom-12 left-8 size-28 rounded-full bg-black/20" />
-              <div className="relative flex items-start justify-between gap-4">
-                <div>
-                  <div className="mb-4 h-7 w-10 rounded-md border border-white/25 bg-gradient-to-br from-white/40 to-white/10 shadow-inner" />
-                  <p className="max-w-40 truncate text-sm font-medium text-white">
-                    {cardSummary.name}
-                  </p>
-                </div>
-                <CreditCard className="size-5 text-white/80" />
-              </div>
-              <div className="relative mt-10 text-right">
-                <p className="text-xs font-medium uppercase text-white/60">
-                  Fatura atual
-                </p>
-                <strong className="mt-1 block text-2xl font-bold tracking-normal text-white md:text-3xl">
-                  {brlFormatter.format(cardSummary.current)}
-                </strong>
-                <p className="mt-1 text-sm text-white/70">
-                  Projetado: {brlFormatter.format(cardSummary.projected)}
-                </p>
-                <Button
-                  type="button"
-                  size="sm"
-                  variant="outline"
-                  className="mt-3 h-8 border-white/25 bg-white/10 px-3 text-xs text-white hover:bg-white/20 hover:text-white"
-                  onClick={() => handlePayInvoiceClick(cardSummary.id)}
-                >
-                  Pagar Fatura
-                </Button>
-              </div>
-              </div>
+            <CarouselItem key={cardSummary.id} className="basis-full pl-4 lg:basis-auto">
+              <FlippableWalletCard
+                cardSummary={cardSummary}
+                onPayInvoice={(cardId) => void handlePayInvoiceClick(cardId)}
+              />
             </CarouselItem>
           ))}
 
-            <CarouselItem className="basis-[86%] pl-4 sm:basis-1/2 lg:basis-1/3 xl:basis-1/4">
-              <div className="relative aspect-[340/214] w-full shrink-0 overflow-hidden rounded-2xl bg-gradient-to-br from-blue-600 to-blue-800 p-5 text-white shadow-lg">
+            <CarouselItem className="basis-full pl-4 lg:basis-auto">
+              <div className="relative h-[176px] w-full shrink-0 overflow-hidden rounded-2xl bg-gradient-to-br from-blue-600 to-blue-800 p-4 text-white shadow-lg lg:w-[280px]">
             <div className="pointer-events-none absolute -right-10 -top-10 size-28 rounded-full bg-white/10" />
             <div className="relative flex items-start justify-between gap-4">
               <div>
-                <div className="mb-4 flex size-10 items-center justify-center rounded-xl bg-white/15">
-                  <CalendarDays className="size-5 text-white" />
+                <div className="mb-3 flex size-8 items-center justify-center rounded-xl bg-white/15">
+                  <CalendarDays className="size-4 text-white" />
                 </div>
-                <p className="text-sm font-medium text-white">Gastos Fixos</p>
+                <p className="text-xs font-medium text-white">Gastos Fixos</p>
               </div>
-              <ReceiptText className="size-5 text-white/80" />
+              <ReceiptText className="size-4 text-white/80" />
             </div>
-            <div className="relative mt-10 text-right">
+            <div className="relative mt-6 text-right">
               <p className="text-xs font-medium uppercase text-white/60">
                 Total do mês
               </p>
-                  <strong className="mt-1 block text-2xl font-bold tracking-normal text-white md:text-3xl">
+                  <strong className="mt-1 block text-xl font-bold tracking-normal text-white">
                 {brlFormatter.format(fixedSpendingTotal)}
               </strong>
             </div>
               </div>
             </CarouselItem>
 
-            <CarouselItem className="basis-[86%] pl-4 sm:basis-1/2 lg:basis-1/3 xl:basis-1/4">
-              <div className="relative aspect-[340/214] w-full shrink-0 overflow-hidden rounded-2xl bg-gradient-to-br from-emerald-500 to-emerald-700 p-5 text-white shadow-lg">
+            <CarouselItem className="basis-full pl-4 lg:basis-auto">
+              <div className="relative h-[176px] w-full shrink-0 overflow-hidden rounded-2xl bg-gradient-to-br from-emerald-500 to-emerald-700 p-4 text-white shadow-lg lg:w-[280px]">
             <div className="pointer-events-none absolute -right-10 -top-10 size-28 rounded-full bg-white/10" />
             <div className="relative flex items-start justify-between gap-4">
               <div>
-                <div className="mb-4 flex size-10 items-center justify-center rounded-xl bg-white/15">
-                  <QrCode className="size-5 text-white" />
+                <div className="mb-3 flex size-8 items-center justify-center rounded-xl bg-white/15">
+                  <QrCode className="size-4 text-white" />
                 </div>
-                <p className="text-sm font-medium text-white">Débito / Pix</p>
+                <p className="text-xs font-medium text-white">Débito / Pix</p>
               </div>
-              <QrCode className="size-5 text-white/80" />
+              <QrCode className="size-4 text-white/80" />
             </div>
-            <div className="relative mt-10 text-right">
+            <div className="relative mt-6 text-right">
               <p className="text-xs font-medium uppercase text-white/60">
                 Total do mês
               </p>
-                  <strong className="mt-1 block text-2xl font-bold tracking-normal text-white md:text-3xl">
+                  <strong className="mt-1 block text-xl font-bold tracking-normal text-white">
                 {brlFormatter.format(debitPixSpendingTotal)}
               </strong>
             </div>
               </div>
             </CarouselItem>
           </CarouselContent>
-          <CarouselPrevious className="absolute -left-12 z-50 hidden bg-background/80 md:inline-flex lg:-left-16" />
-          <CarouselNext className="absolute -right-12 z-50 hidden bg-background/80 md:inline-flex lg:-right-16" />
+          <CarouselPrevious className="absolute -left-12 z-50 hidden bg-background/80 lg:-left-16 lg:inline-flex" />
+          <CarouselNext className="absolute -right-12 z-50 hidden bg-background/80 lg:-right-16 lg:inline-flex" />
         </Carousel>
       </section>
 
-      <section className="space-y-4">
+      <section className="space-y-1">
         <div className="flex items-center justify-between gap-4">
           <div>
             <h2 className="text-lg font-medium tracking-normal text-foreground">
@@ -537,23 +614,35 @@ export default function DashboardPage() {
               Últimos dez lançamentos do período selecionado.
             </p>
           </div>
-          <Badge variant="outline" className="hidden rounded-lg sm:inline-flex">
-            {monthlyTransactions.length} no mês
-          </Badge>
+          <div className="flex items-center gap-2">
+            <Badge variant="outline" className="hidden rounded-lg lg:inline-flex">
+              {monthlyTransactions.length} no mes
+            </Badge>
+            <Button
+              variant="ghost"
+              size="sm"
+              className="text-sm text-muted-foreground hover:text-primary"
+              asChild
+            >
+              <Link href="/dashboard/transactions">
+                Ver todas
+              </Link>
+            </Button>
+          </div>
         </div>
 
         <div
           className={cn(
-            "overflow-hidden rounded-lg border border-border bg-card transition-opacity",
+            "overflow-hidden rounded-lg border border-border/50 bg-card transition-opacity",
             isFetching && "pointer-events-none opacity-50",
           )}
         >
-          <Table>
-            <TableHeader>
+          <Table className="min-w-[640px] lg:min-w-full">
+            <TableHeader className="bg-muted/30">
               <TableRow className="hover:bg-transparent">
                 <TableHead>Data</TableHead>
                 <TableHead>Descrição</TableHead>
-                <TableHead className="hidden md:table-cell">Categoria</TableHead>
+                <TableHead className="hidden lg:table-cell">Categoria</TableHead>
                 <TableHead className="hidden lg:table-cell">Origem</TableHead>
                 <TableHead className="text-right">Valor</TableHead>
               </TableRow>
@@ -579,11 +668,11 @@ export default function DashboardPage() {
                         <div className="font-medium text-foreground">
                           <TransactionDescription transaction={transaction} />
                         </div>
-                        <div className="mt-1 text-xs text-muted-foreground md:hidden">
+                        <div className="mt-1 text-xs text-muted-foreground lg:hidden">
                           {transaction.category || getTransactionFallbackLabel(transaction)}
                         </div>
                       </TableCell>
-                      <TableCell className="hidden md:table-cell">
+                      <TableCell className="hidden lg:table-cell">
                         <Badge variant="outline" className="rounded-lg">
                           {transaction.category || getTransactionFallbackLabel(transaction)}
                         </Badge>
@@ -609,9 +698,12 @@ export default function DashboardPage() {
                 <TableRow>
                   <TableCell
                     colSpan={5}
-                    className="h-28 text-center text-muted-foreground"
+                    className="h-32 text-center text-muted-foreground"
                   >
-                    Nenhuma movimentação neste período.
+                    <div className="flex flex-col items-center justify-center gap-2">
+                      <Inbox className="size-6 text-muted-foreground/70" />
+                      <span>Nenhuma movimentacao neste periodo.</span>
+                    </div>
                   </TableCell>
                 </TableRow>
               )}
@@ -619,9 +711,6 @@ export default function DashboardPage() {
           </Table>
         </div>
 
-        <Button variant="outline" asChild>
-          <Link href="/dashboard/transactions">Ver todas as movimentações</Link>
-        </Button>
       </section>
 
       <AddCardModal

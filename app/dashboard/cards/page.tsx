@@ -4,9 +4,10 @@ import { KeyboardEvent, useEffect, useMemo, useState } from "react";
 import {
   CreditCard,
   Edit3,
-  MoreHorizontal,
   Plus,
+  RotateCcw,
   Trash2,
+  X,
 } from "lucide-react";
 import { toast } from "sonner";
 
@@ -28,12 +29,6 @@ import {
   CarouselNext,
   CarouselPrevious,
 } from "@/components/ui/carousel";
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu";
 import { Progress } from "@/components/ui/progress";
 import {
   Table,
@@ -55,6 +50,153 @@ const brlFormatter = new Intl.NumberFormat("pt-BR", {
   style: "currency",
   currency: "BRL",
 });
+
+function FlippableManagedCard({
+  card,
+  invoiceTotal,
+  isSelected,
+  onSelect,
+  onKeyDown,
+  onEdit,
+  onDelete,
+  onPayInvoice,
+}: {
+  card: FinanceCard;
+  invoiceTotal: number;
+  isSelected: boolean;
+  onSelect: (cardId: string) => void;
+  onKeyDown: (event: KeyboardEvent<HTMLDivElement>, cardId: string) => void;
+  onEdit: (card: FinanceCard) => void;
+  onDelete: (cardId: string) => void;
+  onPayInvoice: (cardId: string) => void;
+}) {
+  const [isFlipped, setIsFlipped] = useState(false);
+
+  return (
+    <div className="h-[176px] w-full perspective-[1000px] lg:w-[280px]">
+      <div
+        className={cn(
+          "relative h-full w-full transition-all duration-500 [transform-style:preserve-3d]",
+          isFlipped && "[transform:rotateY(180deg)]",
+        )}
+      >
+        <div
+          role="button"
+          tabIndex={0}
+          onClick={() => onSelect(card.id)}
+          onKeyDown={(event) => onKeyDown(event, card.id)}
+          className={cn(
+            "absolute inset-0 cursor-pointer overflow-hidden rounded-2xl border-2 p-4 text-left text-white shadow-lg transition-all duration-300 ease-in-out [backface-visibility:hidden]",
+            getCardGradient(card.name),
+            isSelected
+              ? "border-white/80 opacity-100 shadow-2xl lg:scale-105"
+              : "border-transparent opacity-60 hover:opacity-80 lg:scale-95 lg:hover:scale-100",
+          )}
+        >
+          <div className="pointer-events-none absolute -right-10 -top-10 size-28 rounded-full bg-white/10" />
+          <div className="pointer-events-none absolute -bottom-12 left-8 size-28 rounded-full bg-black/20" />
+
+          <div className="relative flex items-start justify-between gap-4">
+            <div>
+              <div className="mb-3 h-6 w-9 rounded-md border border-white/25 bg-gradient-to-br from-white/45 to-white/10 shadow-inner" />
+              <h2 className="max-w-36 truncate text-sm font-semibold text-white">
+                {card.name}
+              </h2>
+              <p className="mt-1 text-xs text-white/65">
+                {card.closingDay ? `Fecha dia ${card.closingDay}` : "Fechamento livre"}
+                {" • "}
+                {card.dueDay ? `Vence dia ${card.dueDay}` : "Sem vencimento"}
+              </p>
+            </div>
+
+            <button
+              type="button"
+              onClick={(event) => {
+                event.stopPropagation();
+                setIsFlipped(true);
+              }}
+              className="inline-flex size-8 items-center justify-center rounded-full bg-white/10 text-white transition hover:bg-white/20"
+              aria-label={`Virar cartão ${card.name}`}
+            >
+              <RotateCcw className="size-4" />
+            </button>
+          </div>
+
+          <div className="relative mt-4 flex items-end justify-between gap-3">
+            <CreditCard className="size-5 text-white/70" />
+            <div className="text-right">
+              <p className="text-xs font-medium uppercase text-white/60">
+                Fatura projetada
+              </p>
+              <strong className="mt-1 block text-lg font-bold tracking-normal">
+                {brlFormatter.format(invoiceTotal)}
+              </strong>
+            </div>
+          </div>
+        </div>
+
+        <div
+          className={cn(
+            "absolute inset-0 flex flex-col justify-between overflow-hidden rounded-2xl border-2 border-white/80 p-4 text-white shadow-2xl [backface-visibility:hidden] [transform:rotateY(180deg)]",
+            getCardGradient(card.name),
+          )}
+        >
+          <div className="pointer-events-none absolute -left-10 -top-10 size-28 rounded-full bg-white/10" />
+          <div className="relative flex items-start justify-between gap-3">
+            <div>
+              <p className="text-xs font-medium uppercase text-white/60">
+                Fatura atual
+              </p>
+              <strong className="mt-1 block text-2xl font-bold text-white">
+                {brlFormatter.format(invoiceTotal)}
+              </strong>
+            </div>
+            <Button
+              type="button"
+              size="icon-sm"
+              variant="outline"
+              className="size-8 border-white/25 bg-white/10 text-white hover:bg-white/20 hover:text-white"
+              onClick={() => setIsFlipped(false)}
+              aria-label="Voltar para frente do cartão"
+            >
+              <X className="size-4" />
+            </Button>
+          </div>
+          <div className="relative grid grid-cols-2 gap-2">
+            <Button
+              type="button"
+              size="sm"
+              className="col-span-2 h-8 bg-white text-zinc-950 hover:bg-white/90"
+              onClick={() => onPayInvoice(card.id)}
+            >
+              Pagar Fatura
+            </Button>
+            <Button
+              type="button"
+              size="sm"
+              variant="outline"
+              className="h-8 border-white/25 bg-white/10 text-white hover:bg-white/20 hover:text-white"
+              onClick={() => onEdit(card)}
+            >
+              <Edit3 className="size-4" />
+              Editar
+            </Button>
+            <Button
+              type="button"
+              size="sm"
+              variant="outline"
+              className="h-8 border-white/25 bg-white/10 text-white hover:bg-red-500/30 hover:text-white"
+              onClick={() => onDelete(card.id)}
+            >
+              <Trash2 className="size-4" />
+              Excluir
+            </Button>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
 
 export default function CardsPage() {
   const [isAddCardModalOpen, setIsAddCardModalOpen] = useState(false);
@@ -160,13 +302,13 @@ export default function CardsPage() {
   }
 
   return (
-    <div className="flex w-full flex-col gap-8">
-      <div className="flex flex-col items-start justify-between gap-4 sm:flex-row sm:items-center">
+    <div className="flex w-full flex-col gap-4">
+      <div className="flex flex-col items-start justify-between gap-4 lg:flex-row lg:items-center">
         <div>
-          <h1 className="text-2xl font-bold tracking-tight md:text-3xl">
+          <h1 className="text-2xl font-bold tracking-tight lg:text-3xl">
             Meus Cartões
           </h1>
-          <p className="text-sm text-muted-foreground md:text-base">
+          <p className="text-sm text-muted-foreground lg:text-base">
             Gerencie cartões, limites, fechamento e vencimento.
           </p>
         </div>
@@ -175,17 +317,17 @@ export default function CardsPage() {
           <Button
             type="button"
             onClick={openCreateModal}
-            className="h-12 cursor-pointer gap-2 bg-primary px-6 text-base font-semibold text-primary-foreground shadow-lg transition-all duration-200 hover:-translate-y-0.5 hover:shadow-xl"
+            className="h-10 cursor-pointer gap-2 bg-primary px-4 text-sm font-semibold text-primary-foreground shadow-lg transition-all duration-200 hover:-translate-y-0.5 hover:shadow-xl"
           >
-            <Plus className="h-5 w-5" />
+            <Plus className="h-4 w-4" />
             Adicionar Cartão
           </Button>
         </div>
       </div>
 
-      <section className="space-y-4">
+      <section className="space-y-2">
         <Carousel opts={{ dragFree: true }} className="w-full">
-          <CarouselContent className="-ml-4 py-4 px-2">
+          <CarouselContent className="-ml-4 px-2 pt-2 pb-6">
             {cards.map((card) => {
               const cardTransactions = monthlyTransactions.filter(
                 (transaction) => transaction.cardId === card.id,
@@ -199,106 +341,24 @@ export default function CardsPage() {
               return (
                 <CarouselItem
                   key={card.id}
-                  className="basis-[86%] pl-4 sm:basis-1/2 lg:basis-1/3 xl:basis-1/4"
+                  className="basis-full pl-4 lg:basis-auto"
                 >
-                  <div
-                    role="button"
-                    tabIndex={0}
-                    onClick={() => setSelectedCardId(card.id)}
-                    onKeyDown={(event) => handleCardKeyDown(event, card.id)}
-                    className={cn(
-                      "group relative flex aspect-[340/214] w-full shrink-0 cursor-pointer flex-col justify-between overflow-hidden rounded-2xl border-2 p-5 text-left text-white transition-all duration-300 ease-in-out md:p-6",
-                      getCardGradient(card.name),
-                      isSelected
-                        ? "scale-105 border-white/80 opacity-100 shadow-2xl"
-                        : "scale-95 border-transparent opacity-50 shadow-lg hover:opacity-80",
-                    )}
-                  >
-                    <div className="pointer-events-none absolute -right-12 -top-12 size-36 rounded-full bg-white/10" />
-                    <div className="pointer-events-none absolute -bottom-14 left-10 size-36 rounded-full bg-black/20" />
-
-                    <div className="relative flex items-start justify-between gap-4">
-                      <div>
-                        <div className="mb-5 h-8 w-12 rounded-md border border-white/25 bg-gradient-to-br from-white/45 to-white/10 shadow-inner" />
-                        <h2 className="max-w-full truncate text-base font-semibold text-white md:text-lg">
-                          {card.name}
-                        </h2>
-                        <p className="mt-1 text-xs text-white/65">
-                          {card.closingDay
-                            ? `Fecha dia ${card.closingDay}`
-                            : "Fechamento livre"}
-                          {" • "}
-                          {card.dueDay
-                            ? `Vence dia ${card.dueDay}`
-                            : "Sem vencimento"}
-                        </p>
-                      </div>
-
-                      <DropdownMenu>
-                        <DropdownMenuTrigger asChild>
-                          <button
-                            type="button"
-                            onClick={(event) => event.stopPropagation()}
-                            className="inline-flex size-9 items-center justify-center rounded-full bg-white/10 text-white transition hover:bg-white/20"
-                            aria-label={`Ações do cartão ${card.name}`}
-                          >
-                            <MoreHorizontal className="size-4" />
-                          </button>
-                        </DropdownMenuTrigger>
-                        <DropdownMenuContent align="end" className="w-36">
-                          <DropdownMenuItem
-                            onClick={(event) => {
-                              event.stopPropagation();
-                              openEditModal(card);
-                            }}
-                          >
-                            <Edit3 />
-                            Editar
-                          </DropdownMenuItem>
-                          <DropdownMenuItem
-                            variant="destructive"
-                            onClick={(event) => {
-                              event.stopPropagation();
-                              void handleDeleteCard(card.id);
-                            }}
-                          >
-                            <Trash2 />
-                            Excluir
-                          </DropdownMenuItem>
-                        </DropdownMenuContent>
-                      </DropdownMenu>
-                    </div>
-
-                    <div className="relative mt-8 flex items-end justify-between gap-4">
-                      <CreditCard className="size-6 text-white/70" />
-                      <div className="text-right">
-                        <p className="text-xs font-medium uppercase text-white/60">
-                          Fatura atual
-                        </p>
-                        <strong className="mt-1 block text-xl font-bold tracking-normal md:text-2xl">
-                          {brlFormatter.format(invoiceTotal)}
-                        </strong>
-                        <Button
-                          type="button"
-                          size="sm"
-                          variant="outline"
-                          className="mt-3 h-8 border-white/25 bg-white/10 px-3 text-xs text-white hover:bg-white/20 hover:text-white"
-                          onClick={(event) => {
-                            event.stopPropagation();
-                            void handlePayInvoiceClick(card.id);
-                          }}
-                        >
-                          Pagar Fatura
-                        </Button>
-                      </div>
-                    </div>
-                  </div>
+                  <FlippableManagedCard
+                    card={card}
+                    invoiceTotal={invoiceTotal}
+                    isSelected={isSelected}
+                    onSelect={setSelectedCardId}
+                    onKeyDown={handleCardKeyDown}
+                    onEdit={openEditModal}
+                    onDelete={(cardId) => void handleDeleteCard(cardId)}
+                    onPayInvoice={(cardId) => void handlePayInvoiceClick(cardId)}
+                  />
                 </CarouselItem>
               );
             })}
           </CarouselContent>
-          <CarouselPrevious className="absolute -left-12 z-50 hidden bg-background/80 md:inline-flex lg:-left-16" />
-          <CarouselNext className="absolute -right-12 z-50 hidden bg-background/80 md:inline-flex lg:-right-16" />
+          <CarouselPrevious className="absolute -left-12 z-50 hidden bg-background/80 lg:-left-16 lg:inline-flex" />
+          <CarouselNext className="absolute -right-12 z-50 hidden bg-background/80 lg:-right-16 lg:inline-flex" />
         </Carousel>
 
         {!cards.length ? (
@@ -315,13 +375,13 @@ export default function CardsPage() {
           <div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
             <div>
               <CardDescription>Visão da fatura</CardDescription>
-              <CardTitle className="mt-1 text-xl tracking-normal md:text-2xl">
+              <CardTitle className="mt-1 text-xl tracking-normal lg:text-2xl">
                 {selectedCard?.name ?? "Nenhum cartão selecionado"}
               </CardTitle>
             </div>
             <div className="text-left lg:text-right">
               <p className="text-sm text-muted-foreground">Total do mês</p>
-              <p className="mt-1 text-2xl font-bold text-foreground md:text-3xl">
+              <p className="mt-1 text-2xl font-bold text-foreground lg:text-3xl">
                 {brlFormatter.format(selectedInvoiceTotal)}
               </p>
             </div>
@@ -341,12 +401,12 @@ export default function CardsPage() {
         </CardHeader>
 
         <CardContent className="pt-4">
-          <Table>
+          <Table className="min-w-[560px] lg:min-w-full">
             <TableHeader>
               <TableRow className="hover:bg-transparent">
                 <TableHead>Data</TableHead>
                 <TableHead>Descrição</TableHead>
-                <TableHead className="hidden md:table-cell">Categoria</TableHead>
+                <TableHead className="hidden lg:table-cell">Categoria</TableHead>
                 <TableHead className="text-right">Valor</TableHead>
               </TableRow>
             </TableHeader>
@@ -362,7 +422,7 @@ export default function CardsPage() {
                         <TransactionDescription transaction={transaction} />
                       </div>
                     </TableCell>
-                    <TableCell className="hidden md:table-cell">
+                    <TableCell className="hidden lg:table-cell">
                       <Badge variant="outline" className="rounded-lg">
                         {transaction.category || "Sem categoria"}
                       </Badge>
