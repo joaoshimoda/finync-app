@@ -4,7 +4,8 @@ import { KeyboardEvent, useEffect, useMemo, useState } from "react";
 import {
   CreditCard,
   Edit3,
-  Plus,
+  PlusCircle,
+  Receipt,
   RotateCcw,
   Trash2,
   X,
@@ -317,9 +318,9 @@ export default function CardsPage() {
           <Button
             type="button"
             onClick={openCreateModal}
-            className="h-10 cursor-pointer gap-2 bg-primary px-4 text-sm font-semibold text-primary-foreground shadow-lg transition-all duration-200 hover:-translate-y-0.5 hover:shadow-xl"
+            className="h-11 cursor-pointer bg-emerald-600 px-5 font-semibold text-white shadow-lg transition-all duration-200 hover:-translate-y-0.5 hover:bg-emerald-700 hover:shadow-xl"
           >
-            <Plus className="h-4 w-4" />
+            <PlusCircle className="mr-2 h-4 w-4" />
             Adicionar Cartão
           </Button>
         </div>
@@ -370,7 +371,7 @@ export default function CardsPage() {
         ) : null}
       </section>
 
-      <Card className="rounded-lg border-border bg-card shadow-none">
+      <Card className="rounded-lg border border-border/50 bg-card shadow-none">
         <CardHeader className="border-b">
           <div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
             <div>
@@ -402,7 +403,7 @@ export default function CardsPage() {
 
         <CardContent className="pt-4">
           <Table className="min-w-[560px] lg:min-w-full">
-            <TableHeader>
+            <TableHeader className="bg-muted/30">
               <TableRow className="hover:bg-transparent">
                 <TableHead>Data</TableHead>
                 <TableHead>Descrição</TableHead>
@@ -433,12 +434,15 @@ export default function CardsPage() {
                   </TableRow>
                 ))
               ) : (
-                <TableRow>
+                <TableRow className="hover:bg-transparent">
                   <TableCell
                     colSpan={4}
-                    className="h-28 text-center text-muted-foreground"
+                    className="text-center"
                   >
-                    Nenhuma transação deste cartão no mês atual.
+                    <div className="flex flex-col items-center justify-center py-10 text-muted-foreground">
+                      <Receipt className="mb-4 h-10 w-10 text-muted-foreground/50" />
+                      <span>Nenhuma transação deste cartão no mês atual.</span>
+                    </div>
                   </TableCell>
                 </TableRow>
               )}

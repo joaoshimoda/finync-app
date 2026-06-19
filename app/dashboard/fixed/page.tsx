@@ -3,10 +3,11 @@
 import { useEffect, useMemo, useState } from "react";
 import {
   CalendarDays,
+  CalendarX,
   CheckCircle2,
   Pencil,
   Percent,
-  Plus,
+  PlusCircle,
   Trash2,
 } from "lucide-react";
 import { toast } from "sonner";
@@ -202,16 +203,16 @@ export default function FixedExpensesPage() {
             <Button
               type="button"
               onClick={openCreateModal}
-              className="h-12 cursor-pointer gap-2 bg-primary px-6 text-base font-semibold text-primary-foreground shadow-lg transition-all duration-200 hover:-translate-y-0.5 hover:shadow-xl"
+              className="h-11 cursor-pointer bg-emerald-600 px-5 font-semibold text-white shadow-lg transition-all duration-200 hover:-translate-y-0.5 hover:bg-emerald-700 hover:shadow-xl"
             >
-              <Plus className="h-5 w-5" />
+              <PlusCircle className="mr-2 h-4 w-4" />
               Nova Conta
             </Button>
           </div>
         </div>
 
         <section className="mb-8 grid grid-cols-2 gap-4 lg:grid-cols-3">
-          <Card className="border-white/[0.08] bg-white/[0.035]">
+          <Card className="border border-border/50 bg-white/[0.035] shadow-none transition-colors hover:bg-accent/10">
             <CardHeader className="flex flex-row items-start justify-between gap-4">
               <div>
                 <CardDescription>Contas Pagas</CardDescription>
@@ -231,7 +232,7 @@ export default function FixedExpensesPage() {
             </CardContent>
           </Card>
 
-          <Card className="border-white/[0.08] bg-white/[0.035]">
+          <Card className="border border-border/50 bg-white/[0.035] shadow-none transition-colors hover:bg-accent/10">
             <CardHeader className="flex flex-row items-start justify-between gap-4">
               <div>
                 <CardDescription>Próximo Vencimento</CardDescription>
@@ -271,7 +272,7 @@ export default function FixedExpensesPage() {
             </CardHeader>
           </Card>
 
-          <Card className="border-white/[0.08] bg-white/[0.035]">
+          <Card className="border border-border/50 bg-white/[0.035] shadow-none transition-colors hover:bg-accent/10">
             <CardHeader className="flex flex-row items-start justify-between gap-4">
               <div>
                 <CardDescription>Comprometimento de Renda</CardDescription>
@@ -299,18 +300,19 @@ export default function FixedExpensesPage() {
             </CardDescription>
           </CardHeader>
           <CardContent className="pt-4">
-            <Table className="min-w-[760px] lg:min-w-full">
-              <TableHeader>
-                <TableRow className="hover:bg-transparent">
+            <div className="overflow-hidden rounded-md border border-border/50 bg-card">
+              <Table className="min-w-[760px] lg:min-w-full">
+                <TableHeader className="bg-muted/30">
+                  <TableRow className="hover:bg-transparent">
                   <TableHead>Data</TableHead>
                   <TableHead>Descrição</TableHead>
                   <TableHead className="hidden lg:table-cell">Categoria</TableHead>
                   <TableHead>Status</TableHead>
                   <TableHead className="text-right">Valor</TableHead>
                   <TableHead className="w-16 text-right">Ações</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
                 {fixedTransactions.length ? (
                   fixedTransactions.map((transaction) => (
                     <TableRow key={transaction.id} className="hover:bg-muted/35">
@@ -379,17 +381,18 @@ export default function FixedExpensesPage() {
                     </TableRow>
                   ))
                 ) : (
-                  <TableRow>
-                    <TableCell
-                      colSpan={6}
-                      className="h-32 text-center text-muted-foreground"
-                    >
-                      Nenhuma conta fixa neste mês.
+                  <TableRow className="hover:bg-transparent">
+                    <TableCell colSpan={6} className="h-32 text-center">
+                      <div className="flex flex-col items-center justify-center py-10 text-muted-foreground">
+                        <CalendarX className="mb-4 h-10 w-10 text-muted-foreground/50" />
+                        <span>Nenhuma conta fixa neste mês.</span>
+                      </div>
                     </TableCell>
                   </TableRow>
                 )}
-              </TableBody>
-            </Table>
+                </TableBody>
+              </Table>
+            </div>
           </CardContent>
         </Card>
       </div>

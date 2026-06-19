@@ -50,7 +50,6 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import { getCardGradient } from "@/lib/cardUtils";
 import {
   formatDateOnlyBR,
   getDateOnlyParts,
@@ -102,9 +101,39 @@ interface CardSpendingSummary {
   name: string;
   closingDay?: number;
   dueDay?: number;
-  gradient: string;
+  accentClassName: string;
   current: number;
   projected: number;
+}
+
+function getCardAccentClassName(cardName: string) {
+  const normalizedName = cardName.toLowerCase();
+
+  if (normalizedName.includes("nubank")) return "border-l-purple-500";
+  if (normalizedName.includes("itaú") || normalizedName.includes("itau")) {
+    return "border-l-orange-500";
+  }
+  if (normalizedName.includes("c6") || normalizedName.includes("black")) {
+    return "border-l-zinc-500";
+  }
+  if (
+    normalizedName.includes("mercado pago") ||
+    normalizedName.includes("mercadopago")
+  ) {
+    return "border-l-cyan-400";
+  }
+  if (normalizedName.includes("inter")) return "border-l-orange-400";
+  if (normalizedName.includes("bradesco")) return "border-l-red-600";
+  if (normalizedName.includes("santander")) return "border-l-red-500";
+  if (
+    normalizedName.includes("banco do brasil") ||
+    normalizedName.includes("bb")
+  ) {
+    return "border-l-yellow-400";
+  }
+  if (normalizedName.includes("caixa")) return "border-l-blue-500";
+
+  return "border-l-slate-500";
 }
 
 function FlippableWalletCard({
@@ -126,29 +155,27 @@ function FlippableWalletCard({
       >
         <div
           className={cn(
-            "absolute inset-0 overflow-hidden rounded-2xl p-4 text-white shadow-lg [backface-visibility:hidden]",
-            cardSummary.gradient,
+            "absolute inset-0 overflow-hidden rounded-2xl border border-l-4 border-border/50 bg-card p-4 text-foreground shadow-sm [backface-visibility:hidden]",
+            cardSummary.accentClassName,
           )}
         >
-          <div className="pointer-events-none absolute -right-10 -top-10 size-28 rounded-full bg-white/10" />
-          <div className="pointer-events-none absolute -bottom-12 left-8 size-28 rounded-full bg-black/20" />
           <div className="relative flex items-start justify-between gap-4">
             <div>
-              <div className="mb-3 h-6 w-9 rounded-md border border-white/25 bg-gradient-to-br from-white/40 to-white/10 shadow-inner" />
-              <p className="max-w-36 truncate text-xs font-medium text-white">
+              <div className="mb-3 h-6 w-9 rounded-md border border-border bg-muted shadow-inner" />
+              <p className="max-w-36 truncate text-xs font-medium text-foreground">
                 {cardSummary.name}
               </p>
             </div>
             <button
               type="button"
-              className="inline-flex size-7 items-center justify-center rounded-full bg-white/10 text-white/80 transition hover:bg-white/20 hover:text-white"
+              className="inline-flex size-7 items-center justify-center rounded-full bg-muted text-muted-foreground transition hover:bg-accent hover:text-foreground"
               onClick={() => setIsFlipped(true)}
               aria-label={`Virar cartão ${cardSummary.name}`}
             >
               <RotateCcw className="size-4" />
             </button>
           </div>
-          <p className="relative mt-2 text-xs text-white/65">
+          <p className="relative mt-2 text-xs text-muted-foreground">
             {cardSummary.closingDay
               ? `Fecha dia ${cardSummary.closingDay}`
               : "Fechamento livre"}
@@ -158,10 +185,10 @@ function FlippableWalletCard({
               : "Sem vencimento"}
           </p>
           <div className="relative mt-5 text-right">
-            <p className="text-xs font-medium uppercase text-white/60">
+            <p className="text-xs font-medium uppercase text-muted-foreground">
               Fatura atual
             </p>
-            <strong className="mt-1 block text-xl font-bold tracking-normal text-white">
+            <strong className="mt-1 block text-xl font-bold tracking-normal text-foreground">
               {brlFormatter.format(cardSummary.current)}
             </strong>
           </div>
@@ -169,16 +196,15 @@ function FlippableWalletCard({
 
         <div
           className={cn(
-            "absolute inset-0 flex flex-col justify-between overflow-hidden rounded-2xl p-4 text-white shadow-lg [backface-visibility:hidden] [transform:rotateY(180deg)]",
-            cardSummary.gradient,
+            "absolute inset-0 flex flex-col justify-between overflow-hidden rounded-2xl border border-l-4 border-border/50 bg-card p-4 text-foreground shadow-sm [backface-visibility:hidden] [transform:rotateY(180deg)]",
+            cardSummary.accentClassName,
           )}
         >
-          <div className="pointer-events-none absolute -left-10 -top-10 size-28 rounded-full bg-white/10" />
           <div className="relative">
-            <p className="text-xs font-medium uppercase text-white/60">
+            <p className="text-xs font-medium uppercase text-muted-foreground">
               Fatura projetada
             </p>
-            <strong className="mt-1 block text-2xl font-bold text-white">
+            <strong className="mt-1 block text-2xl font-bold text-foreground">
               {brlFormatter.format(cardSummary.projected)}
             </strong>
           </div>
@@ -186,7 +212,7 @@ function FlippableWalletCard({
             <Button
               type="button"
               size="sm"
-              className="h-8 bg-white text-zinc-950 hover:bg-white/90"
+              className="h-8 bg-emerald-600 text-white hover:bg-emerald-700"
               onClick={() => onPayInvoice(cardSummary.id)}
             >
               Pagar Fatura
@@ -195,7 +221,7 @@ function FlippableWalletCard({
               type="button"
               size="sm"
               variant="outline"
-              className="h-8 border-white/25 bg-white/10 text-white hover:bg-white/20 hover:text-white"
+              className="h-8"
               onClick={() => setIsFlipped(false)}
             >
               Voltar
@@ -309,7 +335,7 @@ export default function DashboardPage() {
     name: card.name,
     closingDay: card.closingDay,
     dueDay: card.dueDay,
-    gradient: getCardGradient(card.name),
+    accentClassName: getCardAccentClassName(card.name),
     ...monthlyTransactions
       .filter((transaction) => {
         const dbCardId =
@@ -381,7 +407,7 @@ export default function DashboardPage() {
 
   return (
     <div className="flex w-full flex-col gap-3 lg:gap-2">
-      <div className="flex flex-col items-start justify-between gap-4 lg:flex-row lg:items-center">
+      <div className="mb-8 flex flex-col justify-between gap-4 md:flex-row md:items-center">
         <div>
           <h1 className="text-2xl font-bold tracking-tight lg:text-3xl">
             Visão geral
@@ -391,7 +417,15 @@ export default function DashboardPage() {
           </p>
         </div>
 
-        <div>
+        <div className="flex items-center gap-4">
+          <AnimatedMonthSelector
+            currentMonth={currentMonth}
+            currentYear={currentYear}
+            onPreviousMonth={prevMonth}
+            onNextMonth={nextMonth}
+            isLoading={isFetching}
+          />
+
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
               <Button className="h-10 cursor-pointer gap-2 bg-emerald-600 px-4 text-sm font-semibold text-white shadow-lg shadow-emerald-950/20 transition-all duration-200 hover:-translate-y-0.5 hover:bg-emerald-700 hover:shadow-xl">
@@ -453,18 +487,8 @@ export default function DashboardPage() {
         </div>
       </div>
 
-      <div className="flex w-full justify-center border-b border-border/50 py-2">
-        <AnimatedMonthSelector
-          currentMonth={currentMonth}
-          currentYear={currentYear}
-          onPreviousMonth={prevMonth}
-          onNextMonth={nextMonth}
-          isLoading={isFetching}
-        />
-      </div>
-
       <section>
-        <div className="grid grid-cols-2 gap-3 lg:grid-cols-5 lg:gap-2">
+        <div className="grid grid-cols-2 gap-3 lg:grid-cols-4 lg:gap-2">
           <Card className="w-full rounded-lg border border-border/50 bg-card p-3 shadow-none transition-colors hover:bg-accent/10">
             <CardHeader className="p-0">
               <CardDescription>Saldo Disponível Total</CardDescription>
@@ -493,27 +517,14 @@ export default function DashboardPage() {
 
           <Card className="w-full rounded-lg border border-border/50 bg-card p-3 shadow-none transition-colors hover:bg-accent/10">
             <CardHeader className="p-0">
-              <CardDescription>Fatura Atual</CardDescription>
-              <CardTitle className="text-xl tracking-normal text-red-300">
+              <CardDescription>Faturas do Mês</CardDescription>
+              <CardTitle className="text-2xl tracking-normal text-red-300">
                 {brlFormatter.format(monthlyBalances.creditCardUntilToday)}
               </CardTitle>
             </CardHeader>
             <CardContent className="flex items-center gap-2 p-0 pt-2 text-xs text-muted-foreground">
               <CreditCard className="size-4 text-red-300" />
-              Cartão lançado até hoje
-            </CardContent>
-          </Card>
-
-          <Card className="w-full rounded-lg border border-border/50 bg-card p-3 shadow-none transition-colors hover:bg-accent/10">
-            <CardHeader className="p-0">
-              <CardDescription>Fatura Total</CardDescription>
-              <CardTitle className="text-xl tracking-normal text-amber-200">
-                {brlFormatter.format(monthlyBalances.creditCardProjected)}
-              </CardTitle>
-            </CardHeader>
-            <CardContent className="flex items-center gap-2 p-0 pt-2 text-xs text-muted-foreground">
-              <CreditCard className="size-4 text-amber-200" />
-              Total projetado do cartão no mês
+              Total projetado: {brlFormatter.format(monthlyBalances.creditCardProjected)}
             </CardContent>
           </Card>
 
@@ -554,22 +565,21 @@ export default function DashboardPage() {
           ))}
 
             <CarouselItem className="basis-full pl-4 lg:basis-auto">
-              <div className="relative h-[176px] w-full shrink-0 overflow-hidden rounded-2xl bg-gradient-to-br from-blue-600 to-blue-800 p-4 text-white shadow-lg lg:w-[280px]">
-            <div className="pointer-events-none absolute -right-10 -top-10 size-28 rounded-full bg-white/10" />
+              <div className="relative h-[176px] w-full shrink-0 overflow-hidden rounded-2xl border border-l-4 border-border/50 border-l-blue-500 bg-card p-4 text-foreground shadow-sm lg:w-[280px]">
             <div className="relative flex items-start justify-between gap-4">
               <div>
-                <div className="mb-3 flex size-8 items-center justify-center rounded-xl bg-white/15">
-                  <CalendarDays className="size-4 text-white" />
+                <div className="mb-3 flex size-8 items-center justify-center rounded-xl bg-blue-500/10">
+                  <CalendarDays className="size-4 text-blue-300" />
                 </div>
-                <p className="text-xs font-medium text-white">Gastos Fixos</p>
+                <p className="text-xs font-medium text-foreground">Gastos Fixos</p>
               </div>
-              <ReceiptText className="size-4 text-white/80" />
+              <ReceiptText className="size-4 text-blue-300" />
             </div>
             <div className="relative mt-6 text-right">
-              <p className="text-xs font-medium uppercase text-white/60">
+              <p className="text-xs font-medium uppercase text-muted-foreground">
                 Total do mês
               </p>
-                  <strong className="mt-1 block text-xl font-bold tracking-normal text-white">
+                  <strong className="mt-1 block text-xl font-bold tracking-normal text-foreground">
                 {brlFormatter.format(fixedSpendingTotal)}
               </strong>
             </div>
@@ -577,22 +587,21 @@ export default function DashboardPage() {
             </CarouselItem>
 
             <CarouselItem className="basis-full pl-4 lg:basis-auto">
-              <div className="relative h-[176px] w-full shrink-0 overflow-hidden rounded-2xl bg-gradient-to-br from-emerald-500 to-emerald-700 p-4 text-white shadow-lg lg:w-[280px]">
-            <div className="pointer-events-none absolute -right-10 -top-10 size-28 rounded-full bg-white/10" />
+              <div className="relative h-[176px] w-full shrink-0 overflow-hidden rounded-2xl border border-l-4 border-border/50 border-l-emerald-500 bg-card p-4 text-foreground shadow-sm lg:w-[280px]">
             <div className="relative flex items-start justify-between gap-4">
               <div>
-                <div className="mb-3 flex size-8 items-center justify-center rounded-xl bg-white/15">
-                  <QrCode className="size-4 text-white" />
+                <div className="mb-3 flex size-8 items-center justify-center rounded-xl bg-emerald-500/10">
+                  <QrCode className="size-4 text-emerald-300" />
                 </div>
-                <p className="text-xs font-medium text-white">Débito / Pix</p>
+                <p className="text-xs font-medium text-foreground">Débito / Pix</p>
               </div>
-              <QrCode className="size-4 text-white/80" />
+              <QrCode className="size-4 text-emerald-300" />
             </div>
             <div className="relative mt-6 text-right">
-              <p className="text-xs font-medium uppercase text-white/60">
+              <p className="text-xs font-medium uppercase text-muted-foreground">
                 Total do mês
               </p>
-                  <strong className="mt-1 block text-xl font-bold tracking-normal text-white">
+                  <strong className="mt-1 block text-xl font-bold tracking-normal text-foreground">
                 {brlFormatter.format(debitPixSpendingTotal)}
               </strong>
             </div>
@@ -616,7 +625,7 @@ export default function DashboardPage() {
           </div>
           <div className="flex items-center gap-2">
             <Badge variant="outline" className="hidden rounded-lg lg:inline-flex">
-              {monthlyTransactions.length} no mes
+              {monthlyTransactions.length} no mês
             </Badge>
             <Button
               variant="ghost"
@@ -625,7 +634,7 @@ export default function DashboardPage() {
               asChild
             >
               <Link href="/dashboard/transactions">
-                Ver todas
+                Ver todas as movimentações
               </Link>
             </Button>
           </div>
@@ -695,14 +704,14 @@ export default function DashboardPage() {
                   );
                 })
               ) : (
-                <TableRow>
+                <TableRow className="hover:bg-transparent">
                   <TableCell
                     colSpan={5}
-                    className="h-32 text-center text-muted-foreground"
+                    className="h-40 text-center text-muted-foreground"
                   >
-                    <div className="flex flex-col items-center justify-center gap-2">
-                      <Inbox className="size-6 text-muted-foreground/70" />
-                      <span>Nenhuma movimentacao neste periodo.</span>
+                    <div className="flex h-full flex-col items-center justify-center gap-2">
+                      <Inbox className="size-7 text-muted-foreground/60" />
+                      <span>Nenhuma movimentação neste período.</span>
                     </div>
                   </TableCell>
                 </TableRow>

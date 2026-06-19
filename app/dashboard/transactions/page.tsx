@@ -9,8 +9,9 @@ import {
   ChevronRight,
   MoreHorizontal,
   Pencil,
-  Plus,
+  PlusCircle,
   Search,
+  SearchX,
   Trash2,
   Wallet,
 } from "lucide-react";
@@ -136,6 +137,8 @@ export default function TransactionsPage() {
   const selectedPeriodLabel = monthFormatter.format(
     new Date(currentYear, currentMonth - 1, 1),
   );
+  const formattedSelectedPeriodLabel =
+    selectedPeriodLabel.charAt(0).toUpperCase() + selectedPeriodLabel.slice(1);
 
   const monthlyTransactions = useMemo(
     () =>
@@ -251,35 +254,43 @@ export default function TransactionsPage() {
           </p>
         </div>
 
-        <div className="flex flex-wrap items-center gap-3">
-          <Button
-            type="button"
-            variant="outline"
-            className="h-10 cursor-pointer gap-2 px-4 py-2"
-            onClick={() => {
-              setEditingTransaction(null);
-              setIsAddIncomeModalOpen(true);
-            }}
-          >
-            <ArrowUpRight className="h-4 w-4" />
-            Nova receita
-          </Button>
-          <Button
-            type="button"
-            className="h-12 cursor-pointer gap-2 bg-primary px-6 text-base font-semibold text-primary-foreground shadow-lg transition-all duration-200 hover:-translate-y-0.5 hover:shadow-xl"
-            onClick={() => {
-              setEditingTransaction(null);
-              setIsAddTransactionModalOpen(true);
-            }}
-          >
-            <Plus className="h-5 w-5" />
-            Nova despesa
-          </Button>
-        </div>
+        <DropdownMenu>
+          <DropdownMenuTrigger asChild>
+            <Button
+              type="button"
+              className="h-11 cursor-pointer bg-emerald-600 px-5 font-semibold text-white shadow-lg transition-all duration-200 hover:-translate-y-0.5 hover:bg-emerald-700 hover:shadow-xl"
+            >
+              <PlusCircle className="mr-2 h-4 w-4" />
+              Nova Transação
+            </Button>
+          </DropdownMenuTrigger>
+          <DropdownMenuContent align="end" className="w-44">
+            <DropdownMenuItem
+              className="cursor-pointer"
+              onClick={() => {
+                setEditingTransaction(null);
+                setIsAddIncomeModalOpen(true);
+              }}
+            >
+              <ArrowUpRight className="size-4 text-emerald-400" />
+              Receita
+            </DropdownMenuItem>
+            <DropdownMenuItem
+              className="cursor-pointer"
+              onClick={() => {
+                setEditingTransaction(null);
+                setIsAddTransactionModalOpen(true);
+              }}
+            >
+              <ArrowDownRight className="size-4 text-red-400" />
+              Despesa
+            </DropdownMenuItem>
+          </DropdownMenuContent>
+        </DropdownMenu>
       </div>
 
       <section className="grid grid-cols-2 gap-4 lg:grid-cols-3">
-        <div className="rounded-xl border border-border bg-card/80 p-5">
+        <div className="rounded-xl border border-border/50 bg-card/80 p-5 shadow-none transition-colors hover:bg-accent/10">
           <div className="flex items-center justify-between gap-4">
             <p className="text-sm text-muted-foreground">Total de Entradas</p>
             <ArrowUpRight className="size-4 text-emerald-400" />
@@ -289,7 +300,7 @@ export default function TransactionsPage() {
           </strong>
         </div>
 
-        <div className="rounded-xl border border-border bg-card/80 p-5">
+        <div className="rounded-xl border border-border/50 bg-card/80 p-5 shadow-none transition-colors hover:bg-accent/10">
           <div className="flex items-center justify-between gap-4">
             <p className="text-sm text-muted-foreground">Total de Saídas</p>
             <ArrowDownRight className="size-4 text-red-400" />
@@ -299,7 +310,7 @@ export default function TransactionsPage() {
           </strong>
         </div>
 
-        <div className="rounded-xl border border-border bg-card/80 p-5">
+        <div className="rounded-xl border border-border/50 bg-card/80 p-5 shadow-none transition-colors hover:bg-accent/10">
           <div className="flex items-center justify-between gap-4">
             <p className="text-sm text-muted-foreground">Saldo Líquido</p>
             <Wallet className="size-4 text-brand-300" />
@@ -368,9 +379,9 @@ export default function TransactionsPage() {
           >
             <ChevronLeft />
           </Button>
-          <span className="flex flex-1 items-center justify-center gap-2 px-3 text-center text-sm font-medium capitalize text-foreground lg:flex-none">
+          <span className="flex flex-1 items-center justify-center gap-2 px-3 text-center text-sm font-medium text-foreground lg:flex-none">
             <CalendarDays className="size-4 text-muted-foreground" />
-            {selectedPeriodLabel}
+            {formattedSelectedPeriodLabel}
           </span>
           <Button
             type="button"
@@ -387,7 +398,7 @@ export default function TransactionsPage() {
 
       <section className="overflow-hidden rounded-xl border border-border bg-card">
         <Table className="min-w-[760px] lg:min-w-full">
-          <TableHeader className="bg-muted/50">
+          <TableHeader className="bg-muted/30">
             <TableRow className="hover:bg-transparent">
               <TableHead>Data</TableHead>
               <TableHead>Descrição</TableHead>
@@ -475,12 +486,17 @@ export default function TransactionsPage() {
                 );
               })
             ) : (
-              <TableRow>
+              <TableRow className="hover:bg-transparent">
                 <TableCell
                   colSpan={6}
-                  className="h-36 text-center text-muted-foreground"
+                  className="h-40 text-center text-muted-foreground"
                 >
-                  Nenhuma transação encontrada para os filtros selecionados.
+                  <div className="flex h-full flex-col items-center justify-center gap-2">
+                    <SearchX className="size-7 text-muted-foreground/60" />
+                    <span>
+                      Nenhuma transação encontrada para os filtros selecionados.
+                    </span>
+                  </div>
                 </TableCell>
               </TableRow>
             )}
