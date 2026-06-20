@@ -141,6 +141,7 @@ interface FinanceState {
   currentYear: number;
   fetchedMonth: number;
   fetchedYear: number;
+  updateAuthUser: (user: User) => void;
   initializeAuth: () => () => void;
   nextMonth: () => void;
   prevMonth: () => void;
@@ -384,6 +385,8 @@ export const useFinanceStore = create<FinanceState>()((set, get) => ({
   currentYear: getDateOnlyParts(getLocalTodayDateOnly()).year,
   fetchedMonth: getDateOnlyParts(getLocalTodayDateOnly()).month,
   fetchedYear: getDateOnlyParts(getLocalTodayDateOnly()).year,
+
+  updateAuthUser: (user) => set({ authUser: user }),
 
   nextMonth: () => {
     set((state) => {
