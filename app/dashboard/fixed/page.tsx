@@ -358,9 +358,6 @@ export default function FixedExpensesPage() {
       <div className="flex w-full flex-col gap-8">
         <header className="flex flex-col items-start justify-between gap-5 lg:flex-row lg:items-end">
           <div className="max-w-2xl">
-            <p className="mb-2 text-sm font-semibold text-zinc-500">
-              Compromissos recorrentes
-            </p>
             <h1 className="text-3xl font-semibold tracking-tight text-zinc-50">
               Contas e assinaturas
             </h1>

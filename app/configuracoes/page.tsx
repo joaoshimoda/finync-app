@@ -79,7 +79,6 @@ export default function ConfiguracoesPage() {
   return (
     <div className="flex w-full flex-col gap-10">
       <header className="max-w-2xl space-y-3">
-        <p className="text-sm font-semibold text-zinc-400">Configurações</p>
         <h1 className="text-3xl font-semibold tracking-tight text-white lg:text-4xl">
           Sua conta, do seu jeito.
         </h1>
