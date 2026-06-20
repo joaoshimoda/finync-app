@@ -91,7 +91,7 @@ function getCoverImageLayout(
 }
 
 async function loadImage(src: string) {
-  const image = new Image();
+  const image = new window.Image();
   image.crossOrigin = "anonymous";
   image.src = src;
 
