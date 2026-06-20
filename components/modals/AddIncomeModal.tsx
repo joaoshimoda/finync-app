@@ -1,10 +1,9 @@
 "use client";
 
 import { FormEvent, useEffect, useState } from "react";
-import { ArrowUp, Save } from "lucide-react";
+import { ArrowUp, CalendarDays, ReceiptText, Tag, Wallet } from "lucide-react";
 import { toast } from "sonner";
 
-import { TagSelect } from "@/components/finance/TagSelect";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -14,7 +13,6 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
 import {
   Select,
   SelectContent,
@@ -92,6 +90,7 @@ function IncomeModalContent({
   const [selectedTagId, setSelectedTagId] = useState(
     editingTransaction?.tagIds?.[0] ?? "",
   );
+  const [destinationAccount, setDestinationAccount] = useState("Carteira");
   const [isSubmitting, setIsSubmitting] = useState(false);
 
   useEffect(() => {
@@ -150,24 +149,24 @@ function IncomeModalContent({
   }
 
   return (
-    <DialogContent className="border-white/[0.08] bg-zinc-950/95 text-white sm:max-w-xl">
+    <DialogContent className="border border-zinc-800 bg-zinc-950 text-white shadow-2xl sm:max-w-3xl">
       <DialogHeader>
-        <div className="mb-2 flex size-10 items-center justify-center rounded-2xl border border-emerald-500/20 bg-emerald-500/10 text-emerald-300">
-          <ArrowUp className="size-5" />
+        <div className="flex items-center gap-2 text-sm font-medium text-emerald-300">
+          <ArrowUp className="size-4" />
+          Entrada
         </div>
         <DialogTitle>
           {editingTransaction ? "Editar receita" : "Nova receita"}
         </DialogTitle>
         <DialogDescription>
-          Registre entradas sem vincular a uma fatura de cartão.
+          Registre entradas sem vincular a uma fatura de cart?o.
         </DialogDescription>
       </DialogHeader>
 
-      <form className="grid grid-cols-2 gap-4" onSubmit={handleSubmit}>
-        <div className="col-span-2 space-y-2">
-          <Label htmlFor="income-amount">Valor (R$)</Label>
-          <div className="relative">
-            <span className="pointer-events-none absolute left-4 top-1/2 -translate-y-1/2 text-sm font-semibold text-muted-foreground">
+      <form className="space-y-6" onSubmit={handleSubmit}>
+        <section className="space-y-2 text-center">
+          <div className="relative mx-auto max-w-sm rounded-lg border border-zinc-800/80 bg-zinc-900/30">
+            <span className="pointer-events-none absolute left-5 top-1/2 -translate-y-1/2 text-xl font-semibold text-zinc-400">
               R$
             </span>
             <Input
@@ -177,78 +176,119 @@ function IncomeModalContent({
               type="text"
               inputMode="decimal"
               placeholder="0,00"
-              className="h-16 px-12 text-center text-3xl font-bold text-emerald-400 placeholder:text-zinc-700"
-              required
-            />
-          </div>
-        </div>
-
-        <div className="col-span-2 grid grid-cols-2 gap-4">
-          <div className="col-span-2 space-y-2">
-            <Label htmlFor="income-description">Descrição</Label>
-            <Input
-              id="income-description"
-              value={description}
-              onChange={(event) => setDescription(event.target.value)}
-              type="text"
-              placeholder="Ex: Salário, freelance"
+              className="h-16 border-none bg-transparent px-12 text-center text-4xl font-semibold tracking-tight text-white shadow-none ring-0 placeholder:text-zinc-500 focus-visible:ring-0 focus-visible:ring-offset-0"
               required
             />
           </div>
 
-          <div className="space-y-2">
-            <Label htmlFor="income-date">Data</Label>
-            <Input
-              id="income-date"
-              value={date}
-              onChange={(event) => setDate(event.target.value)}
-              type="date"
-              className="[color-scheme:dark]"
-              required
-            />
+          <Input
+            id="income-description"
+            value={description}
+            onChange={(event) => setDescription(event.target.value)}
+            type="text"
+            placeholder="Descrição da receita"
+            className="mx-auto h-10 max-w-md rounded-lg border border-zinc-800/80 bg-zinc-900/30 text-center text-lg text-zinc-100 shadow-none ring-0 placeholder:text-zinc-400 focus:outline-none focus:ring-0 focus-visible:ring-0 focus-visible:ring-offset-0"
+            required
+          />
+        </section>
+
+        <section className="mt-6 grid grid-cols-2 gap-6">
+          <div className="space-y-3">
+            <div className="space-y-2">
+              <div className="flex items-center gap-2 text-xs font-medium uppercase tracking-wide text-zinc-400">
+                <CalendarDays className="size-3.5" />
+                Data da Entrada
+              </div>
+              <Input
+                id="income-date"
+                value={date}
+                onChange={(event) => setDate(event.target.value)}
+                type="date"
+                className="flex h-10 items-center border border-zinc-700 bg-zinc-900 text-sm text-zinc-200 shadow-none transition-colors [color-scheme:dark] hover:border-zinc-600 focus:border-emerald-500 focus-visible:ring-1 focus-visible:ring-emerald-500 focus-visible:ring-offset-0"
+                required
+              />
+            </div>
+
+            <div className="space-y-2">
+              <div className="flex items-center gap-2 text-xs font-medium uppercase tracking-wide text-zinc-400">
+                <Wallet className="size-3.5" />
+                Conta de Destino
+              </div>
+              <Select value={destinationAccount} onValueChange={setDestinationAccount}>
+                <SelectTrigger className="flex h-10 items-center border border-zinc-700 bg-zinc-900 text-sm text-zinc-200 shadow-none transition-colors hover:border-zinc-600 focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500 focus:ring-offset-0">
+                  <SelectValue placeholder="Conta" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="Nubank">Nubank</SelectItem>
+                  <SelectItem value="Ita?">Ita?</SelectItem>
+                  <SelectItem value="Carteira">Carteira</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
           </div>
 
-          <div className="space-y-2">
-            <Label>Categoria</Label>
-            <Select value={category} onValueChange={setCategory}>
-              <SelectTrigger>
-                <SelectValue placeholder="Selecione" />
-              </SelectTrigger>
-              <SelectContent>
-                {incomeCategories.map((incomeCategory) => (
-                  <SelectItem key={incomeCategory} value={incomeCategory}>
-                    {incomeCategory}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </div>
+          <div className="space-y-3">
+            <div className="space-y-2">
+              <div className="flex items-center gap-2 text-xs font-medium uppercase tracking-wide text-zinc-400">
+                <ReceiptText className="size-3.5" />
+                Categoria da Receita
+              </div>
+              <Select value={category} onValueChange={setCategory}>
+                <SelectTrigger className="flex h-10 items-center border border-zinc-700 bg-zinc-900 text-sm text-zinc-200 shadow-none transition-colors hover:border-zinc-600 focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500 focus:ring-offset-0">
+                  <SelectValue placeholder="Selecione" />
+                </SelectTrigger>
+                <SelectContent>
+                  {incomeCategories.map((incomeCategory) => (
+                    <SelectItem key={incomeCategory} value={incomeCategory}>
+                      {incomeCategory}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
 
-          <div className="col-span-2">
-            <TagSelect
-              tags={tags}
-              value={selectedTagId}
-              onValueChange={setSelectedTagId}
-            />
+            <div className="space-y-2">
+              <div className="flex items-center gap-2 text-xs font-medium uppercase tracking-wide text-zinc-400">
+                <Tag className="size-3.5" />
+                Tag Opcional
+              </div>
+              <Select
+                value={selectedTagId || "__no_tag__"}
+                onValueChange={(nextValue) =>
+                  setSelectedTagId(nextValue === "__no_tag__" ? "" : nextValue)
+                }
+              >
+                <SelectTrigger className="flex h-10 items-center border border-zinc-700 bg-zinc-900 text-sm text-zinc-200 shadow-none transition-colors hover:border-zinc-600 focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500 focus:ring-offset-0">
+                  <SelectValue placeholder="Sem tag" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="__no_tag__">Sem tag</SelectItem>
+                  {tags.map((tag) => (
+                    <SelectItem key={tag.id} value={tag.id}>
+                      {tag.label}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
           </div>
-        </div>
-        <div className="col-span-2 flex flex-col-reverse gap-3 pt-2 sm:flex-row sm:justify-end">
+        </section>
+
+        <div className="mt-8 flex justify-end gap-3">
           <Button
             type="button"
-            variant="outline"
-            size="lg"
+            variant="ghost"
             disabled={isSubmitting}
             onClick={onClose}
+            className="h-11 px-5 text-zinc-400 hover:text-zinc-50"
           >
             Cancelar
           </Button>
           <Button
             type="submit"
-            size="lg"
             disabled={isSubmitting}
-            className="gap-2 bg-emerald-500 text-white hover:bg-emerald-400"
+            className="h-11 min-w-52 bg-emerald-600 font-semibold text-white hover:bg-emerald-700"
           >
-            <Save className="size-4" />
             {isSubmitting ? "Salvando..." : "Salvar receita"}
           </Button>
         </div>

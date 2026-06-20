@@ -5,6 +5,7 @@ import {
   ArrowDown,
   ArrowUp,
   CalendarDays,
+  ChevronRight,
   CreditCard,
   Inbox,
   PlusCircle,
@@ -12,11 +13,11 @@ import {
   ReceiptText,
   RotateCcw,
   TrendingUp,
+  UserRound,
 } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 
 import { AnimatedMonthSelector } from "@/components/finance/AnimatedMonthSelector";
-import { DependentSpendingSummary } from "@/components/finance/DependentSpendingSummary";
 import { AddCardModal } from "@/components/modals/AddCardModal";
 import { AddIncomeModal } from "@/components/modals/AddIncomeModal";
 import { AddTransactionModal } from "@/components/modals/AddTransactionModal";
@@ -102,6 +103,13 @@ function isSameSelectedMonth(
 
 function sortByRecentDate(left: Transaction, right: Transaction) {
   return right.date.localeCompare(left.date);
+}
+
+function hasDependent(transaction: Transaction) {
+  return Boolean(
+    (transaction as Transaction & { dependent_id?: string | null })
+      .dependent_id ?? transaction.dependentId,
+  );
 }
 
 interface CardSpendingSummary {
@@ -253,6 +261,7 @@ export default function DashboardPage() {
   const dependents = useFinanceStore((state) => state.dependents);
   const transactions = useFinanceStore((state) => state.transactions);
   const fetchCards = useFinanceStore((state) => state.fetchCards);
+  const fetchDependents = useFinanceStore((state) => state.fetchDependents);
   const fetchTransactions = useFinanceStore((state) => state.fetchTransactions);
   const payCardInvoice = useFinanceStore((state) => state.payCardInvoice);
   const currentMonth = useFinanceStore((state) => state.currentMonth);
@@ -286,6 +295,8 @@ export default function DashboardPage() {
   const monthlyBalances = useMemo(() => {
     const totals = monthlyTransactions.reduce(
       (acc, transaction) => {
+        const isDependentTransaction = hasDependent(transaction);
+
         if (transaction.type === "income") {
           acc.totalIncome += transaction.amount;
           return acc;
@@ -298,10 +309,24 @@ export default function DashboardPage() {
             acc.creditCardUntilToday += transaction.amount;
           }
 
+          if (isDependentTransaction) {
+            return acc;
+          }
+
+          acc.userCreditCardProjected += transaction.amount;
+
+          if (normalizeDateOnly(transaction.date) <= todayDate) {
+            acc.userCreditCardUntilToday += transaction.amount;
+          }
+
           if (transaction.status !== "paid") {
             acc.pendingObligations += transaction.amount;
           }
 
+          return acc;
+        }
+
+        if (isDependentTransaction) {
           return acc;
         }
 
@@ -321,15 +346,17 @@ export default function DashboardPage() {
         nonCardPending: 0,
         pendingObligations: 0,
         totalIncome: 0,
+        userCreditCardProjected: 0,
+        userCreditCardUntilToday: 0,
       },
     );
 
     return {
       ...totals,
       availableBalance:
-        totals.totalIncome - totals.nonCardTotal - totals.creditCardUntilToday,
+        totals.totalIncome - totals.nonCardTotal - totals.userCreditCardUntilToday,
       projectedBalance:
-        totals.totalIncome - totals.nonCardTotal - totals.creditCardProjected,
+        totals.totalIncome - totals.nonCardTotal - totals.userCreditCardProjected,
       totalPendingObligations: totals.pendingObligations,
     };
   }, [monthlyTransactions, todayDate]);
@@ -370,7 +397,9 @@ export default function DashboardPage() {
   const fixedSpendingTotal = monthlyTransactions
     .filter(
       (transaction) =>
-        transaction.type === "fixed" && transaction.is_recurring === true,
+        transaction.type === "fixed" &&
+        transaction.is_recurring === true &&
+        !hasDependent(transaction),
     )
     .reduce((total, transaction) => total + transaction.amount, 0);
 
@@ -383,20 +412,33 @@ export default function DashboardPage() {
       return (
         transaction.type === "fixed" &&
         transaction.is_recurring !== true &&
-        !dbCardId
+        !dbCardId &&
+        !hasDependent(transaction)
       );
     })
     .reduce((total, transaction) => total + transaction.amount, 0);
 
-  const totalMonthlyOutflow =
-    monthlyBalances.creditCardProjected +
-    fixedSpendingTotal +
-    debitPixSpendingTotal;
+  const dependentSpendingSummaries = dependents
+    .map((dependent) => ({
+      ...dependent,
+      total: monthlyTransactions
+        .filter((transaction) => {
+          const dependentId =
+            (transaction as Transaction & { dependent_id?: string | null })
+              .dependent_id ?? transaction.dependentId;
+
+          return transaction.type !== "income" && dependentId === dependent.id;
+        })
+        .reduce((sum, transaction) => sum + transaction.amount, 0),
+    }))
+    .filter((dependent) => dependent.total > 0)
+    .sort((left, right) => right.total - left.total);
 
   useEffect(() => {
     void fetchCards();
+    void fetchDependents();
     void fetchTransactions();
-  }, [currentMonth, currentYear, fetchCards, fetchTransactions]);
+  }, [currentMonth, currentYear, fetchCards, fetchDependents, fetchTransactions]);
 
   function handleCloseIncomeModal() {
     setIsAddIncomeModalOpen(false);
@@ -420,8 +462,8 @@ export default function DashboardPage() {
   }
 
   return (
-    <div className="flex w-full flex-col gap-3 lg:gap-2">
-      <div className="mb-8 flex flex-col justify-between gap-4 md:flex-row md:items-center">
+    <div className="w-full flex flex-col gap-6">
+      <div className="flex flex-col justify-between gap-4 md:flex-row md:items-center">
         <div>
           <h1 className="text-2xl font-bold tracking-tight lg:text-3xl">
             Visão geral
@@ -501,157 +543,203 @@ export default function DashboardPage() {
         </div>
       </div>
 
-      <section>
-        <Card className="mb-4 border-zinc-800 bg-zinc-950 px-5 py-5 shadow-none lg:px-6">
-          <CardContent className="flex flex-col justify-between gap-5 p-0 sm:flex-row sm:items-end">
-            <div>
-              <CardDescription className="font-medium text-zinc-400">
-                Total de Gastos
-              </CardDescription>
-              <CardTitle className="mt-2 text-3xl font-semibold tracking-tight text-zinc-50 lg:text-4xl">
-                {brlFormatter.format(totalMonthlyOutflow)}
-              </CardTitle>
-            </div>
-            <p className="max-w-md text-sm leading-6 text-zinc-500 sm:text-right">
-              Faturas projetadas, contas fixas e pagamentos por Débito/PIX no
-              período selecionado.
-            </p>
-          </CardContent>
-        </Card>
-
-        <div className="grid grid-cols-2 gap-3 lg:grid-cols-4 lg:gap-2">
-          <Card className="w-full rounded-lg border border-border/50 bg-card p-3 shadow-none transition-colors hover:bg-accent/10">
+      <div className="grid grid-cols-1 gap-6 lg:grid-cols-12">
+        <div className="lg:col-span-6">
+          <Card className="rounded-2xl border border-border/50 bg-zinc-950 p-4 text-zinc-50 shadow-none">
             <CardHeader className="p-0">
-              <CardDescription>Saldo Disponível Total</CardDescription>
-              <CardTitle className="text-lg tracking-normal lg:text-xl">
+              <CardDescription className="text-zinc-400">
+                Saldo Disponível Total
+              </CardDescription>
+              <CardTitle className="mt-3 text-3xl font-semibold tracking-tight lg:text-4xl">
                 {brlFormatter.format(monthlyBalances.projectedBalance)}
               </CardTitle>
             </CardHeader>
-            <CardContent className="flex items-center gap-2 p-0 pt-2 text-xs text-muted-foreground">
-              <ReceiptText className="size-4 text-brand-300" />
-              Após todos os compromissos do mês
+            <CardContent className="flex items-center gap-2 p-0 pt-3 text-xs text-zinc-500">
+              <ReceiptText className="size-4 text-emerald-400" />
+              Após compromissos do mês, ignorando gastos de dependentes.
             </CardContent>
           </Card>
+        </div>
 
-          <Card className="w-full rounded-lg border border-border/50 bg-card p-3 shadow-none transition-colors hover:bg-accent/10">
+        <div className="lg:col-span-2">
+          <Card className="rounded-2xl border border-border/50 bg-card p-5 shadow-none transition-colors hover:bg-accent/10">
             <CardHeader className="p-0">
-              <CardDescription>Receitas</CardDescription>
-              <CardTitle className="text-lg tracking-normal text-emerald-300 lg:text-xl">
+              <CardDescription>Receitas do Mês</CardDescription>
+              <CardTitle className="mt-3 text-2xl tracking-normal text-emerald-300">
                 {brlFormatter.format(monthlyBalances.totalIncome)}
               </CardTitle>
             </CardHeader>
-            <CardContent className="flex items-center gap-2 p-0 pt-2 text-xs text-muted-foreground">
+            <CardContent className="flex items-center gap-2 p-0 pt-4 text-xs text-muted-foreground">
               <TrendingUp className="size-4 text-emerald-300" />
-              Entradas registradas no mês
+              Entradas registradas
             </CardContent>
           </Card>
+        </div>
 
-          <Card className="w-full rounded-lg border border-border/50 bg-card p-3 shadow-none transition-colors hover:bg-accent/10">
+        <div className="lg:col-span-2">
+          <Card className="rounded-2xl border border-border/50 bg-card p-5 shadow-none transition-colors hover:bg-accent/10">
             <CardHeader className="p-0">
               <CardDescription>Faturas do Mês</CardDescription>
-              <CardTitle className="text-2xl tracking-normal text-red-300">
+              <CardTitle className="mt-3 text-2xl tracking-normal text-red-300">
                 {brlFormatter.format(monthlyBalances.creditCardUntilToday)}
               </CardTitle>
             </CardHeader>
-            <CardContent className="flex items-center gap-2 p-0 pt-2 text-xs text-muted-foreground">
+            <CardContent className="flex items-center gap-2 p-0 pt-4 text-xs text-muted-foreground">
               <CreditCard className="size-4 text-red-300" />
-              Total projetado: {brlFormatter.format(monthlyBalances.creditCardProjected)}
+              Total: {brlFormatter.format(monthlyBalances.creditCardProjected)}
             </CardContent>
           </Card>
+        </div>
 
-          <Card className="w-full rounded-lg border border-border/50 bg-card p-3 shadow-none transition-colors hover:bg-accent/10">
+        <div className="lg:col-span-2">
+          <Card className="rounded-2xl border border-border/50 bg-card p-5 shadow-none transition-colors hover:bg-accent/10">
             <CardHeader className="p-0">
-              <CardDescription>Gastos Totais Pendentes</CardDescription>
-              <CardTitle className="text-xl tracking-normal text-orange-300">
+              <CardDescription>Gastos Pendentes</CardDescription>
+              <CardTitle className="mt-3 text-2xl tracking-normal text-orange-300">
                 {brlFormatter.format(monthlyBalances.totalPendingObligations)}
               </CardTitle>
             </CardHeader>
-            <CardContent className="flex items-center gap-2 p-0 pt-2 text-xs text-muted-foreground">
+            <CardContent className="flex items-center gap-2 p-0 pt-4 text-xs text-muted-foreground">
               <ReceiptText className="size-4 text-orange-300" />
-              Pendências manuais e fatura do cartão
+              Faturas e contas em aberto
             </CardContent>
           </Card>
         </div>
-      </section>
+      </div>
 
-      <section>
-        <DependentSpendingSummary
-          dependents={dependents}
-          transactions={monthlyTransactions}
-        />
-      </section>
+      <div className="grid grid-cols-1 gap-6 lg:grid-cols-12">
+        <div className="lg:col-span-8">
+          <Card className="overflow-hidden rounded-2xl border border-border/50 bg-card shadow-none">
+            <CardHeader className="flex flex-col gap-4 border-b border-border/50 p-5 sm:flex-row sm:items-center sm:justify-between">
+              <div>
+                <CardTitle className="text-xl tracking-normal">Minha Carteira</CardTitle>
+                <CardDescription className="mt-1">
+                  Cartões, fixos e pagamentos à vista do período.
+                </CardDescription>
+              </div>
+              <Button
+                type="button"
+                onClick={() => setIsAddCardModalOpen(true)}
+                className="h-10 gap-2 bg-emerald-600 px-4 font-semibold text-white hover:bg-emerald-700"
+              >
+                <PlusCircle className="size-4" />
+                Adicionar Cartão
+              </Button>
+            </CardHeader>
+            <CardContent className="p-4">
+              <Carousel opts={{ dragFree: true }} className="w-full">
+                <CarouselContent className="-ml-4 px-2 pt-1 pb-3">
+                  {cardSpendingSummaries.map((cardSummary) => (
+                    <CarouselItem
+                      key={cardSummary.id}
+                      className="basis-full pl-4 lg:basis-auto"
+                    >
+                      <FlippableWalletCard
+                        cardSummary={cardSummary}
+                        onPayInvoice={(cardId) => void handlePayInvoiceClick(cardId)}
+                      />
+                    </CarouselItem>
+                  ))}
 
-      <section className="space-y-1">
-        <div>
-          <h2 className="text-lg font-medium tracking-normal text-foreground">
-            Minha Carteira
-          </h2>
-          <p className="text-sm text-muted-foreground">
-            Cartões, fixos e pagamentos à vista do período.
-          </p>
+                  <CarouselItem className="basis-full pl-4 lg:basis-auto">
+                    <div className="relative h-[176px] w-full shrink-0 overflow-hidden rounded-2xl border border-l-4 border-border/50 border-l-blue-500 bg-card p-4 text-foreground shadow-sm lg:w-[280px]">
+                      <div className="relative flex items-start justify-between gap-4">
+                        <div>
+                          <div className="mb-3 flex size-8 items-center justify-center rounded-xl bg-blue-500/10">
+                            <CalendarDays className="size-4 text-blue-300" />
+                          </div>
+                          <p className="text-xs font-medium text-foreground">
+                            Gastos Fixos
+                          </p>
+                        </div>
+                        <ReceiptText className="size-4 text-blue-300" />
+                      </div>
+                      <div className="relative mt-6 text-right">
+                        <p className="text-xs font-medium uppercase text-muted-foreground">
+                          Total do mês
+                        </p>
+                        <strong className="mt-1 block text-xl font-bold tracking-normal text-foreground">
+                          {brlFormatter.format(fixedSpendingTotal)}
+                        </strong>
+                      </div>
+                    </div>
+                  </CarouselItem>
+
+                  <CarouselItem className="basis-full pl-4 lg:basis-auto">
+                    <div className="relative h-[176px] w-full shrink-0 overflow-hidden rounded-2xl border border-l-4 border-border/50 border-l-emerald-500 bg-card p-4 text-foreground shadow-sm lg:w-[280px]">
+                      <div className="relative flex items-start justify-between gap-4">
+                        <div>
+                          <div className="mb-3 flex size-8 items-center justify-center rounded-xl bg-emerald-500/10">
+                            <QrCode className="size-4 text-emerald-300" />
+                          </div>
+                          <p className="text-xs font-medium text-foreground">
+                            Débito / Pix
+                          </p>
+                        </div>
+                        <QrCode className="size-4 text-emerald-300" />
+                      </div>
+                      <div className="relative mt-6 text-right">
+                        <p className="text-xs font-medium uppercase text-muted-foreground">
+                          Total do mês
+                        </p>
+                        <strong className="mt-1 block text-xl font-bold tracking-normal text-foreground">
+                          {brlFormatter.format(debitPixSpendingTotal)}
+                        </strong>
+                      </div>
+                    </div>
+                  </CarouselItem>
+                </CarouselContent>
+                <CarouselPrevious className="absolute -left-12 z-50 hidden bg-background/80 lg:-left-16 lg:inline-flex" />
+                <CarouselNext className="absolute -right-12 z-50 hidden bg-background/80 lg:-right-16 lg:inline-flex" />
+              </Carousel>
+            </CardContent>
+          </Card>
         </div>
 
-        <Carousel opts={{ dragFree: true }} className="w-full">
-          <CarouselContent className="-ml-4 px-2 pt-2 pb-6">
-          {cardSpendingSummaries.map((cardSummary) => (
-            <CarouselItem key={cardSummary.id} className="basis-full pl-4 lg:basis-auto">
-              <FlippableWalletCard
-                cardSummary={cardSummary}
-                onPayInvoice={(cardId) => void handlePayInvoiceClick(cardId)}
-              />
-            </CarouselItem>
-          ))}
-
-            <CarouselItem className="basis-full pl-4 lg:basis-auto">
-              <div className="relative h-[176px] w-full shrink-0 overflow-hidden rounded-2xl border border-l-4 border-border/50 border-l-blue-500 bg-card p-4 text-foreground shadow-sm lg:w-[280px]">
-            <div className="relative flex items-start justify-between gap-4">
-              <div>
-                <div className="mb-3 flex size-8 items-center justify-center rounded-xl bg-blue-500/10">
-                  <CalendarDays className="size-4 text-blue-300" />
+        <div className="lg:col-span-4">
+          <Card className="w-full rounded-2xl border border-border/50 bg-card shadow-none">
+            <CardHeader className="border-b border-border/50 p-5">
+              <CardDescription>Valores a receber</CardDescription>
+              <CardTitle className="text-xl tracking-normal">
+                Gastos por Dependente
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="p-3">
+              {dependentSpendingSummaries.length ? (
+                <div>
+                  {dependentSpendingSummaries.map((dependent) => (
+                    <div
+                      key={dependent.id}
+                      className="flex items-center justify-between gap-3 border-b border-zinc-100 p-3 last:border-0 dark:border-zinc-800"
+                    >
+                      <div className="flex min-w-0 flex-1 items-center gap-3">
+                        <span className="flex size-9 shrink-0 items-center justify-center rounded-lg bg-zinc-100 text-zinc-500 dark:bg-zinc-900 dark:text-zinc-400">
+                          <UserRound className="size-4" />
+                        </span>
+                        <span className="min-w-0 truncate text-sm font-medium text-foreground">
+                          {dependent.name}
+                        </span>
+                      </div>
+                      <div className="flex shrink-0 items-center gap-2">
+                        <strong className="text-sm font-semibold text-foreground">
+                          {brlFormatter.format(dependent.total)}
+                        </strong>
+                        <ChevronRight className="size-4 text-muted-foreground" />
+                      </div>
+                    </div>
+                  ))}
                 </div>
-                <p className="text-xs font-medium text-foreground">Gastos Fixos</p>
-              </div>
-              <ReceiptText className="size-4 text-blue-300" />
-            </div>
-            <div className="relative mt-6 text-right">
-              <p className="text-xs font-medium uppercase text-muted-foreground">
-                Total do mês
-              </p>
-                  <strong className="mt-1 block text-xl font-bold tracking-normal text-foreground">
-                {brlFormatter.format(fixedSpendingTotal)}
-              </strong>
-            </div>
-              </div>
-            </CarouselItem>
-
-            <CarouselItem className="basis-full pl-4 lg:basis-auto">
-              <div className="relative h-[176px] w-full shrink-0 overflow-hidden rounded-2xl border border-l-4 border-border/50 border-l-emerald-500 bg-card p-4 text-foreground shadow-sm lg:w-[280px]">
-            <div className="relative flex items-start justify-between gap-4">
-              <div>
-                <div className="mb-3 flex size-8 items-center justify-center rounded-xl bg-emerald-500/10">
-                  <QrCode className="size-4 text-emerald-300" />
+              ) : (
+                <div className="flex flex-col items-center justify-center rounded-xl border border-dashed border-border/70 px-4 py-4 text-center text-sm text-muted-foreground">
+                  <UserRound className="mb-3 size-8 text-muted-foreground/50" />
+                  Nenhum gasto vinculado a dependentes neste período.
                 </div>
-                <p className="text-xs font-medium text-foreground">Débito / Pix</p>
-              </div>
-              <QrCode className="size-4 text-emerald-300" />
-            </div>
-            <div className="relative mt-6 text-right">
-              <p className="text-xs font-medium uppercase text-muted-foreground">
-                Total do mês
-              </p>
-                  <strong className="mt-1 block text-xl font-bold tracking-normal text-foreground">
-                {brlFormatter.format(debitPixSpendingTotal)}
-              </strong>
-            </div>
-              </div>
-            </CarouselItem>
-          </CarouselContent>
-          <CarouselPrevious className="absolute -left-12 z-50 hidden bg-background/80 lg:-left-16 lg:inline-flex" />
-          <CarouselNext className="absolute -right-12 z-50 hidden bg-background/80 lg:-right-16 lg:inline-flex" />
-        </Carousel>
-      </section>
-
-      <section className="space-y-1">
+              )}
+            </CardContent>
+          </Card>
+        </div>
+      </div>
+      <section className="space-y-2">
         <div className="flex items-center justify-between gap-4">
           <div>
             <h2 className="text-lg font-medium tracking-normal text-foreground">
@@ -668,7 +756,7 @@ export default function DashboardPage() {
             <Button
               variant="ghost"
               size="sm"
-              className="text-sm text-muted-foreground hover:text-primary"
+              className="text-sm font-medium text-zinc-300 hover:text-white hover:bg-zinc-800/70 px-3 py-1.5 rounded-md transition-all"
               asChild
             >
               <Link href="/dashboard/transactions">
@@ -680,7 +768,7 @@ export default function DashboardPage() {
 
         <div
           className={cn(
-            "overflow-hidden rounded-lg border border-border/50 bg-card transition-opacity",
+            "overflow-hidden rounded-2xl border border-border/50 bg-card transition-opacity",
             isFetching && "pointer-events-none opacity-50",
           )}
         >
@@ -748,9 +836,9 @@ export default function DashboardPage() {
                 <TableRow className="hover:bg-transparent">
                   <TableCell
                     colSpan={5}
-                    className="h-40 text-center text-muted-foreground"
+                    className="text-center text-muted-foreground"
                   >
-                    <div className="flex h-full flex-col items-center justify-center gap-2">
+                    <div className="flex flex-col items-center justify-center gap-2 py-6">
                       <Inbox className="size-7 text-muted-foreground/60" />
                       <span>Nenhuma movimentação neste período.</span>
                     </div>
@@ -760,7 +848,6 @@ export default function DashboardPage() {
             </TableBody>
           </Table>
         </div>
-
       </section>
 
       <AddCardModal

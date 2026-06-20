@@ -1,7 +1,7 @@
-"use client";
+﻿"use client";
 
 import { FormEvent, useMemo, useState } from "react";
-import { CreditCard, Save } from "lucide-react";
+import { CreditCard } from "lucide-react";
 import { toast } from "sonner";
 
 import { Button } from "@/components/ui/button";
@@ -14,7 +14,6 @@ import {
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { getCardGradient } from "@/lib/cardUtils";
 import { cn } from "@/lib/utils";
 import { useFinanceStore, type Card } from "@/store/useFinanceStore";
 
@@ -37,6 +36,24 @@ function parseOptionalDay(value: string) {
   }
 
   return day;
+}
+
+function getPreviewCardBackground(bankName: string) {
+  const normalizedBankName = bankName.toLowerCase();
+
+  if (normalizedBankName.includes("nubank")) {
+    return "bg-gradient-to-br from-purple-600 to-purple-900";
+  }
+
+  if (normalizedBankName.includes("itaú") || normalizedBankName.includes("itau")) {
+    return "bg-gradient-to-br from-orange-500 to-blue-700";
+  }
+
+  if (normalizedBankName.includes("inter")) {
+    return "bg-orange-500";
+  }
+
+  return "bg-zinc-800";
 }
 
 export function AddCardModal({
@@ -68,21 +85,20 @@ function CardModalContent({
   const editCard = useFinanceStore((state) => state.editCard);
 
   const [name, setName] = useState(editingCard?.name ?? "");
+  const [bankName, setBankName] = useState(editingCard?.name ?? "");
   const [limit, setLimit] = useState(
     editingCard?.limitAmount ? String(editingCard.limitAmount).replace(".", ",") : "",
-  );
-  const [closingDay, setClosingDay] = useState(
-    editingCard?.closingDay ? String(editingCard.closingDay) : "",
   );
   const [dueDay, setDueDay] = useState(
     editingCard?.dueDay ? String(editingCard.dueDay) : "",
   );
 
-  const previewName = name.trim() || "Finync Card";
+  const previewName = name.trim() || bankName.trim() || "Finync Card";
+  const previewBankName = bankName.trim() || "Banco";
   const previewLimit = Number(limit.replace(",", ".")) || 0;
-  const previewGradient = useMemo(
-    () => getCardGradient(previewName),
-    [previewName],
+  const previewBackground = useMemo(
+    () => getPreviewCardBackground(previewBankName),
+    [previewBankName],
   );
 
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {
@@ -91,7 +107,7 @@ function CardModalContent({
     const cardPayload = {
       name: name.trim(),
       limitAmount: previewLimit,
-      closingDay: parseOptionalDay(closingDay),
+      closingDay: editingCard?.closingDay,
       dueDay: parseOptionalDay(dueDay),
     };
 
@@ -112,106 +128,119 @@ function CardModalContent({
   }
 
   return (
-    <DialogContent className="border-white/[0.08] bg-zinc-950/95 text-white sm:max-w-xl">
+    <DialogContent className="border border-zinc-800 bg-zinc-950 text-white shadow-2xl sm:max-w-3xl">
       <DialogHeader>
         <div className="mb-2 flex size-10 items-center justify-center rounded-2xl border border-brand-500/20 bg-brand-500/10 text-brand-300">
           <CreditCard className="size-5" />
         </div>
-        <DialogTitle>
-          {editingCard ? "Editar cartão" : "Novo cartão"}
-        </DialogTitle>
+        <DialogTitle>{editingCard ? "Editar cartão" : "Novo cartão"}</DialogTitle>
         <DialogDescription>
-          Configure limite, fechamento e vencimento para acompanhar a fatura.
+          Configure limite e vencimento para acompanhar a fatura.
         </DialogDescription>
       </DialogHeader>
 
-      <form className="grid grid-cols-2 gap-4" onSubmit={handleSubmit}>
-        <div className="col-span-2 flex min-h-[220px] items-center justify-center rounded-xl border border-border bg-muted/30 px-4 py-8">
-          <div className="flex w-full justify-center">
-            <div
-              className={cn(
-                "relative h-[176px] w-full max-w-[280px] rounded-2xl p-5 text-white shadow-lg",
-                previewGradient,
-              )}
-            >
-              <div className="pointer-events-none absolute -right-10 -top-10 size-28 rounded-full bg-white/10" />
-              <div className="pointer-events-none absolute -bottom-12 left-8 size-28 rounded-full bg-black/20" />
-              <div className="relative flex items-start justify-between gap-4">
-                <div className="h-7 w-10 rounded-md border border-white/25 bg-gradient-to-br from-white/40 to-white/10 shadow-inner" />
-                <CreditCard className="size-5 text-white/80" />
-              </div>
-              <div className="relative mt-8">
-                <p className="truncate text-sm font-medium text-white">
-                  {previewName}
-                </p>
-                <p className="mt-2 text-xs font-medium uppercase text-white/60">
-                  Limite
-                </p>
-                <strong className="block text-xl font-bold tracking-normal text-white">
-                  {brlFormatter.format(previewLimit)}
-                </strong>
-              </div>
+      <form className="space-y-6" onSubmit={handleSubmit}>
+        <div className="rounded-lg border border-zinc-800/80 bg-zinc-900/30 px-4 py-8">
+          <div
+            className={cn(
+              "mx-auto mb-6 flex h-44 w-full max-w-sm flex-col justify-between rounded-xl p-6 text-white transition-all duration-500",
+              previewBackground,
+            )}
+          >
+            <div className="flex items-start justify-between gap-4">
+              <div className="h-7 w-10 rounded-md border border-white/25 bg-gradient-to-br from-white/40 to-white/10 shadow-inner" />
+              <CreditCard className="size-5 text-white/80" />
+            </div>
+            <div className="space-y-1">
+              <p className="truncate text-sm font-medium text-white/80">
+                {previewBankName}
+              </p>
+              <p className="truncate text-xl font-semibold text-white">
+                {previewName}
+              </p>
+              <p className="text-xs font-medium uppercase tracking-[0.2em] text-white/55">
+                Limite {brlFormatter.format(previewLimit)}
+              </p>
             </div>
           </div>
         </div>
 
-        <div className="space-y-2">
-          <Label htmlFor="card-name">Nome do Cartão</Label>
-          <Input
-            id="card-name"
-            value={name}
-            onChange={(event) => setName(event.target.value)}
-            type="text"
-            placeholder="Ex: Nubank"
-            required
-          />
+        <div className="grid grid-cols-2 gap-6">
+          <div className="space-y-5">
+            <div className="space-y-2">
+              <Label htmlFor="card-name" className="text-xs text-zinc-400">
+                Apelido do Cartão
+              </Label>
+              <Input
+                id="card-name"
+                value={name}
+                onChange={(event) => setName(event.target.value)}
+                type="text"
+                placeholder="Nubank Principal"
+                className="h-10 border border-zinc-700 bg-zinc-900 text-zinc-100 transition-colors placeholder:text-zinc-500 hover:border-zinc-600 focus:border-emerald-500"
+                required
+              />
+            </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="card-bank" className="text-xs text-zinc-400">
+                Nome do Banco
+              </Label>
+              <Input
+                id="card-bank"
+                value={bankName}
+                onChange={(event) => setBankName(event.target.value)}
+                type="text"
+                placeholder="Nubank, Itaú, Inter..."
+                className="h-10 border border-zinc-700 bg-zinc-900 text-zinc-100 transition-colors placeholder:text-zinc-500 hover:border-zinc-600 focus:border-emerald-500"
+              />
+            </div>
+          </div>
+
+          <div className="space-y-5">
+            <div className="space-y-2">
+              <Label htmlFor="card-limit" className="text-xs text-zinc-400">
+                Limite Total (R$)
+              </Label>
+              <Input
+                id="card-limit"
+                value={limit}
+                onChange={(event) => setLimit(event.target.value)}
+                type="text"
+                inputMode="decimal"
+                placeholder="0,00"
+                className="h-10 border border-zinc-700 bg-zinc-900 text-zinc-100 transition-colors placeholder:text-zinc-500 hover:border-zinc-600 focus:border-emerald-500"
+              />
+            </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="card-due-day" className="text-xs text-zinc-400">
+                Dia de Vencimento
+              </Label>
+              <Input
+                id="card-due-day"
+                value={dueDay}
+                onChange={(event) => setDueDay(event.target.value)}
+                type="number"
+                min={1}
+                max={31}
+                placeholder="05"
+                className="h-10 border border-zinc-700 bg-zinc-900 text-zinc-100 transition-colors placeholder:text-zinc-500 hover:border-zinc-600 focus:border-emerald-500"
+              />
+            </div>
+          </div>
         </div>
 
-        <div className="space-y-2">
-          <Label htmlFor="card-limit">Limite</Label>
-          <Input
-            id="card-limit"
-            value={limit}
-            onChange={(event) => setLimit(event.target.value)}
-            type="text"
-            inputMode="decimal"
-            placeholder="0,00"
-          />
-        </div>
-
-        <div className="space-y-2">
-          <Label htmlFor="card-closing-day">Dia de Fechamento</Label>
-          <Input
-            id="card-closing-day"
-            value={closingDay}
-            onChange={(event) => setClosingDay(event.target.value)}
-            type="number"
-            min={1}
-            max={31}
-            placeholder="25"
-          />
-        </div>
-
-        <div className="space-y-2">
-          <Label htmlFor="card-due-day">Dia de Vencimento</Label>
-          <Input
-            id="card-due-day"
-            value={dueDay}
-            onChange={(event) => setDueDay(event.target.value)}
-            type="number"
-            min={1}
-            max={31}
-            placeholder="05"
-          />
-        </div>
-
-        <div className="col-span-2 flex flex-col-reverse gap-3 pt-2 sm:flex-row sm:justify-end">
-          <Button type="button" variant="outline" size="lg" onClick={onClose}>
+        <div className="flex justify-end gap-3 pt-2">
+          <Button type="button" variant="ghost" size="lg" onClick={onClose}>
             Cancelar
           </Button>
-          <Button type="submit" size="lg" className="gap-2">
-            <Save className="size-4" />
-            Salvar cartão
+          <Button
+            type="submit"
+            size="lg"
+            className="bg-emerald-600 font-semibold text-white hover:bg-emerald-700"
+          >
+            {editingCard ? "Salvar cartão" : "Adicionar Cartão"}
           </Button>
         </div>
       </form>

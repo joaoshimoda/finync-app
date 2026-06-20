@@ -100,6 +100,13 @@ function isSameSelectedMonth(
   );
 }
 
+function getDependentId(transaction: Transaction) {
+  return (
+    (transaction as Transaction & { dependent_id?: string | null })
+      .dependent_id ?? transaction.dependentId
+  );
+}
+
 function getTransactionOrigin(
   transaction: Transaction,
   cards: ReturnType<typeof useFinanceStore.getState>["cards"],
@@ -132,8 +139,10 @@ export default function TransactionsPage() {
   const [deleteTarget, setDeleteTarget] = useState<Transaction | null>(null);
 
   const cards = useFinanceStore((state) => state.cards);
+  const dependents = useFinanceStore((state) => state.dependents);
   const transactions = useFinanceStore((state) => state.transactions);
   const fetchCards = useFinanceStore((state) => state.fetchCards);
+  const fetchDependents = useFinanceStore((state) => state.fetchDependents);
   const fetchTransactions = useFinanceStore((state) => state.fetchTransactions);
   const deleteTransaction = useFinanceStore((state) => state.deleteTransaction);
   const deleteTransactionGroup = useFinanceStore(
@@ -146,8 +155,9 @@ export default function TransactionsPage() {
 
   useEffect(() => {
     void fetchCards();
+    void fetchDependents();
     void fetchTransactions();
-  }, [currentMonth, currentYear, fetchCards, fetchTransactions]);
+  }, [currentMonth, currentYear, fetchCards, fetchDependents, fetchTransactions]);
 
   const selectedPeriodLabel = monthFormatter.format(
     new Date(currentYear, currentMonth - 1, 1),
@@ -201,7 +211,10 @@ export default function TransactionsPage() {
       .filter((transaction) => transaction.type === "income")
       .reduce((total, transaction) => total + transaction.amount, 0);
     const totalExpense = filteredTransactions
-      .filter((transaction) => transaction.type !== "income")
+      .filter(
+        (transaction) =>
+          transaction.type !== "income" && !getDependentId(transaction),
+      )
       .reduce((total, transaction) => total + transaction.amount, 0);
 
     return {
@@ -443,6 +456,11 @@ export default function TransactionsPage() {
                 const originLabel = getTransactionOrigin(transaction, cards);
                 const categoryLabel =
                   transaction.category || getTransactionFallbackLabel(transaction);
+                const dependentId = getDependentId(transaction);
+                const dependentName = dependentId
+                  ? dependents.find((dependent) => dependent.id === dependentId)
+                      ?.name
+                  : null;
 
                 return (
                   <TableRow
@@ -453,8 +471,13 @@ export default function TransactionsPage() {
                       {formatDateOnlyBR(transaction.date)}
                     </TableCell>
                     <TableCell className="py-4">
-                      <div className="font-medium text-foreground">
+                      <div className="flex flex-wrap items-center gap-2 font-medium text-foreground">
                         <TransactionDescription transaction={transaction} />
+                        {dependentName ? (
+                          <Badge className="rounded-md bg-zinc-100 px-2 py-0.5 text-xs font-medium text-zinc-600 hover:bg-zinc-100 dark:bg-zinc-800 dark:text-zinc-300 dark:hover:bg-zinc-800">
+                            {dependentName}
+                          </Badge>
+                        ) : null}
                       </div>
                       <div className="mt-1 text-xs text-muted-foreground lg:hidden">
                         {categoryLabel}

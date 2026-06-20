@@ -1,11 +1,15 @@
 "use client";
 
 import { FormEvent, useEffect, useMemo, useState } from "react";
-import { CalendarDays, CreditCard, ReceiptText, Save } from "lucide-react";
+import {
+  CalendarDays,
+  CreditCard,
+  ReceiptText,
+  Tag,
+  UserRound,
+} from "lucide-react";
 import { toast } from "sonner";
 
-import { TagSelect } from "@/components/finance/TagSelect";
-import { DependentSelect } from "@/components/finance/DependentSelect";
 import {
   getDateOnlyParts,
   getLocalTodayDateOnly,
@@ -21,7 +25,6 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
 import {
   Select,
   SelectContent,
@@ -308,7 +311,7 @@ function TransactionModalContent({
   }
 
   return (
-    <DialogContent className="max-h-[90vh] overflow-y-auto sm:max-w-2xl">
+    <DialogContent className="border border-zinc-800 bg-zinc-950 shadow-2xl sm:max-w-3xl">
       <DialogHeader>
         <div className="flex items-center gap-2 text-sm font-medium text-brand-300">
           <ReceiptText className="size-4" />
@@ -328,13 +331,10 @@ function TransactionModalContent({
         </DialogDescription>
       </DialogHeader>
 
-      <form className="grid grid-cols-2 gap-4" onSubmit={handleSubmit}>
-        <div className="col-span-2 space-y-2">
-          <Label htmlFor="transaction-amount" className="justify-center">
-            Valor (R$)
-          </Label>
-          <div className="relative">
-            <span className="pointer-events-none absolute left-4 top-1/2 -translate-y-1/2 text-sm font-semibold text-muted-foreground">
+      <form className="space-y-6" onSubmit={handleSubmit}>
+        <section className="space-y-2 text-center">
+          <div className="relative mx-auto max-w-sm rounded-lg border border-zinc-800/80 bg-zinc-900/30">
+            <span className="pointer-events-none absolute left-5 top-1/2 -translate-y-1/2 text-xl font-semibold text-zinc-400">
               R$
             </span>
             <Input
@@ -344,189 +344,241 @@ function TransactionModalContent({
               type="text"
               inputMode="decimal"
               placeholder="0,00"
-              className="h-16 px-12 text-center text-3xl font-bold"
-              required
-            />
-          </div>
-        </div>
-
-        <div className="col-span-2 grid grid-cols-2 gap-4">
-          <div className="col-span-2 space-y-2">
-            <Label htmlFor="transaction-description">Descrição</Label>
-            <Input
-              id="transaction-description"
-              value={description}
-              onChange={(event) => setDescription(event.target.value)}
-              type="text"
-              placeholder="Ex: Mercado, assinatura, transporte"
+              className="h-16 border-none bg-transparent px-12 text-center text-4xl font-semibold tracking-tight text-white shadow-none ring-0 placeholder:text-zinc-500 focus-visible:ring-0 focus-visible:ring-offset-0"
               required
             />
           </div>
 
-          <div className="space-y-2">
-            <Label htmlFor="transaction-date">
-              <CalendarDays className="size-4 text-muted-foreground" />
-              Data
-            </Label>
-            <Input
-              id="transaction-date"
-              value={date}
-              onChange={(event) => setDate(event.target.value)}
-              type="date"
-              className="[color-scheme:dark]"
-              required
-            />
-          </div>
-
-          <div className="space-y-2">
-            <Label>Categoria</Label>
-            <Select value={category} onValueChange={setCategory}>
-              <SelectTrigger>
-                <SelectValue placeholder="Categoria" />
-              </SelectTrigger>
-              <SelectContent>
-                {categories.map((item) => (
-                  <SelectItem key={item} value={item}>
-                    {item}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </div>
-
-          <TagSelect
-            tags={tags}
-            value={selectedTagId}
-            onValueChange={setSelectedTagId}
+          <Input
+            id="transaction-description"
+            value={description}
+            onChange={(event) => setDescription(event.target.value)}
+            type="text"
+            placeholder="Descrição da transação"
+            className="mx-auto h-10 max-w-md rounded-lg border border-zinc-800/80 bg-zinc-900/30 text-center text-lg text-zinc-100 shadow-none ring-0 placeholder:text-zinc-400 focus:outline-none focus:ring-0 focus-visible:ring-0 focus-visible:ring-offset-0"
+            required
           />
+        </section>
 
-          <DependentSelect
-            dependents={dependents}
-            value={selectedDependentId}
-            onValueChange={setSelectedDependentId}
-          />
-
-          <div className="space-y-2">
-            <Label>
-              <CreditCard className="size-4 text-muted-foreground" />
-              {isFixedMode ? "Método de Pagamento" : "Tipo"}
-            </Label>
-            <Select
-              value={transactionType}
-              onValueChange={(value) => {
-                const nextType = value as ExpenseTransactionType;
-
-                setTransactionType(nextType);
-                if (nextType !== "card") {
-                  setSelectedCardId("");
-                  setIsInstallmentPurchase(false);
-                }
-              }}
-            >
-              <SelectTrigger>
-                <SelectValue placeholder="Tipo" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="fixed">Débito/PIX</SelectItem>
-                <SelectItem value="card">Cartão de Crédito</SelectItem>
-              </SelectContent>
-            </Select>
-          </div>
-
-          {!isFixedMode ? (
+        <section className="mt-6 grid grid-cols-2 gap-6">
+          <div className="space-y-3">
             <div className="space-y-2">
-              <Label htmlFor="recurring-toggle">
-                {transactionType === "card"
-                  ? "Assinatura mensal"
-                  : "Gasto fixo recorrente"}
-              </Label>
-              <div className="flex h-9 items-center justify-between rounded-lg border border-input bg-background px-3">
-                <span className="text-sm text-muted-foreground">
-                  {isRecurring ? "Ativo" : "Inativo"}
-                </span>
-                <Switch
-                  id="recurring-toggle"
-                  checked={isRecurring}
-                  onCheckedChange={(checked) => {
-                    setIsRecurring(checked);
-                    if (checked) {
-                      setIsInstallmentPurchase(false);
-                    }
-                  }}
-                />
+              <div className="flex items-center gap-2 text-xs font-medium uppercase tracking-wide text-zinc-400">
+                <CalendarDays className="size-3.5" />
+                Data
               </div>
+              <Input
+                id="transaction-date"
+                value={date}
+                onChange={(event) => setDate(event.target.value)}
+                type="date"
+                className="flex h-10 items-center border border-zinc-700 bg-zinc-900 text-sm text-zinc-200 shadow-none transition-colors [color-scheme:dark] hover:border-zinc-600 focus:border-emerald-500 focus-visible:ring-1 focus-visible:ring-emerald-500 focus-visible:ring-offset-0"
+                required
+              />
             </div>
-          ) : null}
-        </div>
 
-        {transactionType === "card" ? (
-          <div className="col-span-2 space-y-4 rounded-xl border border-border bg-muted/30 p-4">
-            <div>
-              <Label>Cartão</Label>
+            <div className="space-y-2">
+              <div className="flex items-center gap-2 text-xs font-medium uppercase tracking-wide text-zinc-400">
+                <CreditCard className="size-3.5" />
+                {isFixedMode ? "Método" : "Tipo"}
+              </div>
               <Select
-                value={selectedCardId}
-                onValueChange={setSelectedCardId}
-                disabled={!cards.length}
+                value={transactionType}
+                onValueChange={(value) => {
+                  const nextType = value as ExpenseTransactionType;
+
+                  setTransactionType(nextType);
+                  if (nextType !== "card") {
+                    setSelectedCardId("");
+                    setIsInstallmentPurchase(false);
+                  }
+                }}
               >
-                <SelectTrigger className="mt-2">
-                  <SelectValue placeholder="Selecione um cartão" />
+                <SelectTrigger className="flex h-10 items-center border border-zinc-700 bg-zinc-900 text-sm text-zinc-200 shadow-none transition-colors hover:border-zinc-600 focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500 focus:ring-offset-0">
+                  <SelectValue placeholder="Tipo" />
                 </SelectTrigger>
                 <SelectContent>
-                  {cards.map((card) => (
-                    <SelectItem key={card.id} value={card.id}>
-                      {card.name}
+                  <SelectItem value="fixed">Débito/PIX</SelectItem>
+                  <SelectItem value="card">Cartão de Crédito</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+
+            {transactionType === "card" ? (
+              <div className="space-y-2">
+                <div className="flex items-center gap-2 text-xs font-medium uppercase tracking-wide text-zinc-400">
+                  <CreditCard className="size-3.5" />
+                  Cartão
+                </div>
+                <Select
+                  value={selectedCardId}
+                  onValueChange={setSelectedCardId}
+                  disabled={!cards.length}
+                >
+                  <SelectTrigger className="flex h-10 items-center border border-zinc-700 bg-zinc-900 text-sm text-zinc-200 shadow-none transition-colors hover:border-zinc-600 focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500 focus:ring-offset-0">
+                    <SelectValue placeholder="Selecionar cart?o" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {cards.map((card) => (
+                      <SelectItem key={card.id} value={card.id}>
+                        {card.name}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+            ) : null}
+          </div>
+
+          <div className="space-y-3">
+            <div className="space-y-2">
+              <div className="flex items-center gap-2 text-xs font-medium uppercase tracking-wide text-zinc-400">
+                <ReceiptText className="size-3.5" />
+                Categoria
+              </div>
+              <Select value={category} onValueChange={setCategory}>
+                <SelectTrigger className="flex h-10 items-center border border-zinc-700 bg-zinc-900 text-sm text-zinc-200 shadow-none transition-colors hover:border-zinc-600 focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500 focus:ring-offset-0">
+                  <SelectValue placeholder="Categoria" />
+                </SelectTrigger>
+                <SelectContent>
+                  {categories.map((item) => (
+                    <SelectItem key={item} value={item}>
+                      {item}
                     </SelectItem>
                   ))}
                 </SelectContent>
               </Select>
             </div>
 
-            {!isFixedMode && !editingTransaction ? (
-              <>
-                <div className="flex items-center justify-between gap-4">
-                  <span className="text-sm font-medium text-foreground">
-                    Compra parcelada?
-                  </span>
-                  <Switch
-                    checked={isInstallmentPurchase}
-                    onCheckedChange={(checked) => {
-                      setIsInstallmentPurchase(checked);
-                      if (checked) {
-                        setIsRecurring(false);
-                      }
-                    }}
-                  />
-                </div>
+            <div className="space-y-2">
+              <div className="flex items-center gap-2 text-xs font-medium uppercase tracking-wide text-zinc-400">
+                <Tag className="size-3.5" />
+                Tag
+              </div>
+              <Select
+                value={selectedTagId || "__no_tag__"}
+                onValueChange={(nextValue) =>
+                  setSelectedTagId(nextValue === "__no_tag__" ? "" : nextValue)
+                }
+              >
+                <SelectTrigger className="flex h-10 items-center border border-zinc-700 bg-zinc-900 text-sm text-zinc-200 shadow-none transition-colors hover:border-zinc-600 focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500 focus:ring-offset-0">
+                  <SelectValue placeholder="Sem tag" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="__no_tag__">Sem tag</SelectItem>
+                  {tags.map((tag) => (
+                    <SelectItem key={tag.id} value={tag.id}>
+                      {tag.label}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
 
-                {isInstallmentPurchase ? (
-                  <div className="animate-in fade-in-0 slide-in-from-top-1 duration-150">
-                    <Label htmlFor="installments">Quantidade de Parcelas</Label>
-                    <Input
-                      id="installments"
-                      value={installmentCount}
-                      onChange={(event) => setInstallmentCount(event.target.value)}
-                      type="number"
-                      min={2}
-                      step={1}
-                      className="mt-2"
-                    />
-                  </div>
-                ) : null}
-              </>
-            ) : null}
+            <div className="space-y-2">
+              <div className="flex items-center gap-2 text-xs font-medium uppercase tracking-wide text-zinc-400">
+                <UserRound className="size-3.5" />
+                Dependente
+              </div>
+              <Select
+                value={selectedDependentId || "__no_dependent__"}
+                onValueChange={(nextValue) =>
+                  setSelectedDependentId(
+                    nextValue === "__no_dependent__" ? "" : nextValue,
+                  )
+                }
+              >
+                <SelectTrigger className="flex h-10 items-center border border-zinc-700 bg-zinc-900 text-sm text-zinc-200 shadow-none transition-colors hover:border-zinc-600 focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500 focus:ring-offset-0">
+                  <SelectValue placeholder="Sem dependente" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="__no_dependent__">Sem dependente</SelectItem>
+                  {dependents.map((dependent) => (
+                    <SelectItem key={dependent.id} value={dependent.id}>
+                      {dependent.name}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
           </div>
+        </section>
+
+        {!isFixedMode ? (
+          <section className="flex items-center justify-between gap-6 rounded-xl border border-zinc-700 bg-zinc-900/50 p-4">
+            <div>
+              <p className="text-sm font-medium text-zinc-200">
+                {transactionType === "card"
+                  ? "Assinatura mensal"
+                  : "Gasto fixo recorrente"}
+              </p>
+              <p className="mt-1 text-xs text-zinc-500">
+                Repete automaticamente nos próximos meses.
+              </p>
+            </div>
+            <Switch
+              id="recurring-toggle"
+              checked={isRecurring}
+              onCheckedChange={(checked) => {
+                setIsRecurring(checked);
+                if (checked) {
+                  setIsInstallmentPurchase(false);
+                }
+              }}
+            />
+          </section>
         ) : null}
-        <div className="col-span-2 flex flex-col-reverse gap-3 pt-2 sm:flex-row sm:justify-end">
+
+        {transactionType === "card" && !isFixedMode && !editingTransaction ? (
+          <section className="flex items-center justify-between gap-6 rounded-xl border border-zinc-700 bg-zinc-900/50 p-4">
+            <div>
+              <p className="text-sm font-medium text-zinc-200">
+                Compra parcelada?
+              </p>
+              <p className="mt-1 text-xs text-zinc-500">
+                Divida o lançamento em parcelas mensais.
+              </p>
+            </div>
+            <Switch
+              checked={isInstallmentPurchase}
+              onCheckedChange={(checked) => {
+                setIsInstallmentPurchase(checked);
+                if (checked) {
+                  setIsRecurring(false);
+                }
+              }}
+            />
+          </section>
+        ) : null}
+
+        {transactionType === "card" && isInstallmentPurchase ? (
+          <Input
+            id="installments"
+            value={installmentCount}
+            onChange={(event) => setInstallmentCount(event.target.value)}
+            type="number"
+            min={2}
+            step={1}
+            placeholder="Quantidade de parcelas"
+            className="h-11 border border-zinc-700 bg-zinc-900 transition-colors hover:border-zinc-600 focus-visible:border-emerald-500"
+          />
+        ) : null}
+
+        <div className="mt-8 flex justify-end gap-3">
           <Button
             type="button"
-            variant="outline"
+            variant="ghost"
             disabled={isSubmitting}
             onClick={onClose}
+            className="h-11 px-5 text-zinc-400 hover:text-zinc-50"
           >
             Cancelar
           </Button>
-          <Button type="submit" disabled={isSubmitting} className="gap-2">
-            <Save className="size-4" />
+          <Button
+            type="submit"
+            disabled={isSubmitting}
+            className="h-11 min-w-52 bg-emerald-600 font-semibold text-white hover:bg-emerald-700"
+          >
             {isSubmitting ? "Salvando..." : "Salvar transação"}
           </Button>
         </div>
