@@ -26,15 +26,6 @@ export interface Card {
   updatedAt?: string;
 }
 
-export interface FinanceTag {
-  id: string;
-  label: string;
-  icon: string;
-  color?: string;
-  createdAt?: string;
-  updatedAt?: string;
-}
-
 export interface Dependent {
   id: string;
   name: string;
@@ -60,7 +51,6 @@ export interface Transaction {
   installmentNumber?: number;
   installmentsTotal?: number;
   notes?: string;
-  tagIds?: string[];
   createdAt?: string;
   updatedAt?: string;
 }
@@ -73,7 +63,6 @@ export type UpdateTransactionInput = Partial<CreateTransactionInput>;
 
 export type CreateCardInput = Omit<Card, "id" | "createdAt" | "updatedAt">;
 export type UpdateCardInput = Partial<CreateCardInput>;
-export type CreateTagInput = Pick<FinanceTag, "label" | "icon">;
 export type CreateDependentInput = Pick<Dependent, "name">;
 
 interface CardRow {
@@ -110,16 +99,6 @@ interface TransactionRow {
   split_with: string[] | null;
   created_at: string;
   updated_at: string;
-  transaction_tags?: { tag_id: string }[] | null;
-}
-
-interface TagRow {
-  id: string;
-  label: string;
-  icon: string | null;
-  color: string | null;
-  created_at: string;
-  updated_at: string;
 }
 
 interface DependentRow {
@@ -130,7 +109,6 @@ interface DependentRow {
 
 interface FinanceState {
   cards: Card[];
-  tags: FinanceTag[];
   dependents: Dependent[];
   transactions: Transaction[];
   authUser: User | null;
@@ -146,8 +124,6 @@ interface FinanceState {
   nextMonth: () => void;
   prevMonth: () => void;
   fetchCards: () => Promise<void>;
-  fetchTags: () => Promise<void>;
-  addTag: (tag: CreateTagInput) => Promise<void>;
   fetchDependents: () => Promise<void>;
   addDependent: (dependent: CreateDependentInput) => Promise<void>;
   deleteDependent: (dependentId: string) => Promise<void>;
@@ -282,18 +258,6 @@ function mapTransaction(row: TransactionRow): Transaction {
     installmentNumber: row.installment_number ?? undefined,
     installmentsTotal: row.installments_total ?? undefined,
     notes: row.notes ?? undefined,
-    tagIds: row.transaction_tags?.map((relation) => relation.tag_id) ?? [],
-    createdAt: row.created_at,
-    updatedAt: row.updated_at,
-  };
-}
-
-function mapTag(row: TagRow): FinanceTag {
-  return {
-    id: row.id,
-    label: row.label,
-    icon: row.icon ?? "Tag",
-    color: row.color ?? undefined,
     createdAt: row.created_at,
     updatedAt: row.updated_at,
   };
@@ -374,7 +338,6 @@ async function getCurrentUser(): Promise<User | null> {
 
 export const useFinanceStore = create<FinanceState>()((set, get) => ({
   cards: [],
-  tags: [],
   dependents: [],
   transactions: [],
   authUser: null,
@@ -440,7 +403,6 @@ export const useFinanceStore = create<FinanceState>()((set, get) => ({
         window.setTimeout(() => {
           void Promise.all([
             get().fetchCards(),
-            get().fetchTags(),
             get().fetchDependents(),
             get().fetchTransactions(),
           ]).finally(() => {
@@ -457,8 +419,7 @@ export const useFinanceStore = create<FinanceState>()((set, get) => ({
         set({
           authUser: null,
           cards: [],
-          tags: [],
-          dependents: [],
+                  dependents: [],
           transactions: [],
           isAuthReady: true,
           isLoading: false,
@@ -476,62 +437,12 @@ export const useFinanceStore = create<FinanceState>()((set, get) => ({
     set({
       authUser: null,
       cards: [],
-      tags: [],
-      dependents: [],
+          dependents: [],
       transactions: [],
       isAuthReady: true,
       isLoading: false,
       isFetching: false,
     });
-  },
-
-  fetchTags: async () => {
-    try {
-      const user = await getCurrentUser();
-      if (!user) return;
-
-      const { data, error } = await supabase
-        .from("tags")
-        .select("*")
-        .eq("user_id", user.id)
-        .order("label", { ascending: true });
-
-      if (error) throw error;
-
-      set({ tags: (data as TagRow[]).map(mapTag) });
-    } catch (error) {
-      console.error("Erro ao buscar tags:", error);
-      throw error;
-    }
-  },
-
-  addTag: async (tag) => {
-    try {
-      const user = await getCurrentUser();
-      if (!user) throw new Error("Usuário não autenticado.");
-
-      const { data, error } = await supabase
-        .from("tags")
-        .insert({
-          user_id: user.id,
-          legacy_key: slugify(tag.label),
-          label: tag.label.trim(),
-          icon: tag.icon,
-        })
-        .select("*")
-        .single();
-
-      if (error) throw error;
-
-      set((state) => ({
-        tags: [...state.tags, mapTag(data as TagRow)].sort((left, right) =>
-          left.label.localeCompare(right.label, "pt-BR"),
-        ),
-      }));
-    } catch (error) {
-      console.error("Erro ao adicionar tag:", error);
-      throw error;
-    }
   },
 
   fetchDependents: async () => {
@@ -771,17 +682,10 @@ export const useFinanceStore = create<FinanceState>()((set, get) => ({
 
       const selectedMonth = get().currentMonth;
       const selectedYear = get().currentYear;
-      const { startDate, endDate } = getSelectedMonthRange(
-        selectedMonth,
-        selectedYear,
-      );
-
       const { data, error } = await supabase
         .from("transactions")
-        .select("*, transaction_tags(tag_id)")
+        .select("*")
         .eq("user_id", user.id)
-        .gte("month_start", startDate)
-        .lt("month_start", endDate)
         .order("month_start", { ascending: false })
         .order("day", { ascending: false })
         .order("created_at", { ascending: false });
@@ -850,40 +754,7 @@ export const useFinanceStore = create<FinanceState>()((set, get) => ({
       }
 
       const transactionRows = data as TransactionRow[];
-      const tagRelations = transactionRows.flatMap((row, index) =>
-        (transactionsToCreate[index]?.tagIds ?? []).map((tagId) => ({
-          transaction_id: row.id,
-          tag_id: tagId,
-          user_id: user.id,
-        })),
-      );
-
-      if (tagRelations.length) {
-        const { error: tagRelationError } = await supabase
-          .from("transaction_tags")
-          .insert(tagRelations);
-
-        if (tagRelationError) {
-          await supabase
-            .from("transactions")
-            .delete()
-            .in(
-              "id",
-              transactionRows.map((row) => row.id),
-            )
-            .eq("user_id", user.id);
-          throw tagRelationError;
-        }
-      }
-
-      const newTransactions = transactionRows.map((row, index) =>
-        mapTransaction({
-          ...row,
-          transaction_tags: (transactionsToCreate[index]?.tagIds ?? []).map(
-            (tagId) => ({ tag_id: tagId }),
-          ),
-        }),
-      );
+      const newTransactions = transactionRows.map(mapTransaction);
       const visibleTransactions = newTransactions.filter((transaction) =>
         isTransactionInSelectedRange(
           transaction,
@@ -1025,37 +896,7 @@ export const useFinanceStore = create<FinanceState>()((set, get) => ({
       if (error) throw error;
       if (!data) throw new Error("Supabase não retornou a transação atualizada.");
 
-      const nextTagIds =
-        transaction.tagIds ?? currentTransaction?.tagIds ?? [];
-
-      if (transaction.tagIds !== undefined) {
-        const { error: deleteTagError } = await supabase
-          .from("transaction_tags")
-          .delete()
-          .eq("transaction_id", transactionId)
-          .eq("user_id", user.id);
-
-        if (deleteTagError) throw deleteTagError;
-
-        if (nextTagIds.length) {
-          const { error: insertTagError } = await supabase
-            .from("transaction_tags")
-            .insert(
-              nextTagIds.map((tagId) => ({
-                transaction_id: transactionId,
-                tag_id: tagId,
-                user_id: user.id,
-              })),
-            );
-
-          if (insertTagError) throw insertTagError;
-        }
-      }
-
-      const updatedTransaction = mapTransaction({
-        ...(data as TransactionRow),
-        transaction_tags: nextTagIds.map((tagId) => ({ tag_id: tagId })),
-      });
+      const updatedTransaction = mapTransaction(data as TransactionRow);
 
       set((state) => ({
         transactions: state.transactions.map((currentTransaction) =>
@@ -1119,7 +960,6 @@ export const useFinanceStore = create<FinanceState>()((set, get) => ({
       cardId: null,
       owner: "eu",
       dependentIds: ["eu"],
-      tagIds: [],
       notes: "Receita",
     });
   },

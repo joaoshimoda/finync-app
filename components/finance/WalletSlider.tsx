@@ -1,7 +1,7 @@
 "use client";
 
 import { formatCurrency } from "@/lib/financeUtils";
-import { getCardSignedAmount } from "@/lib/cardCredits";
+import { calculateCardDebt, getCardSignedAmount } from "@/lib/cardCredits";
 import { ConfirmDialog } from "@/components/ui/ConfirmDialog";
 import { useFinanceStore, type Card, type Transaction } from "@/store/useFinanceStore";
 import { CreditCard, Trash2 } from "lucide-react";
@@ -51,12 +51,13 @@ export function WalletSlider({ cards = [], transactions = [] }: WalletSliderProp
               (sum, transaction) => sum + getCardSignedAmount(transaction),
               0,
             );
+            const debt = calculateCardDebt(transactions, card.id);
             const paid = cardTransactions
               .filter((transaction) => transaction.status === "paid")
               .reduce((sum, transaction) => sum + getCardSignedAmount(transaction), 0);
             const pending = Math.max(total - paid, 0);
             const limit = card.limitAmount || 0;
-            const usage = limit > 0 ? Math.min((total / limit) * 100, 100) : 0;
+            const usage = limit > 0 ? Math.min((debt / limit) * 100, 100) : 0;
             const isNearLimit = usage >= 85;
             const color = card.color || "#2dd4bf";
             const closingDay = card.closingDay || "--";
@@ -120,13 +121,13 @@ export function WalletSlider({ cards = [], transactions = [] }: WalletSliderProp
 
                   <div className="mt-8">
                     <p className="text-xs font-medium uppercase tracking-wide text-zinc-400">
-                      Fatura atual
+                      Limite disponível
                     </p>
                     <p className="mt-2 text-3xl font-semibold tracking-tight text-white">
-                      {formatCurrency(total)}
+                      {formatCurrency(limit - debt)}
                     </p>
                     <p className="mt-2 text-xs text-zinc-400">
-                      {limit > 0 ? `Limite ${formatCurrency(limit)}` : "Sem limite definido"}
+                      {limit > 0 ? `Devedor ${formatCurrency(debt)}` : "Sem limite definido"}
                     </p>
                   </div>
 

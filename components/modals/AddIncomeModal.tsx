@@ -1,7 +1,7 @@
 "use client";
 
-import { FormEvent, useEffect, useState } from "react";
-import { ArrowUp, CalendarDays, ReceiptText, Tag, Wallet } from "lucide-react";
+import { FormEvent, useState } from "react";
+import { ArrowUp, CalendarDays, ReceiptText } from "lucide-react";
 import { toast } from "sonner";
 
 import { Button } from "@/components/ui/button";
@@ -20,11 +20,23 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { getLocalTodayDateOnly, normalizeDateOnly } from "@/lib/dateUtils";
+import {
+  getDateOnlyParts,
+  getLocalTodayDateOnly,
+  normalizeDateOnly,
+  toDateOnly,
+} from "@/lib/dateUtils";
+import {
+  RECURRING_INCOME_NOTE,
+  VARIABLE_INCOME_NOTE,
+  isVariableIncome,
+} from "@/lib/incomeRecurrence";
 import {
   useFinanceStore,
+  type CreateTransactionInput,
   type Transaction,
 } from "@/store/useFinanceStore";
+import { Switch } from "@/components/ui/switch";
 
 interface AddIncomeModalProps {
   isOpen: boolean;
@@ -40,6 +52,16 @@ const incomeCategories = [
   "Investimentos",
   "Outros",
 ];
+
+function addMonthsToDateOnly(date: string, monthsToAdd: number) {
+  const { day, month, year } = getDateOnlyParts(date);
+  const monthIndex = month - 1 + monthsToAdd;
+  const nextYear = year + Math.floor(monthIndex / 12);
+  const nextMonth = (monthIndex % 12) + 1;
+  const lastDayOfNextMonth = new Date(nextYear, nextMonth, 0).getDate();
+
+  return toDateOnly(nextYear, nextMonth, Math.min(day, lastDayOfNextMonth));
+}
 
 export function AddIncomeModal({
   isOpen,
@@ -67,9 +89,8 @@ function IncomeModalContent({
   onClose: () => void;
 }) {
   const authUser = useFinanceStore((state) => state.authUser);
-  const tags = useFinanceStore((state) => state.tags);
-  const fetchTags = useFinanceStore((state) => state.fetchTags);
   const addTransaction = useFinanceStore((state) => state.addTransaction);
+  const addTransactions = useFinanceStore((state) => state.addTransactions);
   const fetchTransactions = useFinanceStore((state) => state.fetchTransactions);
   const updateTransaction = useFinanceStore((state) => state.updateTransaction);
 
@@ -87,15 +108,14 @@ function IncomeModalContent({
   const [category, setCategory] = useState(
     editingTransaction?.category || "Receita",
   );
-  const [selectedTagId, setSelectedTagId] = useState(
-    editingTransaction?.tagIds?.[0] ?? "",
+  const [repeatMonthly, setRepeatMonthly] = useState(
+    editingTransaction?.is_recurring ?? false,
   );
-  const [destinationAccount, setDestinationAccount] = useState("Carteira");
+  const [isVariableValue, setIsVariableValue] = useState(
+    editingTransaction ? isVariableIncome(editingTransaction) : false,
+  );
   const [isSubmitting, setIsSubmitting] = useState(false);
 
-  useEffect(() => {
-    void fetchTags();
-  }, [fetchTags]);
 
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -107,20 +127,26 @@ function IncomeModalContent({
       return;
     }
 
-    const incomePayload = {
+    const incomePayload: CreateTransactionInput = {
       description: description.trim(),
       amount: Number(amount.replace(",", ".")) || 0,
       date: normalizeDateOnly(date),
       category,
       type: "income" as const,
-      status: "confirmed" as const,
+      status: isVariableValue ? "pending" : "confirmed",
       cardId: null,
       owner: editingTransaction?.owner ?? "eu",
       dependentIds: editingTransaction?.dependentIds?.length
         ? editingTransaction.dependentIds
         : ["eu"],
-      tagIds: selectedTagId ? [selectedTagId] : [],
-      notes: "Receita",
+      is_recurring: repeatMonthly || isVariableValue,
+      notes: [
+        "Receita",
+        repeatMonthly || isVariableValue ? RECURRING_INCOME_NOTE : "",
+        isVariableValue ? VARIABLE_INCOME_NOTE : "",
+      ]
+        .filter(Boolean)
+        .join(" "),
     };
 
     setIsSubmitting(true);
@@ -128,6 +154,20 @@ function IncomeModalContent({
     try {
       if (editingTransaction) {
         await updateTransaction(editingTransaction.id, incomePayload);
+      } else if (repeatMonthly || isVariableValue) {
+        const groupId = crypto.randomUUID();
+        const recurringIncomes = Array.from(
+          { length: 12 },
+          (_, index): CreateTransactionInput => ({
+            ...incomePayload,
+            groupId,
+            date: addMonthsToDateOnly(incomePayload.date, index),
+            status: isVariableValue ? "pending" : "confirmed",
+            is_recurring: true,
+          }),
+        );
+
+        await addTransactions(recurringIncomes);
       } else {
         await addTransaction(incomePayload);
       }
@@ -159,7 +199,7 @@ function IncomeModalContent({
           {editingTransaction ? "Editar receita" : "Nova receita"}
         </DialogTitle>
         <DialogDescription>
-          Registre entradas sem vincular a uma fatura de cart?o.
+          Registre entradas sem vincular a uma fatura de cartão.
         </DialogDescription>
       </DialogHeader>
 
@@ -192,6 +232,51 @@ function IncomeModalContent({
           />
         </section>
 
+        <section className="rounded-xl border border-zinc-800 bg-zinc-900/40 p-4">
+          <div className="grid gap-4 md:grid-cols-2">
+            <label
+              htmlFor="income-repeat-monthly"
+              className="flex items-center justify-between gap-4 rounded-lg border border-zinc-800 bg-zinc-950/60 p-3"
+            >
+              <div>
+                <p className="text-sm font-medium text-zinc-100">
+                  Repetir mensalmente
+                </p>
+                <p className="mt-1 text-xs text-zinc-500">
+                  Projeta esta receita para os próximos meses.
+                </p>
+              </div>
+              <Switch
+                id="income-repeat-monthly"
+                checked={repeatMonthly}
+                onCheckedChange={(checked) => setRepeatMonthly(checked)}
+              />
+            </label>
+
+            <label
+              htmlFor="income-variable-value"
+              className="flex items-center justify-between gap-4 rounded-lg border border-zinc-800 bg-zinc-950/60 p-3"
+            >
+              <div>
+                <p className="text-sm font-medium text-zinc-100">
+                  Valor Variável
+                </p>
+                <p className="mt-1 text-xs text-zinc-500">
+                  Cria confirmações rápidas no Dashboard.
+                </p>
+              </div>
+              <Switch
+                id="income-variable-value"
+                checked={isVariableValue}
+                onCheckedChange={(checked) => {
+                  setIsVariableValue(checked);
+                  if (checked) setRepeatMonthly(true);
+                }}
+              />
+            </label>
+          </div>
+        </section>
+
         <section className="mt-6 grid grid-cols-2 gap-6">
           <div className="space-y-3">
             <div className="space-y-2">
@@ -209,22 +294,6 @@ function IncomeModalContent({
               />
             </div>
 
-            <div className="space-y-2">
-              <div className="flex items-center gap-2 text-xs font-medium uppercase tracking-wide text-zinc-400">
-                <Wallet className="size-3.5" />
-                Conta de Destino
-              </div>
-              <Select value={destinationAccount} onValueChange={setDestinationAccount}>
-                <SelectTrigger className="flex h-10 items-center border border-zinc-700 bg-zinc-900 text-sm text-zinc-200 shadow-none transition-colors hover:border-zinc-600 focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500 focus:ring-offset-0">
-                  <SelectValue placeholder="Conta" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="Nubank">Nubank</SelectItem>
-                  <SelectItem value="Ita?">Ita?</SelectItem>
-                  <SelectItem value="Carteira">Carteira</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
           </div>
 
           <div className="space-y-3">
@@ -247,30 +316,7 @@ function IncomeModalContent({
               </Select>
             </div>
 
-            <div className="space-y-2">
-              <div className="flex items-center gap-2 text-xs font-medium uppercase tracking-wide text-zinc-400">
-                <Tag className="size-3.5" />
-                Tag Opcional
-              </div>
-              <Select
-                value={selectedTagId || "__no_tag__"}
-                onValueChange={(nextValue) =>
-                  setSelectedTagId(nextValue === "__no_tag__" ? "" : nextValue)
-                }
-              >
-                <SelectTrigger className="flex h-10 items-center border border-zinc-700 bg-zinc-900 text-sm text-zinc-200 shadow-none transition-colors hover:border-zinc-600 focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500 focus:ring-offset-0">
-                  <SelectValue placeholder="Sem tag" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="__no_tag__">Sem tag</SelectItem>
-                  {tags.map((tag) => (
-                    <SelectItem key={tag.id} value={tag.id}>
-                      {tag.label}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
+
           </div>
         </section>
 

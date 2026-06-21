@@ -18,7 +18,7 @@ import {
   ReceiptText,
   Pencil,
   ShoppingBasket,
-  Tag,
+  CircleHelp,
   Trash2,
   Wallet,
   type LucideIcon,
@@ -39,7 +39,7 @@ const categoryMeta: Record<string, { color: string; icon: LucideIcon }> = {
   Saúde: { color: "#34d399", icon: Dumbbell },
   Educação: { color: "#fbbf24", icon: BookOpen },
   Receita: { color: "#34d399", icon: Wallet },
-  Outros: { color: "#94a3b8", icon: Tag },
+  Outros: { color: "#94a3b8", icon: CircleHelp },
 };
 
 const statusStyles: Record<

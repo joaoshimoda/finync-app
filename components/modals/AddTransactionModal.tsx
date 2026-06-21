@@ -5,7 +5,6 @@ import {
   CalendarDays,
   CreditCard,
   ReceiptText,
-  Tag,
   UserRound,
 } from "lucide-react";
 import { toast } from "sonner";
@@ -110,10 +109,8 @@ function TransactionModalContent({
   mode: "expense" | "fixed";
 }) {
   const cards = useFinanceStore((state) => state.cards);
-  const tags = useFinanceStore((state) => state.tags);
   const dependents = useFinanceStore((state) => state.dependents);
   const fetchCards = useFinanceStore((state) => state.fetchCards);
-  const fetchTags = useFinanceStore((state) => state.fetchTags);
   const fetchDependents = useFinanceStore((state) => state.fetchDependents);
   const fetchTransactions = useFinanceStore((state) => state.fetchTransactions);
   const authUser = useFinanceStore((state) => state.authUser);
@@ -143,9 +140,6 @@ function TransactionModalContent({
   const [selectedCardId, setSelectedCardId] = useState(
     editingTransaction?.cardId ?? "",
   );
-  const [selectedTagId, setSelectedTagId] = useState(
-    editingTransaction?.tagIds?.[0] ?? "",
-  );
   const [selectedDependentId, setSelectedDependentId] = useState(
     editingTransaction?.dependentId ?? "",
   );
@@ -157,8 +151,8 @@ function TransactionModalContent({
   const [isSubmitting, setIsSubmitting] = useState(false);
 
   useEffect(() => {
-    void Promise.all([fetchCards(), fetchTags(), fetchDependents()]);
-  }, [fetchCards, fetchDependents, fetchTags]);
+    void Promise.all([fetchCards(), fetchDependents()]);
+  }, [fetchCards, fetchDependents]);
 
   const selectedCard = useMemo(() => {
     if (transactionType !== "card") return null;
@@ -209,7 +203,6 @@ function TransactionModalContent({
       dependentId: selectedDependentId || null,
       owner: "eu",
       dependentIds: ["eu"],
-      tagIds: selectedTagId ? [selectedTagId] : [],
       installments: 1,
       current_installment: 1,
       installmentsTotal: 1,
@@ -444,31 +437,6 @@ function TransactionModalContent({
                   {categories.map((item) => (
                     <SelectItem key={item} value={item}>
                       {item}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-
-            <div className="space-y-2">
-              <div className="flex items-center gap-2 text-xs font-medium uppercase tracking-wide text-zinc-400">
-                <Tag className="size-3.5" />
-                Tag
-              </div>
-              <Select
-                value={selectedTagId || "__no_tag__"}
-                onValueChange={(nextValue) =>
-                  setSelectedTagId(nextValue === "__no_tag__" ? "" : nextValue)
-                }
-              >
-                <SelectTrigger className="flex h-10 items-center border border-zinc-700 bg-zinc-900 text-sm text-zinc-200 shadow-none transition-colors hover:border-zinc-600 focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500 focus:ring-offset-0">
-                  <SelectValue placeholder="Sem tag" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="__no_tag__">Sem tag</SelectItem>
-                  {tags.map((tag) => (
-                    <SelectItem key={tag.id} value={tag.id}>
-                      {tag.label}
                     </SelectItem>
                   ))}
                 </SelectContent>

@@ -85,20 +85,21 @@ function CardModalContent({
   const editCard = useFinanceStore((state) => state.editCard);
 
   const [name, setName] = useState(editingCard?.name ?? "");
-  const [bankName, setBankName] = useState(editingCard?.name ?? "");
   const [limit, setLimit] = useState(
     editingCard?.limitAmount ? String(editingCard.limitAmount).replace(".", ",") : "",
+  );
+  const [closingDay, setClosingDay] = useState(
+    editingCard?.closingDay ? String(editingCard.closingDay) : "",
   );
   const [dueDay, setDueDay] = useState(
     editingCard?.dueDay ? String(editingCard.dueDay) : "",
   );
 
-  const previewName = name.trim() || bankName.trim() || "Finync Card";
-  const previewBankName = bankName.trim() || "Banco";
+  const previewName = name.trim() || "Finync Card";
   const previewLimit = Number(limit.replace(",", ".")) || 0;
   const previewBackground = useMemo(
-    () => getPreviewCardBackground(previewBankName),
-    [previewBankName],
+    () => getPreviewCardBackground(previewName),
+    [previewName],
   );
 
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {
@@ -107,7 +108,7 @@ function CardModalContent({
     const cardPayload = {
       name: name.trim(),
       limitAmount: previewLimit,
-      closingDay: editingCard?.closingDay,
+      closingDay: parseOptionalDay(closingDay),
       dueDay: parseOptionalDay(dueDay),
     };
 
@@ -135,15 +136,15 @@ function CardModalContent({
         </div>
         <DialogTitle>{editingCard ? "Editar cartão" : "Novo cartão"}</DialogTitle>
         <DialogDescription>
-          Configure limite e vencimento para acompanhar a fatura.
+          Configure nome, limite, fechamento e vencimento da fatura.
         </DialogDescription>
       </DialogHeader>
 
-      <form className="space-y-6" onSubmit={handleSubmit}>
-        <div className="rounded-lg border border-zinc-800/80 bg-zinc-900/30 px-4 py-8">
+      <form className="space-y-5" onSubmit={handleSubmit}>
+        <div className="rounded-lg border border-zinc-800/80 bg-zinc-900/30 px-4 py-6">
           <div
             className={cn(
-              "mx-auto mb-6 flex h-44 w-full max-w-sm flex-col justify-between rounded-xl p-6 text-white transition-all duration-500",
+              "mx-auto flex h-44 w-full max-w-sm flex-col justify-between rounded-xl p-6 text-white transition-all duration-500",
               previewBackground,
             )}
           >
@@ -153,7 +154,7 @@ function CardModalContent({
             </div>
             <div className="space-y-1">
               <p className="truncate text-sm font-medium text-white/80">
-                {previewBankName}
+                Cartão de crédito
               </p>
               <p className="truncate text-xl font-semibold text-white">
                 {previewName}
@@ -165,69 +166,67 @@ function CardModalContent({
           </div>
         </div>
 
-        <div className="grid grid-cols-2 gap-6">
-          <div className="space-y-5">
-            <div className="space-y-2">
-              <Label htmlFor="card-name" className="text-xs text-zinc-400">
-                Apelido do Cartão
-              </Label>
-              <Input
-                id="card-name"
-                value={name}
-                onChange={(event) => setName(event.target.value)}
-                type="text"
-                placeholder="Nubank Principal"
-                className="h-10 border border-zinc-700 bg-zinc-900 text-zinc-100 transition-colors placeholder:text-zinc-500 hover:border-zinc-600 focus:border-emerald-500"
-                required
-              />
-            </div>
-
-            <div className="space-y-2">
-              <Label htmlFor="card-bank" className="text-xs text-zinc-400">
-                Nome do Banco
-              </Label>
-              <Input
-                id="card-bank"
-                value={bankName}
-                onChange={(event) => setBankName(event.target.value)}
-                type="text"
-                placeholder="Nubank, Itaú, Inter..."
-                className="h-10 border border-zinc-700 bg-zinc-900 text-zinc-100 transition-colors placeholder:text-zinc-500 hover:border-zinc-600 focus:border-emerald-500"
-              />
-            </div>
+        <div className="grid grid-cols-1 gap-4 md:grid-cols-6">
+          <div className="space-y-2 md:col-span-3">
+            <Label htmlFor="card-name" className="text-xs text-zinc-400">
+              Nome do Cartão
+            </Label>
+            <Input
+              id="card-name"
+              value={name}
+              onChange={(event) => setName(event.target.value)}
+              type="text"
+              placeholder="Nubank, Itaú, Inter..."
+              className="h-10 border border-zinc-700 bg-zinc-900 text-zinc-100 transition-colors placeholder:text-zinc-500 hover:border-zinc-600 focus:border-emerald-500"
+              required
+            />
           </div>
 
-          <div className="space-y-5">
-            <div className="space-y-2">
-              <Label htmlFor="card-limit" className="text-xs text-zinc-400">
-                Limite Total (R$)
-              </Label>
-              <Input
-                id="card-limit"
-                value={limit}
-                onChange={(event) => setLimit(event.target.value)}
-                type="text"
-                inputMode="decimal"
-                placeholder="0,00"
-                className="h-10 border border-zinc-700 bg-zinc-900 text-zinc-100 transition-colors placeholder:text-zinc-500 hover:border-zinc-600 focus:border-emerald-500"
-              />
-            </div>
+          <div className="space-y-2 md:col-span-3">
+            <Label htmlFor="card-limit" className="text-xs text-zinc-400">
+              Limite Total (R$)
+            </Label>
+            <Input
+              id="card-limit"
+              value={limit}
+              onChange={(event) => setLimit(event.target.value)}
+              type="text"
+              inputMode="decimal"
+              placeholder="0,00"
+              className="h-10 border border-zinc-700 bg-zinc-900 text-zinc-100 transition-colors placeholder:text-zinc-500 hover:border-zinc-600 focus:border-emerald-500"
+            />
+          </div>
 
-            <div className="space-y-2">
-              <Label htmlFor="card-due-day" className="text-xs text-zinc-400">
-                Dia de Vencimento
-              </Label>
-              <Input
-                id="card-due-day"
-                value={dueDay}
-                onChange={(event) => setDueDay(event.target.value)}
-                type="number"
-                min={1}
-                max={31}
-                placeholder="05"
-                className="h-10 border border-zinc-700 bg-zinc-900 text-zinc-100 transition-colors placeholder:text-zinc-500 hover:border-zinc-600 focus:border-emerald-500"
-              />
-            </div>
+          <div className="space-y-2 md:col-span-3">
+            <Label htmlFor="card-closing-day" className="text-xs text-zinc-400">
+              Dia de Fechamento
+            </Label>
+            <Input
+              id="card-closing-day"
+              value={closingDay}
+              onChange={(event) => setClosingDay(event.target.value)}
+              type="number"
+              min={1}
+              max={31}
+              placeholder="25"
+              className="h-10 border border-zinc-700 bg-zinc-900 text-zinc-100 transition-colors placeholder:text-zinc-500 hover:border-zinc-600 focus:border-emerald-500"
+            />
+          </div>
+
+          <div className="space-y-2 md:col-span-3">
+            <Label htmlFor="card-due-day" className="text-xs text-zinc-400">
+              Dia de Vencimento
+            </Label>
+            <Input
+              id="card-due-day"
+              value={dueDay}
+              onChange={(event) => setDueDay(event.target.value)}
+              type="number"
+              min={1}
+              max={31}
+              placeholder="05"
+              className="h-10 border border-zinc-700 bg-zinc-900 text-zinc-100 transition-colors placeholder:text-zinc-500 hover:border-zinc-600 focus:border-emerald-500"
+            />
           </div>
         </div>
 

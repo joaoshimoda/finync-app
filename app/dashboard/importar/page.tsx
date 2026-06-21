@@ -1,12 +1,13 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { FileSpreadsheet, UploadCloud, X } from "lucide-react";
+import { FileSpreadsheet, Split, UploadCloud, X } from "lucide-react";
 import Papa from "papaparse";
 import { useDropzone } from "react-dropzone";
 import { toast } from "sonner";
 
 import { Button } from "@/components/ui/button";
+import { Checkbox } from "@/components/ui/checkbox";
 import {
   Card,
   CardContent,
@@ -14,6 +15,15 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
+import { Input } from "@/components/ui/input";
 import {
   Select,
   SelectContent,
@@ -47,13 +57,18 @@ type ParsedTransaction = {
   date: string;
   description: string;
   amount: number;
+  category?: string | null;
+  dependentId?: string | null;
   type: "credit" | "expense";
+  projectFutureInstallments: boolean;
   referenceMonthOffset: number;
   installmentNumber: number;
   installmentsTotal: number;
+  owner: "me" | "dependent";
 };
 
 type CsvRow = Record<string, unknown>;
+type SplitMode = "mine" | "dependent" | "split";
 
 const brlFormatter = new Intl.NumberFormat("pt-BR", {
   style: "currency",
@@ -77,6 +92,15 @@ const monthLabels = [
   "Novembro",
   "Dezembro",
 ];
+const defaultExpenseCategories = [
+  "Alimentação",
+  "Transporte",
+  "Moradia",
+  "Lazer",
+  "Saúde",
+  "Educação",
+  "Outros",
+];
 
 function normalizeKey(value: string) {
   return value
@@ -86,6 +110,36 @@ function normalizeKey(value: string) {
     .replace(/[\u0300-\u036f]/g, "")
     .toLowerCase()
     .trim();
+}
+
+function normalizeDescriptionForCategory(value: string) {
+  return normalizeKey(value)
+    .replace(/\s*\(\d{1,2}\/\d{1,2}\)\s*$/g, "")
+    .replace(/[^a-z0-9]+/g, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
+function findHistoricalCategory(
+  description: string,
+  categoryDictionary: Record<string, string>,
+) {
+  const normalizedDescription = normalizeDescriptionForCategory(description);
+
+  if (!normalizedDescription) return null;
+  if (categoryDictionary[normalizedDescription]) {
+    return categoryDictionary[normalizedDescription];
+  }
+
+  const similarEntry = Object.entries(categoryDictionary).find(([key]) => {
+    if (key.length < 4 || normalizedDescription.length < 4) return false;
+
+    return (
+      key.includes(normalizedDescription) || normalizedDescription.includes(key)
+    );
+  });
+
+  return similarEntry?.[1] ?? null;
 }
 
 function parseAmount(value: string) {
@@ -242,6 +296,12 @@ function getMonthStartFromReference(referenceMonth: string) {
   return toDateOnly(year, month, 1);
 }
 
+function formatPreviewDate(dateOnly: string) {
+  const { day, month } = getDateOnlyParts(dateOnly);
+
+  return `${String(day).padStart(2, "0")}/${String(month).padStart(2, "0")}`;
+}
+
 function getReferenceMonthOptions() {
   const { month, year } = getDateOnlyParts(getLocalTodayDateOnly());
 
@@ -256,7 +316,10 @@ function getReferenceMonthOptions() {
   });
 }
 
-function mapCsvRow(row: CsvRow): ParsedTransaction[] {
+function mapCsvRow(
+  row: CsvRow,
+  categoryDictionary: Record<string, string>,
+): ParsedTransaction[] {
   const date = getCsvCell(row, ["date", "data"], 0).trim();
   const description = getCsvCell(
     row,
@@ -276,28 +339,47 @@ function mapCsvRow(row: CsvRow): ParsedTransaction[] {
     installmentsTotal,
   } = parseInstallment(description || "Sem descrição");
   const isCredit = parsedAmount.isNegative;
+  const finalDescription =
+    !isCredit && installmentsTotal > 1
+      ? `${cleanDescription || "Sem descrição"} (${installmentNumber}/${installmentsTotal})`
+      : cleanDescription || "Sem descrição";
 
-  const remainingInstallments =
-    isCredit ? 1 : installmentsTotal - installmentNumber + 1;
-
-  return Array.from({ length: remainingInstallments }, (_, index) => ({
-    date: addMonthsToDateOnly(baseDate, index),
-    description: cleanDescription || "Sem descrição",
-    amount: Math.abs(parsedAmount.amount),
-    type: isCredit ? "credit" : "expense",
-    referenceMonthOffset: index,
-    installmentNumber: isCredit ? 1 : installmentNumber + index,
-    installmentsTotal: isCredit ? 1 : installmentsTotal,
-  }));
+  return [
+    {
+      date: baseDate,
+      description: finalDescription,
+      amount: Math.abs(parsedAmount.amount),
+      category: isCredit
+        ? CARD_CREDIT_ADJUSTMENT_CATEGORY
+        : findHistoricalCategory(finalDescription, categoryDictionary),
+      dependentId: null,
+      type: isCredit ? "credit" : "expense",
+      projectFutureInstallments:
+        !isCredit && installmentNumber < installmentsTotal,
+      referenceMonthOffset: 0,
+      installmentNumber: isCredit ? 1 : installmentNumber,
+      installmentsTotal: isCredit ? 1 : installmentsTotal,
+      owner: "me",
+    },
+  ];
 }
 
 export default function ImportarPage() {
   const cards = useFinanceStore((state) => state.cards);
+  const dependents = useFinanceStore((state) => state.dependents);
   const fetchCards = useFinanceStore((state) => state.fetchCards);
+  const fetchDependents = useFinanceStore((state) => state.fetchDependents);
   const [parsedData, setParsedData] = useState<ParsedTransaction[]>([]);
+  const [historicalCategoryMap, setHistoricalCategoryMap] = useState<
+    Record<string, string>
+  >({});
   const [fileName, setFileName] = useState("");
   const [parseError, setParseError] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [splitDialogIndex, setSplitDialogIndex] = useState<number | null>(null);
+  const [splitMode, setSplitMode] = useState<SplitMode>("mine");
+  const [splitDependentId, setSplitDependentId] = useState("");
+  const [splitUserAmount, setSplitUserAmount] = useState("");
   const referenceMonthOptions = useMemo(() => getReferenceMonthOptions(), []);
   const [referenceMonth, setReferenceMonth] = useState(
     () => getMonthStartFromReference(getLocalTodayDateOnly()),
@@ -306,7 +388,66 @@ export default function ImportarPage() {
 
   useEffect(() => {
     void fetchCards();
-  }, [fetchCards]);
+    void fetchDependents();
+  }, [fetchCards, fetchDependents]);
+
+  useEffect(() => {
+    let isMounted = true;
+
+    async function fetchHistoricalCategories() {
+      const {
+        data: { user },
+        error: userError,
+      } = await supabase.auth.getUser();
+
+      if (userError || !user) return;
+
+      const { data, error } = await supabase
+        .from("transactions")
+        .select("description, category, created_at, date")
+        .eq("user_id", user.id)
+        .not("category", "is", null)
+        .order("date", { ascending: false })
+        .order("created_at", { ascending: false })
+        .limit(1000);
+
+      if (error) {
+        console.error("Erro ao buscar histórico de categorias:", error);
+        return;
+      }
+
+      const nextCategoryMap = (data ?? []).reduce<Record<string, string>>(
+        (acc, transaction) => {
+          const description =
+            typeof transaction.description === "string"
+              ? transaction.description
+              : "";
+          const category =
+            typeof transaction.category === "string"
+              ? transaction.category.trim()
+              : "";
+          const key = normalizeDescriptionForCategory(description);
+
+          if (key && category && !acc[key]) {
+            acc[key] = category;
+          }
+
+          return acc;
+        },
+        {},
+      );
+
+      if (isMounted) {
+        setHistoricalCategoryMap(nextCategoryMap);
+      }
+    }
+
+    void fetchHistoricalCategories();
+
+    return () => {
+      isMounted = false;
+    };
+  }, []);
 
   const effectiveSelectedCardId = selectedCardId || cards[0]?.id || "";
 
@@ -324,7 +465,9 @@ export default function ImportarPage() {
       delimitersToGuess: [",", ";", "\t", "|"],
       transformHeader: (header) => normalizeKey(header),
       complete: (result) => {
-        const rows = result.data.flatMap(mapCsvRow);
+        const rows = result.data.flatMap((row) =>
+          mapCsvRow(row, historicalCategoryMap),
+        );
 
         setParsedData(rows);
 
@@ -337,7 +480,7 @@ export default function ImportarPage() {
         setParseError("Não foi possível ler o CSV. Verifique o arquivo e tente novamente.");
       },
     });
-  }, []);
+  }, [historicalCategoryMap]);
 
   const { getInputProps, getRootProps, isDragActive, isDragReject } =
     useDropzone({
@@ -350,7 +493,168 @@ export default function ImportarPage() {
       onDrop,
     });
 
-  const previewRows = useMemo(() => parsedData.slice(0, 20), [parsedData]);
+  const previewRows = parsedData;
+  const categoryOptions = useMemo(() => {
+    const categories = new Set(defaultExpenseCategories);
+
+    Object.values(historicalCategoryMap).forEach((category) => {
+      if (category) categories.add(category);
+    });
+
+    parsedData.forEach((transaction) => {
+      if (transaction.category) categories.add(transaction.category);
+    });
+
+    return Array.from(categories).sort((left, right) =>
+      left.localeCompare(right, "pt-BR"),
+    );
+  }, [historicalCategoryMap, parsedData]);
+  const selectedSplitTransaction =
+    splitDialogIndex === null ? null : parsedData[splitDialogIndex] ?? null;
+  const selectedSplitDependent = dependents.find(
+    (dependent) => dependent.id === splitDependentId,
+  );
+
+  function getTransactionOwnerLabel(transaction: ParsedTransaction) {
+    if (transaction.owner !== "dependent" || !transaction.dependentId) {
+      return "Meu gasto";
+    }
+
+    return (
+      dependents.find((dependent) => dependent.id === transaction.dependentId)
+        ?.name ?? "Dependente"
+    );
+  }
+
+  function openSplitDialog(transactionIndex: number) {
+    const transaction = parsedData[transactionIndex];
+
+    if (!transaction) return;
+
+    setSplitDialogIndex(transactionIndex);
+    setSplitMode(transaction.owner === "dependent" ? "dependent" : "mine");
+    setSplitDependentId(transaction.dependentId ?? dependents[0]?.id ?? "");
+    setSplitUserAmount((transaction.amount / 2).toFixed(2).replace(".", ","));
+  }
+
+  function closeSplitDialog() {
+    setSplitDialogIndex(null);
+    setSplitMode("mine");
+    setSplitDependentId("");
+    setSplitUserAmount("");
+  }
+
+  function parseCurrencyInput(value: string) {
+    const numericValue = Number(
+      value.replace(/[^0-9,.]/g, "").replace(/\./g, "").replace(",", "."),
+    );
+
+    return Number.isFinite(numericValue) ? numericValue : 0;
+  }
+
+  function getRowsForImport(transaction: ParsedTransaction) {
+    if (
+      transaction.type === "credit" ||
+      !transaction.projectFutureInstallments ||
+      transaction.installmentNumber >= transaction.installmentsTotal
+    ) {
+      return [transaction];
+    }
+
+    const remainingInstallments =
+      transaction.installmentsTotal - transaction.installmentNumber + 1;
+    const baseDescription = transaction.description.replace(
+      /\s*\(\d{1,2}\/\d{1,2}\)$/,
+      "",
+    );
+
+    return Array.from({ length: remainingInstallments }, (_, index) => {
+      const installmentNumber = transaction.installmentNumber + index;
+
+      return {
+        ...transaction,
+        date: addMonthsToDateOnly(transaction.date, index),
+        description: `${baseDescription} (${installmentNumber}/${transaction.installmentsTotal})`,
+        installmentNumber,
+        referenceMonthOffset: index,
+      };
+    });
+  }
+
+  function applySplitConfiguration() {
+    if (splitDialogIndex === null || !selectedSplitTransaction) return;
+
+    if (splitMode !== "mine" && !splitDependentId) {
+      toast.error("Selecione um dependente para continuar.");
+      return;
+    }
+
+    if (splitMode === "mine") {
+      setParsedData((currentRows) =>
+        currentRows.map((transaction, index) =>
+          index === splitDialogIndex
+            ? { ...transaction, dependentId: null, owner: "me" }
+            : transaction,
+        ),
+      );
+      closeSplitDialog();
+      return;
+    }
+
+    if (splitMode === "dependent") {
+      setParsedData((currentRows) =>
+        currentRows.map((transaction, index) =>
+          index === splitDialogIndex
+            ? {
+                ...transaction,
+                dependentId: splitDependentId,
+                owner: "dependent",
+              }
+            : transaction,
+        ),
+      );
+      closeSplitDialog();
+      return;
+    }
+
+    const userAmount = parseCurrencyInput(splitUserAmount);
+    const dependentAmount = Number(
+      (selectedSplitTransaction.amount - userAmount).toFixed(2),
+    );
+
+    if (
+      userAmount <= 0 ||
+      dependentAmount <= 0 ||
+      userAmount >= selectedSplitTransaction.amount
+    ) {
+      toast.error("Informe um valor válido para dividir o gasto.");
+      return;
+    }
+
+    setParsedData((currentRows) =>
+      currentRows.flatMap((transaction, index) => {
+        if (index !== splitDialogIndex) return [transaction];
+
+        return [
+          {
+            ...transaction,
+            amount: Number(userAmount.toFixed(2)),
+            dependentId: null,
+            owner: "me" as const,
+            projectFutureInstallments: transaction.projectFutureInstallments,
+          },
+          {
+            ...transaction,
+            amount: dependentAmount,
+            dependentId: splitDependentId,
+            owner: "dependent" as const,
+            projectFutureInstallments: transaction.projectFutureInstallments,
+          },
+        ];
+      }),
+    );
+    closeSplitDialog();
+  }
 
   function resetImport() {
     setParsedData([]);
@@ -391,30 +695,42 @@ export default function ImportarPage() {
       if (profileError) throw profileError;
 
       const monthStart = getMonthStartFromReference(referenceMonth);
-      const formattedData = parsedData.map((transaction) => ({
-        user_id: user.id,
-        card_id: effectiveSelectedCardId,
-        month_start: addMonthsToDateOnly(monthStart, transaction.referenceMonthOffset),
-        type: "card",
-        description: transaction.description,
-        category:
-          transaction.type === "credit"
-            ? CARD_CREDIT_ADJUSTMENT_CATEGORY
-            : "Importado",
-        amount: transaction.amount,
-        day: getDateOnlyParts(transaction.date).day,
-        status: "CONFIRMADO",
-        owner: "eu",
-        installment_number: transaction.installmentNumber,
-        installments_total: transaction.installmentsTotal,
-        notes:
-          transaction.type === "credit"
-            ? `${CARD_CREDIT_ADJUSTMENT_NOTE} Importado de ${fileName}`
-            : `Importado de ${fileName}`,
-        recurring: false,
-        direct_subscription: false,
-        split_with: ["eu"],
-      }));
+      const rowsToImport = parsedData.flatMap(getRowsForImport);
+      const formattedData = rowsToImport.map((transaction) => {
+        const dependent = transaction.dependentId
+          ? dependents.find((item) => item.id === transaction.dependentId)
+          : null;
+        const owner = dependent?.name ?? "eu";
+
+        return {
+          user_id: user.id,
+          card_id: effectiveSelectedCardId,
+          dependent_id: transaction.dependentId ?? null,
+          month_start: addMonthsToDateOnly(
+            monthStart,
+            transaction.referenceMonthOffset,
+          ),
+          type: "card",
+          description: transaction.description,
+          category:
+            transaction.type === "credit"
+              ? CARD_CREDIT_ADJUSTMENT_CATEGORY
+              : transaction.category || null,
+          amount: transaction.amount,
+          day: getDateOnlyParts(transaction.date).day,
+          status: "CONFIRMADO",
+          owner,
+          installment_number: transaction.installmentNumber,
+          installments_total: transaction.installmentsTotal,
+          notes:
+            transaction.type === "credit"
+              ? `${CARD_CREDIT_ADJUSTMENT_NOTE} Importado de ${fileName}`
+              : `Importado de ${fileName}`,
+          recurring: false,
+          direct_subscription: false,
+          split_with: [dependent?.id ?? "eu"],
+        };
+      });
 
       const { error } = await supabase.from("transactions").insert(formattedData);
 
@@ -539,29 +855,118 @@ export default function ImportarPage() {
             </div>
 
             <div className="overflow-hidden">
-              <Table>
+              <Table className="w-full table-fixed text-xs">
                 <TableHeader className="bg-muted/30">
                   <TableRow>
-                    <TableHead>Data</TableHead>
-                    <TableHead>Descrição</TableHead>
-                    <TableHead>Tipo</TableHead>
-                    <TableHead className="text-right">Valor</TableHead>
+                    <TableHead className="w-[64px] px-3">Data</TableHead>
+                    <TableHead className="w-[26%] px-3">Descrição</TableHead>
+                    <TableHead className="w-[150px] px-3">Categoria</TableHead>
+                    <TableHead className="w-[88px] px-3">Tipo</TableHead>
+                    <TableHead className="w-[104px] px-3">Dono</TableHead>
+                    <TableHead className="w-[120px] px-3">Parcelas</TableHead>
+                    <TableHead className="w-[104px] px-3 text-right">Valor</TableHead>
+                    <TableHead className="w-10 px-2" />
                   </TableRow>
                 </TableHeader>
                 <TableBody>
                   {previewRows.map((transaction, index) => (
                     <TableRow key={`${transaction.description}-${index}`}>
-                      <TableCell className="text-zinc-400">
-                        {transaction.date}
+                      <TableCell className="px-3 text-zinc-400">
+                        {formatPreviewDate(transaction.date)}
                       </TableCell>
-                      <TableCell className="font-medium text-zinc-100">
-                        {transaction.description}
+                      <TableCell className="truncate px-3 font-medium text-zinc-100">
+                        <span title={transaction.description}>
+                          {transaction.description}
+                        </span>
                       </TableCell>
-                      <TableCell className="text-zinc-400">
-                        {transaction.type === "credit" ? "Abatimento" : "Cartão"}
+                      <TableCell className="px-3">
+                        {transaction.type === "credit" ? (
+                          <span className="block truncate text-xs text-zinc-400">
+                            {CARD_CREDIT_ADJUSTMENT_CATEGORY}
+                          </span>
+                        ) : (
+                          <Select
+                            value={transaction.category || "__no_category__"}
+                            onValueChange={(nextCategory) =>
+                              setParsedData((currentRows) =>
+                                currentRows.map((item, itemIndex) =>
+                                  itemIndex === index
+                                    ? {
+                                        ...item,
+                                        category:
+                                          nextCategory === "__no_category__"
+                                            ? null
+                                            : nextCategory,
+                                      }
+                                    : item,
+                                ),
+                              )
+                            }
+                          >
+                            <SelectTrigger className="h-8 w-full border-zinc-700 bg-zinc-900 px-2 text-xs text-zinc-100">
+                              <SelectValue placeholder="Categoria" />
+                            </SelectTrigger>
+                            <SelectContent>
+                              <SelectItem value="__no_category__">
+                                Sem categoria
+                              </SelectItem>
+                              {categoryOptions.map((category) => (
+                                <SelectItem key={category} value={category}>
+                                  {category}
+                                </SelectItem>
+                              ))}
+                            </SelectContent>
+                          </Select>
+                        )}
                       </TableCell>
-                      <TableCell className="text-right font-medium text-zinc-50">
+                      <TableCell className="truncate px-3 text-zinc-400">
+                        {transaction.type === "credit" ? "Abate" : "Cartão"}
+                      </TableCell>
+                      <TableCell className="truncate px-3 text-zinc-400">
+                        {getTransactionOwnerLabel(transaction)}
+                      </TableCell>
+                      <TableCell className="px-3 text-zinc-400">
+                        {transaction.installmentsTotal > 1 &&
+                        transaction.type !== "credit" ? (
+                          <label className="flex items-center gap-1.5 text-xs">
+                            <Checkbox
+                              className="size-4"
+                              checked={transaction.projectFutureInstallments}
+                              onCheckedChange={(checked) =>
+                                setParsedData((currentRows) =>
+                                  currentRows.map((item, itemIndex) =>
+                                    itemIndex === index
+                                      ? {
+                                          ...item,
+                                          projectFutureInstallments:
+                                            checked === true,
+                                        }
+                                      : item,
+                                  ),
+                                )
+                              }
+                            />
+                            <span className="truncate">Projetar</span>
+                          </label>
+                        ) : (
+                          <span className="text-xs text-zinc-600">—</span>
+                        )}
+                      </TableCell>
+                      <TableCell className="px-3 text-right font-medium text-zinc-50">
                         {brlFormatter.format(transaction.amount)}
+                      </TableCell>
+                      <TableCell className="px-2 text-right">
+                        <Button
+                          type="button"
+                          variant="ghost"
+                          size="icon-sm"
+                          className="text-zinc-400 hover:text-white"
+                          onClick={() => openSplitDialog(index)}
+                          disabled={transaction.type === "credit"}
+                          aria-label="Dividir ou atribuir gasto"
+                        >
+                          <Split className="size-4" />
+                        </Button>
                       </TableCell>
                     </TableRow>
                   ))}
@@ -592,6 +997,131 @@ export default function ImportarPage() {
           </CardContent>
         </Card>
       )}
+      <Dialog
+        open={splitDialogIndex !== null}
+        onOpenChange={(open) => {
+          if (!open) closeSplitDialog();
+        }}
+      >
+        <DialogContent className="border border-zinc-800 bg-zinc-950 text-zinc-50 sm:max-w-lg">
+          <DialogHeader>
+            <DialogTitle>Dividir ou atribuir gasto</DialogTitle>
+            <DialogDescription>
+              Defina de quem é essa compra sem alterar o total da fatura do cartão.
+            </DialogDescription>
+          </DialogHeader>
+
+          {selectedSplitTransaction ? (
+            <div className="space-y-5">
+              <div className="rounded-xl border border-zinc-800 bg-zinc-900/50 p-4">
+                <p className="text-sm font-medium text-zinc-100">
+                  {selectedSplitTransaction.description}
+                </p>
+                <p className="mt-1 text-sm text-zinc-400">
+                  {brlFormatter.format(selectedSplitTransaction.amount)}
+                </p>
+              </div>
+
+              <div className="grid gap-3">
+                {[
+                  ["mine", "Meu Gasto", "100% atribuído a você"],
+                  [
+                    "dependent",
+                    "Gasto de Dependente",
+                    "100% atribuído a um dependente",
+                  ],
+                  ["split", "Dividir Gasto", "Rachar entre você e um dependente"],
+                ].map(([value, title, description]) => (
+                  <button
+                    key={value}
+                    type="button"
+                    className={cn(
+                      "rounded-xl border p-3 text-left transition-colors",
+                      splitMode === value
+                        ? "border-emerald-500 bg-emerald-500/10"
+                        : "border-zinc-800 bg-zinc-900/40 hover:border-zinc-700",
+                    )}
+                    onClick={() => setSplitMode(value as SplitMode)}
+                  >
+                    <span className="block text-sm font-medium text-zinc-100">
+                      {title}
+                    </span>
+                    <span className="mt-1 block text-xs text-zinc-500">
+                      {description}
+                    </span>
+                  </button>
+                ))}
+              </div>
+
+              {splitMode !== "mine" ? (
+                <div className="space-y-2">
+                  <p className="text-xs font-medium uppercase tracking-wide text-zinc-400">
+                    Dependente
+                  </p>
+                  <Select
+                    value={splitDependentId}
+                    onValueChange={setSplitDependentId}
+                  >
+                    <SelectTrigger className="border-zinc-700 bg-zinc-900 text-zinc-100">
+                      <SelectValue placeholder="Selecione um dependente" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {dependents.map((dependent) => (
+                        <SelectItem key={dependent.id} value={dependent.id}>
+                          {dependent.name}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+              ) : null}
+
+              {splitMode === "split" ? (
+                <div className="grid gap-3 rounded-xl border border-zinc-800 bg-zinc-900/40 p-3 sm:grid-cols-2">
+                  <div className="space-y-2">
+                    <p className="text-xs font-medium uppercase tracking-wide text-zinc-400">
+                      Sua parte
+                    </p>
+                    <Input
+                      value={splitUserAmount}
+                      onChange={(event) => setSplitUserAmount(event.target.value)}
+                      className="border-zinc-700 bg-zinc-900 text-zinc-100"
+                      placeholder="0,00"
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <p className="text-xs font-medium uppercase tracking-wide text-zinc-400">
+                      Parte de {selectedSplitDependent?.name ?? "dependente"}
+                    </p>
+                    <div className="flex h-9 items-center rounded-lg border border-zinc-800 bg-zinc-950 px-3 text-sm text-zinc-300">
+                      {brlFormatter.format(
+                        Math.max(
+                          selectedSplitTransaction.amount -
+                            parseCurrencyInput(splitUserAmount),
+                          0,
+                        ),
+                      )}
+                    </div>
+                  </div>
+                </div>
+              ) : null}
+            </div>
+          ) : null}
+
+          <DialogFooter className="border-zinc-800 bg-zinc-900/50">
+            <Button type="button" variant="ghost" onClick={closeSplitDialog}>
+              Cancelar
+            </Button>
+            <Button
+              type="button"
+              className="bg-emerald-600 text-white hover:bg-emerald-700"
+              onClick={applySplitConfiguration}
+            >
+              Aplicar
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

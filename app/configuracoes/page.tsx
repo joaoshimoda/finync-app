@@ -14,6 +14,7 @@ import { Monitor, Trash2 } from "lucide-react";
 import { toast } from "sonner";
 
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
+import { DependentManager } from "@/components/settings/DependentManager";
 import { Button } from "@/components/ui/button";
 import {
   Card,
@@ -412,8 +413,9 @@ export default function ConfiguracoesPage() {
       </header>
 
       <Tabs defaultValue="perfil" className="w-full">
-        <TabsList className="grid w-full grid-cols-3 border border-zinc-800 bg-zinc-900/60 p-1 backdrop-blur sm:w-[520px]">
+        <TabsList className="grid w-full grid-cols-2 border border-zinc-800 bg-zinc-900/60 p-1 backdrop-blur sm:w-[680px] sm:grid-cols-4">
           <TabsTrigger value="perfil">Meu Perfil</TabsTrigger>
+          <TabsTrigger value="dependentes">Dependentes</TabsTrigger>
           <TabsTrigger value="preferencias">Preferências</TabsTrigger>
           <TabsTrigger value="seguranca">Segurança</TabsTrigger>
         </TabsList>
@@ -550,6 +552,33 @@ export default function ConfiguracoesPage() {
                 </CardContent>
               </Card>
             </div>
+          </div>
+        </TabsContent>
+
+        <TabsContent value="dependentes" className="mt-6 w-full">
+          <div className="grid w-full grid-cols-1 gap-6 lg:grid-cols-12">
+            <div className="lg:col-span-8">
+              <DependentManager />
+            </div>
+
+            <Card className="h-fit border-zinc-800/80 bg-zinc-900/50 shadow-none lg:col-span-4">
+              <CardHeader className="border-b border-zinc-800/80 px-6 py-6">
+                <CardTitle>Uso no sistema</CardTitle>
+                <CardDescription>
+                  Dependentes alimentam o split de gastos e a leitura de faturas.
+                </CardDescription>
+              </CardHeader>
+              <CardContent className="space-y-3 px-6 py-6 text-sm leading-6 text-zinc-400">
+                <p>
+                  Cadastre pessoas que podem aparecer em compras importadas,
+                  divisões de despesas e relatórios de valores a receber.
+                </p>
+                <p>
+                  Ao vincular uma transação a um dependente, ela continua na
+                  fatura do cartão, mas não reduz o seu saldo disponível pessoal.
+                </p>
+              </CardContent>
+            </Card>
           </div>
         </TabsContent>
 

@@ -51,7 +51,12 @@ import {
 } from "@/components/ui/table";
 import { getCardGradient } from "@/lib/cardUtils";
 import { formatDateOnlyBR, getDateOnlyParts } from "@/lib/dateUtils";
-import { getCardSignedAmount, isCardCreditAdjustment } from "@/lib/cardCredits";
+import {
+  calculateAvailableCardLimit,
+  calculateCardDebt,
+  getCardSignedAmount,
+  isCardCreditAdjustment,
+} from "@/lib/cardCredits";
 import { cn } from "@/lib/utils";
 import {
   useFinanceStore,
@@ -65,7 +70,9 @@ const brlFormatter = new Intl.NumberFormat("pt-BR", {
 
 function FlippableManagedCard({
   card,
+  availableLimit,
   invoiceTotal,
+  limitUsage,
   isSelected,
   onSelect,
   onKeyDown,
@@ -74,7 +81,9 @@ function FlippableManagedCard({
   onPayInvoice,
 }: {
   card: FinanceCard;
+  availableLimit: number;
   invoiceTotal: number;
+  limitUsage: number;
   isSelected: boolean;
   onSelect: (cardId: string) => void;
   onKeyDown: (event: KeyboardEvent<HTMLDivElement>, cardId: string) => void;
@@ -85,7 +94,7 @@ function FlippableManagedCard({
   const [isFlipped, setIsFlipped] = useState(false);
 
   return (
-    <div className="h-[176px] w-full perspective-[1000px] lg:w-[280px]">
+    <div className="h-[190px] w-full perspective-[1000px] lg:w-[304px]">
       <div
         className={cn(
           "relative h-full w-full transition-all duration-500 [transform-style:preserve-3d]",
@@ -134,15 +143,20 @@ function FlippableManagedCard({
             </button>
           </div>
 
-          <div className="relative mt-4 flex items-end justify-between gap-3">
+          <div className="relative mt-6 flex items-end justify-between gap-3">
             <CreditCard className="size-5 text-white/70" />
             <div className="text-right">
               <p className="text-xs font-medium uppercase text-white/60">
-                Fatura projetada
+                Limite disponível
               </p>
               <strong className="mt-1 block text-lg font-bold tracking-normal">
-                {brlFormatter.format(invoiceTotal)}
+                {brlFormatter.format(availableLimit)}
               </strong>
+              {card.limitAmount ? (
+                <p className="mt-1 text-[11px] text-white/55">
+                  {limitUsage.toFixed(0)}% usado
+                </p>
+              ) : null}
             </div>
           </div>
         </div>
@@ -159,7 +173,7 @@ function FlippableManagedCard({
               <p className="text-xs font-medium uppercase text-white/60">
                 Fatura atual
               </p>
-              <strong className="mt-1 block text-2xl font-bold text-white">
+              <strong className="mt-1 block text-xl font-bold text-white">
                 {brlFormatter.format(invoiceTotal)}
               </strong>
             </div>
@@ -264,9 +278,15 @@ export default function CardsPage() {
     0,
   );
   const selectedLimit = selectedCard?.limitAmount ?? 0;
+  const selectedDebtTotal = selectedCard
+    ? calculateCardDebt(transactions, selectedCard.id)
+    : 0;
+  const selectedAvailableLimit = selectedCard
+    ? calculateAvailableCardLimit(transactions, selectedCard.id, selectedLimit)
+    : 0;
   const selectedUsage =
     selectedLimit > 0
-      ? Math.min((selectedInvoiceTotal / selectedLimit) * 100, 100)
+      ? Math.min((selectedDebtTotal / selectedLimit) * 100, 100)
       : 0;
 
   function openCreateModal() {
@@ -362,6 +382,12 @@ export default function CardsPage() {
                 (total, transaction) => total + getCardSignedAmount(transaction),
                 0,
               );
+              const debtTotal = calculateCardDebt(transactions, card.id);
+              const limitAmount = card.limitAmount ?? 0;
+              const limitUsage =
+                limitAmount > 0
+                  ? Math.min((debtTotal / limitAmount) * 100, 100)
+                  : 0;
               const isSelected = selectedCard?.id === card.id;
 
               return (
@@ -371,7 +397,13 @@ export default function CardsPage() {
                 >
                   <FlippableManagedCard
                     card={card}
+                    availableLimit={calculateAvailableCardLimit(
+                      transactions,
+                      card.id,
+                      limitAmount,
+                    )}
                     invoiceTotal={invoiceTotal}
+                    limitUsage={limitUsage}
                     isSelected={isSelected}
                     onSelect={setSelectedCardId}
                     onKeyDown={handleCardKeyDown}
@@ -409,6 +441,9 @@ export default function CardsPage() {
               <p className="text-sm text-muted-foreground">Total do mês</p>
               <p className="mt-1 text-2xl font-bold text-foreground lg:text-3xl">
                 {brlFormatter.format(selectedInvoiceTotal)}
+              </p>
+              <p className="mt-1 text-xs text-muted-foreground">
+                Disponível: {brlFormatter.format(selectedAvailableLimit)}
               </p>
             </div>
           </div>

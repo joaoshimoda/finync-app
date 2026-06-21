@@ -24,6 +24,7 @@ import { AddTransactionModal } from "@/components/modals/AddTransactionModal";
 import { TransactionDescription } from "@/components/finance/TransactionDescription";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
 import {
   Card,
   CardContent,
@@ -58,7 +59,13 @@ import {
   normalizeDateOnly,
   toDateOnly,
 } from "@/lib/dateUtils";
-import { getCardSignedAmount } from "@/lib/cardCredits";
+import {
+  calculateAvailableCardLimit,
+  calculateCardDebt,
+  getCardSignedAmount,
+  isCardCreditAdjustment,
+} from "@/lib/cardCredits";
+import { isPendingVariableIncome } from "@/lib/incomeRecurrence";
 import { cn } from "@/lib/utils";
 import {
   useFinanceStore,
@@ -123,7 +130,11 @@ interface CardSpendingSummary {
   closingDay?: number;
   dueDay?: number;
   accentClassName: string;
+  availableLimit: number;
   current: number;
+  debtTotal: number;
+  limitAmount: number;
+  limitUsage: number;
   projected: number;
 }
 
@@ -223,11 +234,22 @@ function FlippableWalletCard({
         >
           <div className="relative">
             <p className="text-xs font-medium uppercase text-muted-foreground">
-              Fatura projetada
+              Limite disponível
             </p>
             <strong className="mt-1 block text-2xl font-bold text-foreground">
-              {brlFormatter.format(cardSummary.projected)}
+              {brlFormatter.format(cardSummary.availableLimit)}
             </strong>
+            <p className="mt-1 text-xs text-muted-foreground">
+              Devedor: {brlFormatter.format(cardSummary.debtTotal)}
+            </p>
+            {cardSummary.limitAmount > 0 ? (
+              <div className="mt-3 h-1.5 overflow-hidden rounded-full bg-muted">
+                <div
+                  className="h-full rounded-full bg-emerald-500"
+                  style={{ width: `${cardSummary.limitUsage}%` }}
+                />
+              </div>
+            ) : null}
           </div>
           <div className="relative grid gap-2">
             <Button
@@ -261,6 +283,9 @@ export default function DashboardPage() {
     useState(false);
   const [editingTransaction, setEditingTransaction] =
     useState<Transaction | null>(null);
+  const [variableIncomeValues, setVariableIncomeValues] = useState<
+    Record<string, string>
+  >({});
 
   const cards = useFinanceStore((state) => state.cards);
   const dependents = useFinanceStore((state) => state.dependents);
@@ -269,6 +294,7 @@ export default function DashboardPage() {
   const fetchDependents = useFinanceStore((state) => state.fetchDependents);
   const fetchTransactions = useFinanceStore((state) => state.fetchTransactions);
   const payCardInvoice = useFinanceStore((state) => state.payCardInvoice);
+  const updateTransaction = useFinanceStore((state) => state.updateTransaction);
   const currentMonth = useFinanceStore((state) => state.currentMonth);
   const currentYear = useFinanceStore((state) => state.currentYear);
   const fetchedMonth = useFinanceStore((state) => state.fetchedMonth);
@@ -303,6 +329,10 @@ export default function DashboardPage() {
         const isDependentTransaction = hasDependent(transaction);
 
         if (transaction.type === "income") {
+          if (isPendingVariableIncome(transaction)) {
+            return acc;
+          }
+
           acc.totalIncome += transaction.amount;
           return acc;
         }
@@ -373,12 +403,28 @@ export default function DashboardPage() {
     [monthlyTransactions],
   );
 
+  const pendingVariableIncomes = useMemo(
+    () => monthlyTransactions.filter(isPendingVariableIncome),
+    [monthlyTransactions],
+  );
+
   const cardSpendingSummaries = cards.map((card) => ({
     id: card.id,
     name: card.name,
     closingDay: card.closingDay,
     dueDay: card.dueDay,
     accentClassName: getCardAccentClassName(card.name),
+    availableLimit: calculateAvailableCardLimit(
+      transactions,
+      card.id,
+      card.limitAmount ?? 0,
+    ),
+    debtTotal: calculateCardDebt(transactions, card.id),
+    limitAmount: card.limitAmount ?? 0,
+    limitUsage:
+      card.limitAmount && card.limitAmount > 0
+        ? Math.min((calculateCardDebt(transactions, card.id) / card.limitAmount) * 100, 100)
+        : 0,
     ...monthlyTransactions
       .filter((transaction) => {
         const dbCardId =
@@ -467,6 +513,36 @@ export default function DashboardPage() {
     } catch (error) {
       console.error("Erro ao liquidar fatura:", error);
       toast.error("Não foi possível liquidar a fatura.");
+    }
+  }
+
+  async function handleConfirmVariableIncome(transaction: Transaction) {
+    const nextAmount = Number(
+      (variableIncomeValues[transaction.id] || "")
+        .replace(/\./g, "")
+        .replace(",", "."),
+    );
+
+    if (!Number.isFinite(nextAmount) || nextAmount <= 0) {
+      toast.error("Informe um valor válido para confirmar a renda.");
+      return;
+    }
+
+    try {
+      await updateTransaction(transaction.id, {
+        amount: nextAmount,
+        status: "confirmed",
+      });
+      setVariableIncomeValues((currentValues) => {
+        const nextValues = { ...currentValues };
+        delete nextValues[transaction.id];
+        return nextValues;
+      });
+      await fetchTransactions();
+      toast.success("Renda variável confirmada!");
+    } catch (error) {
+      console.error("Erro ao confirmar renda variável:", error);
+      toast.error("Não foi possível confirmar essa renda agora.");
     }
   }
 
@@ -615,6 +691,55 @@ export default function DashboardPage() {
           </Card>
         </div>
       </div>
+
+      {pendingVariableIncomes.length ? (
+        <Card className="rounded-2xl border border-emerald-500/30 bg-emerald-500/10 shadow-none">
+          <CardHeader className="border-b border-emerald-500/20 p-5">
+            <CardDescription className="text-emerald-200/80">
+              Confirmação rápida
+            </CardDescription>
+            <CardTitle className="text-xl tracking-normal text-emerald-50">
+              Rendas variáveis pendentes neste mês
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="grid gap-3 p-4">
+            {pendingVariableIncomes.map((income) => (
+              <div
+                key={income.id}
+                className="grid gap-3 rounded-xl border border-emerald-500/20 bg-zinc-950/60 p-3 md:grid-cols-[1fr_180px_auto]"
+              >
+                <div>
+                  <p className="text-sm font-medium text-zinc-50">
+                    {income.description}
+                  </p>
+                  <p className="mt-1 text-xs text-zinc-400">
+                    Valor estimado: {brlFormatter.format(income.amount)}
+                  </p>
+                </div>
+                <Input
+                  value={variableIncomeValues[income.id] ?? ""}
+                  onChange={(event) =>
+                    setVariableIncomeValues((currentValues) => ({
+                      ...currentValues,
+                      [income.id]: event.target.value,
+                    }))
+                  }
+                  inputMode="decimal"
+                  placeholder="Valor final"
+                  className="border-emerald-500/30 bg-zinc-950 text-zinc-50 placeholder:text-zinc-500"
+                />
+                <Button
+                  type="button"
+                  className="bg-emerald-600 font-semibold text-white hover:bg-emerald-700"
+                  onClick={() => void handleConfirmVariableIncome(income)}
+                >
+                  Confirmar
+                </Button>
+              </div>
+            ))}
+          </CardContent>
+        </Card>
+      ) : null}
 
       <div className="grid grid-cols-1 gap-6 lg:grid-cols-12">
         <div className="lg:col-span-8">
@@ -830,12 +955,16 @@ export default function DashboardPage() {
                       <TableCell
                         className={cn(
                           "text-right font-medium",
-                          transaction.type === "income"
+                          transaction.type === "income" ||
+                            isCardCreditAdjustment(transaction)
                             ? "text-emerald-300"
                             : "text-red-300",
                         )}
                       >
-                        {transaction.type === "income" ? "+" : "-"}
+                        {transaction.type === "income" ||
+                        isCardCreditAdjustment(transaction)
+                          ? "+"
+                          : "-"}
                         {brlFormatter.format(transaction.amount)}
                       </TableCell>
                     </TableRow>

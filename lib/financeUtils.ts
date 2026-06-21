@@ -18,15 +18,6 @@ export type ViewMode = "total" | "atual";
 export type SortColumn = "valor" | "dia" | "despesa";
 export type SortDirection = 1 | -1;
 
-export interface TagLike {
-  id?: string;
-  label: string;
-  cor?: string;
-  color?: string;
-  icone?: string;
-  icon?: string;
-}
-
 export interface IncomeEntry {
   id: string;
   label: string;
@@ -39,7 +30,6 @@ export interface FixedExpense {
   valor?: number;
   situacao?: string;
   dono?: string;
-  tags?: string[];
   obs?: string;
   recorrente?: boolean;
 }
@@ -53,7 +43,6 @@ export interface CardExpense {
   valor?: number;
   situacao?: string;
   dono?: string;
-  tags?: string[];
   obs?: string;
   splitWith?: string[];
   assinaturaDireta?: boolean;
