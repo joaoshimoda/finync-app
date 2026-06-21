@@ -416,7 +416,7 @@ function TransactionModalContent({
                   disabled={!cards.length}
                 >
                   <SelectTrigger className="flex h-10 items-center border border-zinc-700 bg-zinc-900 text-sm text-zinc-200 shadow-none transition-colors hover:border-zinc-600 focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500 focus:ring-offset-0">
-                    <SelectValue placeholder="Selecionar cart?o" />
+                    <SelectValue placeholder="Selecionar cartão" />
                   </SelectTrigger>
                   <SelectContent>
                     {cards.map((card) => (

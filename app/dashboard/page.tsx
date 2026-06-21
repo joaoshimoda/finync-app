@@ -58,6 +58,7 @@ import {
   normalizeDateOnly,
   toDateOnly,
 } from "@/lib/dateUtils";
+import { getCardSignedAmount } from "@/lib/cardCredits";
 import { cn } from "@/lib/utils";
 import {
   useFinanceStore,
@@ -102,7 +103,11 @@ function isSameSelectedMonth(
 }
 
 function sortByRecentDate(left: Transaction, right: Transaction) {
-  return right.date.localeCompare(left.date);
+  const dateOrder = right.date.localeCompare(left.date);
+
+  if (dateOrder !== 0) return dateOrder;
+
+  return (right.createdAt ?? "").localeCompare(left.createdAt ?? "");
 }
 
 function hasDependent(transaction: Transaction) {
@@ -303,24 +308,26 @@ export default function DashboardPage() {
         }
 
         if (transaction.type === "card") {
-          acc.creditCardProjected += transaction.amount;
+          const signedAmount = getCardSignedAmount(transaction);
+
+          acc.creditCardProjected += signedAmount;
 
           if (normalizeDateOnly(transaction.date) <= todayDate) {
-            acc.creditCardUntilToday += transaction.amount;
+            acc.creditCardUntilToday += signedAmount;
           }
 
           if (isDependentTransaction) {
             return acc;
           }
 
-          acc.userCreditCardProjected += transaction.amount;
+          acc.userCreditCardProjected += signedAmount;
 
           if (normalizeDateOnly(transaction.date) <= todayDate) {
-            acc.userCreditCardUntilToday += transaction.amount;
+            acc.userCreditCardUntilToday += signedAmount;
           }
 
-          if (transaction.status !== "paid") {
-            acc.pendingObligations += transaction.amount;
+          if (transaction.status !== "paid" && signedAmount > 0) {
+            acc.pendingObligations += signedAmount;
           }
 
           return acc;
@@ -382,10 +389,12 @@ export default function DashboardPage() {
       })
       .reduce(
         (totals, transaction) => {
-          totals.projected += transaction.amount;
+          const signedAmount = getCardSignedAmount(transaction);
+
+          totals.projected += signedAmount;
 
           if (normalizeDateOnly(transaction.date) <= todayDate) {
-            totals.current += transaction.amount;
+            totals.current += signedAmount;
           }
 
           return totals;

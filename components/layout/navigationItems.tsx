@@ -1,6 +1,8 @@
 import {
+  BarChart3,
   CalendarDays,
   CreditCard,
+  FileUp,
   LayoutDashboard,
   Receipt,
   Settings,
@@ -26,6 +28,18 @@ export const navigationItems: NavigationItem[] = [
     shortLabel: "Transações",
     href: "/dashboard/transactions",
     icon: Receipt,
+  },
+  {
+    label: "Importar Faturas",
+    shortLabel: "Importar",
+    href: "/dashboard/importar",
+    icon: FileUp,
+  },
+  {
+    label: "Analytics",
+    shortLabel: "Dados",
+    href: "/dashboard/analytics",
+    icon: BarChart3,
   },
   {
     label: "Contas Fixas",

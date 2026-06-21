@@ -51,6 +51,7 @@ import {
 } from "@/components/ui/table";
 import { getCardGradient } from "@/lib/cardUtils";
 import { formatDateOnlyBR, getDateOnlyParts } from "@/lib/dateUtils";
+import { getCardSignedAmount, isCardCreditAdjustment } from "@/lib/cardCredits";
 import { cn } from "@/lib/utils";
 import {
   useFinanceStore,
@@ -259,7 +260,7 @@ export default function CardsPage() {
   );
 
   const selectedInvoiceTotal = selectedCardTransactions.reduce(
-    (total, transaction) => total + transaction.amount,
+    (total, transaction) => total + getCardSignedAmount(transaction),
     0,
   );
   const selectedLimit = selectedCard?.limitAmount ?? 0;
@@ -358,7 +359,7 @@ export default function CardsPage() {
                 (transaction) => transaction.cardId === card.id,
               );
               const invoiceTotal = cardTransactions.reduce(
-                (total, transaction) => total + transaction.amount,
+                (total, transaction) => total + getCardSignedAmount(transaction),
                 0,
               );
               const isSelected = selectedCard?.id === card.id;
@@ -452,8 +453,16 @@ export default function CardsPage() {
                         {transaction.category || "Sem categoria"}
                       </Badge>
                     </TableCell>
-                    <TableCell className="text-right font-medium text-red-300">
-                      -{brlFormatter.format(transaction.amount)}
+                    <TableCell
+                      className={cn(
+                        "text-right font-medium",
+                        isCardCreditAdjustment(transaction)
+                          ? "text-emerald-400"
+                          : "text-red-300",
+                      )}
+                    >
+                      {isCardCreditAdjustment(transaction) ? "+" : "-"}
+                      {brlFormatter.format(transaction.amount)}
                     </TableCell>
                   </TableRow>
                 ))

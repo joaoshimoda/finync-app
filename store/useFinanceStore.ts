@@ -783,7 +783,8 @@ export const useFinanceStore = create<FinanceState>()((set, get) => ({
         .gte("month_start", startDate)
         .lt("month_start", endDate)
         .order("month_start", { ascending: false })
-        .order("day", { ascending: false });
+        .order("day", { ascending: false })
+        .order("created_at", { ascending: false });
 
       if (error) throw error;
 

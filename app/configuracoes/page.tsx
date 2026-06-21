@@ -10,6 +10,7 @@ import {
   useState,
 } from "react";
 import Image from "next/image";
+import { Monitor, Trash2 } from "lucide-react";
 import { toast } from "sonner";
 
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
@@ -119,6 +120,8 @@ export default function ConfiguracoesPage() {
   const [defaultCurrency, setDefaultCurrency] = useState("BRL");
   const [dateFormat, setDateFormat] = useState("DD/MM/AAAA");
   const [hideBalances, setHideBalances] = useState(false);
+  const [invoiceReminder, setInvoiceReminder] = useState(true);
+  const [weeklySummary, setWeeklySummary] = useState(false);
   const [currentPassword, setCurrentPassword] = useState("");
   const [newPassword, setNewPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
@@ -398,7 +401,7 @@ export default function ConfiguracoesPage() {
   }
 
   return (
-    <div className="flex w-full flex-col gap-10">
+    <div className="mx-auto flex w-full max-w-5xl flex-col gap-8">
       <header className="max-w-2xl space-y-3">
         <h1 className="text-3xl font-semibold tracking-tight text-white lg:text-4xl">
           Sua conta, do seu jeito.
@@ -408,118 +411,153 @@ export default function ConfiguracoesPage() {
         </p>
       </header>
 
-      <Tabs defaultValue="perfil" className="w-full max-w-5xl">
-        <TabsList className="grid w-full grid-cols-3 border border-zinc-800 bg-zinc-950 p-1 sm:w-[520px]">
+      <Tabs defaultValue="perfil" className="w-full">
+        <TabsList className="grid w-full grid-cols-3 border border-zinc-800 bg-zinc-900/60 p-1 backdrop-blur sm:w-[520px]">
           <TabsTrigger value="perfil">Meu Perfil</TabsTrigger>
           <TabsTrigger value="preferencias">Preferências</TabsTrigger>
           <TabsTrigger value="seguranca">Segurança</TabsTrigger>
         </TabsList>
 
-        <TabsContent value="perfil" className="mt-6">
-          <form
-            onSubmit={handleSaveProfile}
-            className="grid gap-6 lg:grid-cols-[280px_minmax(0,1fr)] lg:items-start"
-          >
-            <Card className="border-zinc-800/80 bg-zinc-900/50 shadow-none">
-              <CardContent className="flex flex-col items-center px-6 py-8 text-center">
-                <input
-                  ref={fileInputRef}
-                  type="file"
-                  accept="image/*"
-                  className="hidden"
-                  onChange={handleAvatarFileSelect}
-                />
-                <button
-                  type="button"
-                  className="rounded-full transition-opacity disabled:cursor-not-allowed disabled:opacity-60"
-                  onClick={() => fileInputRef.current?.click()}
-                  disabled={isUploadingAvatar}
-                  aria-label="Alterar foto"
-                >
-                  <Avatar className="h-24 w-24 border border-zinc-800">
-                    <AvatarImage
-                      src={avatarUrl}
-                      alt={resolvedDisplayName || email}
-                    />
-                    <AvatarFallback className="bg-zinc-900 text-2xl font-semibold text-zinc-100">
-                      {getInitials(resolvedDisplayName, email)}
-                    </AvatarFallback>
-                  </Avatar>
-                </button>
-                <h2 className="mt-5 max-w-full truncate text-base font-semibold text-zinc-100">
-                  {resolvedDisplayName || "Seu perfil"}
-                </h2>
-                <p className="mt-1 max-w-full truncate text-sm text-zinc-500">
-                  {email}
-                </p>
-                <Button
-                  type="button"
-                  variant="outline"
-                  className="mt-6 w-full border-zinc-700 bg-transparent text-zinc-100 hover:bg-zinc-900"
-                  disabled={isUploadingAvatar}
-                  onClick={() => fileInputRef.current?.click()}
-                >
-                  {isUploadingAvatar ? "Enviando..." : "Alterar foto"}
-                </Button>
-                <p className="mt-3 text-xs leading-5 text-zinc-500">
-                  JPG ou PNG quadrado, com boa iluminação.
-                </p>
-              </CardContent>
-            </Card>
+        <TabsContent value="perfil">
+          <div className="mt-6 grid w-full grid-cols-1 gap-8 lg:grid-cols-12">
+            <div className="h-fit lg:col-span-4">
+              <Card className="border-zinc-800/80 bg-zinc-900/50 shadow-none">
+                <CardContent className="flex flex-col items-center px-6 py-8 text-center">
+                  <input
+                    ref={fileInputRef}
+                    type="file"
+                    accept="image/*"
+                    className="hidden"
+                    onChange={handleAvatarFileSelect}
+                  />
+                  <button
+                    type="button"
+                    className="rounded-full transition-opacity disabled:cursor-not-allowed disabled:opacity-60"
+                    onClick={() => fileInputRef.current?.click()}
+                    disabled={isUploadingAvatar}
+                    aria-label="Alterar foto"
+                  >
+                    <Avatar className="h-24 w-24 border border-zinc-800">
+                      <AvatarImage
+                        src={avatarUrl}
+                        alt={resolvedDisplayName || email}
+                      />
+                      <AvatarFallback className="bg-zinc-900 text-2xl font-semibold text-zinc-100">
+                        {getInitials(resolvedDisplayName, email)}
+                      </AvatarFallback>
+                    </Avatar>
+                  </button>
+                  <h2 className="mt-5 max-w-full truncate text-base font-semibold text-zinc-100">
+                    {resolvedDisplayName || "Seu perfil"}
+                  </h2>
+                  <p className="mt-1 max-w-full truncate text-sm text-zinc-500">
+                    {email}
+                  </p>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    className="mt-6 w-full border-zinc-700 bg-transparent text-zinc-100 hover:bg-zinc-900"
+                    disabled={isUploadingAvatar}
+                    onClick={() => fileInputRef.current?.click()}
+                  >
+                    {isUploadingAvatar ? "Enviando..." : "Alterar foto"}
+                  </Button>
+                  <p className="mt-3 text-xs leading-5 text-zinc-500">
+                    JPG ou PNG quadrado, com boa iluminação.
+                  </p>
+                </CardContent>
+              </Card>
+            </div>
 
-            <Card className="border-zinc-800/80 bg-zinc-900/50 shadow-none">
-              <CardHeader className="border-b border-zinc-800/80 px-6 py-6">
-                <CardTitle>Dados do perfil</CardTitle>
-                <CardDescription>
-                  Defina como suas informações aparecem no sistema.
-                </CardDescription>
-              </CardHeader>
+            <div className="space-y-6 lg:col-span-8">
+              <form onSubmit={handleSaveProfile}>
+                <Card className="border-zinc-800/80 bg-zinc-900/50 shadow-none">
+                  <CardHeader className="border-b border-zinc-800/80 px-6 py-6">
+                    <CardTitle>Dados do perfil</CardTitle>
+                    <CardDescription>
+                      Defina como suas informações aparecem no sistema.
+                    </CardDescription>
+                  </CardHeader>
 
-              <CardContent className="px-6 py-7">
-                <div className="grid grid-cols-1 gap-6 md:grid-cols-2">
-                  <div className="space-y-2">
-                    <Label htmlFor="display-name">Nome de Exibição</Label>
-                    <Input
-                      id="display-name"
-                      value={resolvedDisplayName}
-                      onChange={(event) => setDisplayName(event.target.value)}
-                      placeholder="Como você quer ser chamado"
-                      autoComplete="name"
-                      className="h-11 border-zinc-700 bg-zinc-900 text-zinc-100"
-                      required
-                    />
+                  <CardContent className="px-6 py-7">
+                    <div className="grid grid-cols-1 gap-6 md:grid-cols-2">
+                      <div className="space-y-2">
+                        <Label htmlFor="display-name">Nome de Exibição</Label>
+                        <Input
+                          id="display-name"
+                          value={resolvedDisplayName}
+                          onChange={(event) =>
+                            setDisplayName(event.target.value)
+                          }
+                          placeholder="Como você quer ser chamado"
+                          autoComplete="name"
+                          className="h-11 border-zinc-700 bg-zinc-900 text-zinc-100"
+                          required
+                        />
+                      </div>
+
+                      <div className="space-y-2">
+                        <Label htmlFor="profile-email">E-mail</Label>
+                        <Input
+                          id="profile-email"
+                          value={email}
+                          type="email"
+                          disabled
+                          readOnly
+                          className="h-11 border-zinc-800 bg-zinc-900 text-zinc-500"
+                        />
+                      </div>
+                    </div>
+                  </CardContent>
+
+                  <CardFooter className="justify-end border-t border-zinc-800/80 px-6 py-5">
+                    <Button
+                      type="submit"
+                      variant="default"
+                      size="default"
+                      disabled={isSaving}
+                    >
+                      {isSaving ? "Salvando..." : "Salvar alterações"}
+                    </Button>
+                  </CardFooter>
+                </Card>
+              </form>
+
+              <Card className="border-red-900/50 bg-zinc-900/50 shadow-none">
+                <CardHeader className="border-b border-red-900/30 px-6 py-5">
+                  <CardTitle>Danger Zone</CardTitle>
+                  <CardDescription>
+                    Ações críticas da conta ficam concentradas aqui.
+                  </CardDescription>
+                </CardHeader>
+                <CardContent className="flex flex-col gap-4 px-6 py-5 sm:flex-row sm:items-center sm:justify-between">
+                  <div>
+                    <p className="text-sm font-medium text-zinc-100">
+                      Excluir minha conta
+                    </p>
+                    <p className="mt-1 text-xs leading-5 text-zinc-500">
+                      Remove seu acesso e inicia a limpeza dos dados vinculados.
+                    </p>
                   </div>
-
-                  <div className="space-y-2">
-                    <Label htmlFor="profile-email">E-mail</Label>
-                    <Input
-                      id="profile-email"
-                      value={email}
-                      type="email"
-                      disabled
-                      readOnly
-                      className="h-11 border-zinc-800 bg-zinc-900 text-zinc-500"
-                    />
-                  </div>
-                </div>
-              </CardContent>
-
-              <CardFooter className="justify-end border-t border-zinc-800/80 px-6 py-5">
-                <Button
-                  type="submit"
-                  variant="default"
-                  size="default"
-                  disabled={isSaving}
-                >
-                  {isSaving ? "Salvando..." : "Salvar alterações"}
-                </Button>
-              </CardFooter>
-            </Card>
-          </form>
+                  <Button
+                    type="button"
+                    variant="destructive"
+                    className="gap-2"
+                  >
+                    <Trash2 className="size-4" />
+                    Excluir minha conta
+                  </Button>
+                </CardContent>
+              </Card>
+            </div>
+          </div>
         </TabsContent>
 
-        <TabsContent value="preferencias" className="mt-6 grid gap-6 lg:grid-cols-2">
-          <Card className="border-zinc-800/80 bg-zinc-900/50 shadow-none">
+        <TabsContent
+          value="preferencias"
+          className="mt-6 grid w-full grid-cols-1 gap-6 lg:grid-cols-12"
+        >
+          <Card className="border-zinc-800/80 bg-zinc-900/50 shadow-none lg:col-span-5">
             <CardHeader className="border-b border-zinc-800/80 px-6 py-6">
               <CardTitle>Preferências regionais</CardTitle>
               <CardDescription>
@@ -556,15 +594,15 @@ export default function ConfiguracoesPage() {
             </CardContent>
           </Card>
 
-          <Card className="border-zinc-800/80 bg-zinc-900/50 shadow-none">
+          <Card className="border-zinc-800/80 bg-zinc-900/50 shadow-none lg:col-span-3">
             <CardHeader className="border-b border-zinc-800/80 px-6 py-6">
-              <CardTitle>Privacidade visual</CardTitle>
+              <CardTitle>Privacidade</CardTitle>
               <CardDescription>
-                Controle a exposição de números sensíveis ao abrir o painel.
+                Controle a exposição dos saldos.
               </CardDescription>
             </CardHeader>
-            <CardContent className="px-6 py-7">
-              <div className="flex items-center justify-between gap-6 rounded-xl border border-zinc-800/80 bg-zinc-950/60 p-4">
+            <CardContent className="px-6 py-6">
+              <div className="flex items-center justify-between gap-5">
                 <div>
                   <Label htmlFor="hide-balances" className="text-sm text-zinc-100">
                     Ocultar saldos por padrão
@@ -581,12 +619,57 @@ export default function ConfiguracoesPage() {
               </div>
             </CardContent>
           </Card>
+
+          <Card className="border-zinc-800/80 bg-zinc-900/50 shadow-none lg:col-span-4">
+            <CardHeader className="border-b border-zinc-800/80 px-6 py-6">
+              <CardTitle>Notificações</CardTitle>
+              <CardDescription>
+                Ajuste os lembretes financeiros do sistema.
+              </CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-5 px-6 py-6">
+              <div className="flex items-center justify-between gap-5">
+                <div>
+                  <Label htmlFor="invoice-reminder" className="text-sm text-zinc-100">
+                    Lembrete de faturas
+                  </Label>
+                  <p className="mt-1 text-xs leading-5 text-zinc-500">
+                    Receba alertas antes do vencimento.
+                  </p>
+                </div>
+                <Switch
+                  id="invoice-reminder"
+                  checked={invoiceReminder}
+                  onCheckedChange={setInvoiceReminder}
+                />
+              </div>
+
+              <div className="flex items-center justify-between gap-5 border-t border-zinc-800/80 pt-5">
+                <div>
+                  <Label htmlFor="weekly-summary" className="text-sm text-zinc-100">
+                    Resumo semanal
+                  </Label>
+                  <p className="mt-1 text-xs leading-5 text-zinc-500">
+                    Um panorama curto da semana financeira.
+                  </p>
+                </div>
+                <Switch
+                  id="weekly-summary"
+                  checked={weeklySummary}
+                  onCheckedChange={setWeeklySummary}
+                />
+              </div>
+            </CardContent>
+          </Card>
         </TabsContent>
 
-        <TabsContent value="seguranca" className="mt-6">
-          <Card className="max-w-3xl border-zinc-800/80 bg-zinc-900/50 shadow-none">
+        <TabsContent
+          value="seguranca"
+          className="mt-6 grid w-full grid-cols-1 gap-6 lg:grid-cols-12"
+        >
+          <Card className="border-zinc-800/80 bg-zinc-900/50 shadow-none lg:col-span-7">
             <CardHeader className="border-b border-zinc-800/80 px-6 py-6">
-              <CardTitle>Controle de acesso</CardTitle>
+              <CardTitle>Alterar Senha</CardTitle>
               <CardDescription>
                 Atualize sua senha mantendo a sessão protegida.
               </CardDescription>
@@ -643,6 +726,28 @@ export default function ConfiguracoesPage() {
                 </Button>
               </CardFooter>
             </form>
+          </Card>
+
+          <Card className="h-fit border-zinc-800/80 bg-zinc-900/50 shadow-none lg:col-span-5">
+            <CardHeader className="border-b border-zinc-800/80 px-6 py-6">
+              <CardTitle>Sessões Ativas</CardTitle>
+              <CardDescription>
+                Dispositivos conectados à sua conta.
+              </CardDescription>
+            </CardHeader>
+            <CardContent className="px-6 py-6">
+              <div className="flex items-center gap-4 rounded-lg border border-zinc-800/80 bg-zinc-950/50 p-4">
+                <div className="flex size-10 shrink-0 items-center justify-center rounded-lg bg-zinc-900 text-zinc-300">
+                  <Monitor className="size-5" />
+                </div>
+                <div className="min-w-0">
+                  <p className="truncate text-sm font-medium text-zinc-100">
+                    Windows PC
+                  </p>
+                  <p className="mt-1 text-xs text-zinc-500">Sessão atual</p>
+                </div>
+              </div>
+            </CardContent>
           </Card>
         </TabsContent>
       </Tabs>

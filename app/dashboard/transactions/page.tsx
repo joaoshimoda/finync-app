@@ -23,6 +23,7 @@ import { AddIncomeModal } from "@/components/modals/AddIncomeModal";
 import { AddTransactionModal } from "@/components/modals/AddTransactionModal";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { Checkbox } from "@/components/ui/checkbox";
 import { Dialog, DialogContent } from "@/components/ui/dialog";
 import {
   DropdownMenu,
@@ -50,6 +51,8 @@ import {
   formatDateOnlyBR,
   getDateOnlyParts,
 } from "@/lib/dateUtils";
+import { getCardSignedAmount, isCardCreditAdjustment } from "@/lib/cardCredits";
+import { supabase } from "@/lib/supabaseClient";
 import { cn } from "@/lib/utils";
 import { useFinanceStore, type Transaction } from "@/store/useFinanceStore";
 
@@ -85,7 +88,11 @@ function getTransactionFallbackLabel(transaction: Transaction) {
 }
 
 function sortByRecentDate(left: Transaction, right: Transaction) {
-  return right.date.localeCompare(left.date);
+  const dateOrder = right.date.localeCompare(left.date);
+
+  if (dateOrder !== 0) return dateOrder;
+
+  return (right.createdAt ?? "").localeCompare(left.createdAt ?? "");
 }
 
 function isSameSelectedMonth(
@@ -137,6 +144,8 @@ export default function TransactionsPage() {
   const [editingTransaction, setEditingTransaction] =
     useState<Transaction | null>(null);
   const [deleteTarget, setDeleteTarget] = useState<Transaction | null>(null);
+  const [selectedIds, setSelectedIds] = useState<string[]>([]);
+  const [isBulkSubmitting, setIsBulkSubmitting] = useState(false);
 
   const cards = useFinanceStore((state) => state.cards);
   const dependents = useFinanceStore((state) => state.dependents);
@@ -206,6 +215,22 @@ export default function TransactionsPage() {
     });
   }, [categoryFilter, monthlyTransactions, searchTerm, typeFilter]);
 
+  const visibleTransactionIds = useMemo(
+    () => filteredTransactions.map((transaction) => transaction.id),
+    [filteredTransactions],
+  );
+
+  const selectedVisibleIds = useMemo(
+    () => selectedIds.filter((id) => visibleTransactionIds.includes(id)),
+    [selectedIds, visibleTransactionIds],
+  );
+
+  const isAllVisibleSelected =
+    visibleTransactionIds.length > 0 &&
+    selectedVisibleIds.length === visibleTransactionIds.length;
+  const isSomeVisibleSelected =
+    selectedVisibleIds.length > 0 && !isAllVisibleSelected;
+
   const summary = useMemo(() => {
     const totalIncome = filteredTransactions
       .filter((transaction) => transaction.type === "income")
@@ -215,7 +240,14 @@ export default function TransactionsPage() {
         (transaction) =>
           transaction.type !== "income" && !getDependentId(transaction),
       )
-      .reduce((total, transaction) => total + transaction.amount, 0);
+      .reduce(
+        (total, transaction) =>
+          total +
+          (transaction.type === "card"
+            ? getCardSignedAmount(transaction)
+            : transaction.amount),
+        0,
+      );
 
     return {
       totalIncome,
@@ -266,6 +298,85 @@ export default function TransactionsPage() {
     } catch (error) {
       console.error("Erro ao excluir recorrência:", error);
       toast.error("Não foi possível excluir a recorrência agora.");
+    }
+  }
+
+  function toggleSelectAllVisible(checked: boolean | "indeterminate") {
+    if (checked) {
+      setSelectedIds((currentIds) =>
+        Array.from(new Set([...currentIds, ...visibleTransactionIds])),
+      );
+      return;
+    }
+
+    setSelectedIds((currentIds) =>
+      currentIds.filter((id) => !visibleTransactionIds.includes(id)),
+    );
+  }
+
+  function toggleTransactionSelection(
+    transactionId: string,
+    checked: boolean | "indeterminate",
+  ) {
+    if (checked) {
+      setSelectedIds((currentIds) =>
+        currentIds.includes(transactionId)
+          ? currentIds
+          : [...currentIds, transactionId],
+      );
+      return;
+    }
+
+    setSelectedIds((currentIds) =>
+      currentIds.filter((id) => id !== transactionId),
+    );
+  }
+
+  async function handleBulkDelete() {
+    if (!selectedIds.length) return;
+
+    setIsBulkSubmitting(true);
+
+    try {
+      const { error } = await supabase
+        .from("transactions")
+        .delete()
+        .in("id", selectedIds);
+
+      if (error) throw error;
+
+      toast.success(`${selectedIds.length} transações excluídas.`);
+      setSelectedIds([]);
+      await fetchTransactions();
+    } catch (error) {
+      console.error("Erro ao excluir transações em massa:", error);
+      toast.error("Não foi possível excluir as transações selecionadas.");
+    } finally {
+      setIsBulkSubmitting(false);
+    }
+  }
+
+  async function handleBulkCategory(category: string) {
+    if (!selectedIds.length) return;
+
+    setIsBulkSubmitting(true);
+
+    try {
+      const { error } = await supabase
+        .from("transactions")
+        .update({ category })
+        .in("id", selectedIds);
+
+      if (error) throw error;
+
+      toast.success("Categoria atualizada nas transações selecionadas.");
+      setSelectedIds([]);
+      await fetchTransactions();
+    } catch (error) {
+      console.error("Erro ao atualizar categoria em massa:", error);
+      toast.error("Não foi possível atualizar a categoria agora.");
+    } finally {
+      setIsBulkSubmitting(false);
     }
   }
 
@@ -439,9 +550,60 @@ export default function TransactionsPage() {
       </section>
 
       <section className="overflow-hidden rounded-xl border border-border bg-card">
+        {selectedIds.length > 0 ? (
+          <div className="flex flex-col gap-3 border-b border-border bg-zinc-900/80 p-4 sm:flex-row sm:items-center sm:justify-between">
+            <p className="text-sm font-medium text-zinc-100">
+              {selectedIds.length} transações selecionadas
+            </p>
+            <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    disabled={isBulkSubmitting || !categories.length}
+                  >
+                    Definir Categoria
+                  </Button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="end" className="max-h-72 w-56 overflow-y-auto">
+                  {categories.map((category) => (
+                    <DropdownMenuItem
+                      key={category}
+                      className="cursor-pointer"
+                      onClick={() => void handleBulkCategory(category)}
+                    >
+                      {category}
+                    </DropdownMenuItem>
+                  ))}
+                </DropdownMenuContent>
+              </DropdownMenu>
+              <Button
+                type="button"
+                variant="destructive"
+                size="sm"
+                disabled={isBulkSubmitting}
+                onClick={() => void handleBulkDelete()}
+              >
+                Excluir em Massa
+              </Button>
+            </div>
+          </div>
+        ) : null}
         <Table className="min-w-[760px] lg:min-w-full">
           <TableHeader className="bg-muted/30">
             <TableRow className="hover:bg-transparent">
+              <TableHead className="w-12">
+                <Checkbox
+                  checked={
+                    isAllVisibleSelected ||
+                    (isSomeVisibleSelected ? "indeterminate" : false)
+                  }
+                  onCheckedChange={toggleSelectAllVisible}
+                  aria-label="Selecionar todas as transações visíveis"
+                />
+              </TableHead>
               <TableHead>Data</TableHead>
               <TableHead>Descrição</TableHead>
               <TableHead className="hidden lg:table-cell">Categoria</TableHead>
@@ -467,6 +629,15 @@ export default function TransactionsPage() {
                     key={transaction.id}
                     className="transition-colors hover:bg-muted/30"
                   >
+                    <TableCell className="py-4">
+                      <Checkbox
+                        checked={selectedIds.includes(transaction.id)}
+                        onCheckedChange={(checked) =>
+                          toggleTransactionSelection(transaction.id, checked)
+                        }
+                        aria-label="Selecionar transação"
+                      />
+                    </TableCell>
                     <TableCell className="py-4 text-muted-foreground">
                       {formatDateOnlyBR(transaction.date)}
                     </TableCell>
@@ -494,12 +665,16 @@ export default function TransactionsPage() {
                     <TableCell
                       className={cn(
                         "py-4 text-right font-medium",
-                        transaction.type === "income"
+                        transaction.type === "income" ||
+                          isCardCreditAdjustment(transaction)
                           ? "text-emerald-500"
                           : "text-red-300",
                       )}
                     >
-                      {transaction.type === "income" ? "+" : "-"}
+                      {transaction.type === "income" ||
+                      isCardCreditAdjustment(transaction)
+                        ? "+"
+                        : "-"}
                       {brlFormatter.format(transaction.amount)}
                     </TableCell>
                     <TableCell className="py-4">
@@ -540,7 +715,7 @@ export default function TransactionsPage() {
             ) : (
               <TableRow className="hover:bg-transparent">
                 <TableCell
-                  colSpan={6}
+                  colSpan={7}
                   className="h-40 text-center text-muted-foreground"
                 >
                   <div className="flex h-full flex-col items-center justify-center gap-2">

@@ -1,6 +1,7 @@
 "use client";
 
 import { formatCurrency } from "@/lib/financeUtils";
+import { getCardSignedAmount } from "@/lib/cardCredits";
 import { ConfirmDialog } from "@/components/ui/ConfirmDialog";
 import { useFinanceStore, type Card, type Transaction } from "@/store/useFinanceStore";
 import { CreditCard, Trash2 } from "lucide-react";
@@ -47,12 +48,12 @@ export function WalletSlider({ cards = [], transactions = [] }: WalletSliderProp
               (transaction) => transaction.cardId === card.id,
             );
             const total = cardTransactions.reduce(
-              (sum, transaction) => sum + transaction.amount,
+              (sum, transaction) => sum + getCardSignedAmount(transaction),
               0,
             );
             const paid = cardTransactions
               .filter((transaction) => transaction.status === "paid")
-              .reduce((sum, transaction) => sum + transaction.amount, 0);
+              .reduce((sum, transaction) => sum + getCardSignedAmount(transaction), 0);
             const pending = Math.max(total - paid, 0);
             const limit = card.limitAmount || 0;
             const usage = limit > 0 ? Math.min((total / limit) * 100, 100) : 0;
