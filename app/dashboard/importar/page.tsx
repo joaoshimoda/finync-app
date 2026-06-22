@@ -404,10 +404,11 @@ export default function ImportarPage() {
 
       const { data, error } = await supabase
         .from("transactions")
-        .select("description, category, created_at, date")
+        .select("description, category, created_at, month_start, day")
         .eq("user_id", user.id)
         .not("category", "is", null)
-        .order("date", { ascending: false })
+        .order("month_start", { ascending: false })
+        .order("day", { ascending: false })
         .order("created_at", { ascending: false })
         .limit(1000);
 

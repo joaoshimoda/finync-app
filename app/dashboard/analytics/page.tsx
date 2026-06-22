@@ -440,8 +440,8 @@ export default function AnalyticsPage() {
               Comparativo mensal para leitura rápida de tendência.
             </CardDescription>
           </CardHeader>
-          <CardContent className="h-[300px] p-3 pt-0">
-            <ResponsiveContainer width="100%" height="100%">
+          <CardContent className="h-[300px] min-h-0 min-w-0 p-3 pt-0">
+            <ResponsiveContainer width="100%" height="100%" minWidth={1} minHeight={1}>
               <AreaChart data={monthlyEvolution}>
                 <defs>
                   <linearGradient id="incomeGradient" x1="0" x2="0" y1="0" y2="1">
@@ -500,8 +500,8 @@ export default function AnalyticsPage() {
               Receita total contra despesa total no mês atual.
             </CardDescription>
           </CardHeader>
-          <CardContent className="h-[300px] p-3 pt-0">
-            <ResponsiveContainer width="100%" height="100%">
+          <CardContent className="h-[300px] min-h-0 min-w-0 p-3 pt-0">
+            <ResponsiveContainer width="100%" height="100%" minWidth={1} minHeight={1}>
               <BarChart data={balanceData}>
                 <XAxis
                   dataKey="name"
@@ -545,10 +545,10 @@ export default function AnalyticsPage() {
               Participação das principais despesas do mês.
             </CardDescription>
           </CardHeader>
-          <CardContent className="h-[300px] p-3 pt-0">
+          <CardContent className="h-[300px] min-h-0 min-w-0 p-3 pt-0">
             {hasCategoryData ? (
               <>
-                <ResponsiveContainer width="100%" height="72%">
+                <ResponsiveContainer width="100%" height="72%" minWidth={1} minHeight={1}>
                   <PieChart>
                     <Pie
                       data={categoryDistribution}
@@ -603,8 +603,8 @@ export default function AnalyticsPage() {
               Comparativo mensal entre contas fixas e gastos variáveis.
             </CardDescription>
           </CardHeader>
-          <CardContent className="h-[300px] p-3 pt-0">
-            <ResponsiveContainer width="100%" height="100%">
+          <CardContent className="h-[300px] min-h-0 min-w-0 p-3 pt-0">
+            <ResponsiveContainer width="100%" height="100%" minWidth={1} minHeight={1}>
               <BarChart data={expenseComposition}>
                 <XAxis
                   dataKey="month"
