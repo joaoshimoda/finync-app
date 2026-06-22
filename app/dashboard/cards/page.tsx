@@ -349,13 +349,13 @@ export default function CardsPage() {
   }
 
   return (
-    <div className="flex w-full flex-col gap-4">
-      <div className="flex flex-col items-start justify-between gap-4 lg:flex-row lg:items-center">
+    <div className="flex w-full flex-col gap-8">
+      <div className="flex flex-col items-start justify-between gap-5 sm:flex-row sm:items-center">
         <div>
-          <h1 className="text-2xl font-bold tracking-tight lg:text-3xl">
+          <h1 className="text-3xl font-bold tracking-tight">
             Meus Cartões
           </h1>
-          <p className="text-sm text-muted-foreground lg:text-base">
+          <p className="mt-2 text-sm text-muted-foreground">
             Gerencie cartões, limites, fechamento e vencimento.
           </p>
         </div>
@@ -372,7 +372,7 @@ export default function CardsPage() {
         </div>
       </div>
 
-      <section className="space-y-2">
+      <section className="space-y-4">
         <Carousel opts={{ dragFree: true }} className="w-full">
           <CarouselContent className="-ml-4 px-2 pt-2 pb-6">
             {cards.map((card) => {

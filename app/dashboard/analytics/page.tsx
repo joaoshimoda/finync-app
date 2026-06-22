@@ -352,12 +352,12 @@ export default function AnalyticsPage() {
   ];
 
   return (
-    <div className="flex h-[calc(100vh-100px)] w-full flex-col gap-4">
-      <header className="space-y-1">
-        <h1 className="text-2xl font-semibold text-zinc-50">
+    <div className="flex min-h-full w-full flex-col gap-8">
+      <header>
+        <h1 className="text-3xl font-bold tracking-tight text-zinc-50">
           Análise Financeira
         </h1>
-        <p className="text-sm text-zinc-400">
+        <p className="mt-2 text-sm text-zinc-400">
           Gráficos, KPIs e indicadores de saúde financeira.
         </p>
       </header>
@@ -368,7 +368,7 @@ export default function AnalyticsPage() {
           <TabsTrigger value="raio-x">Raio-X</TabsTrigger>
         </TabsList>
 
-        <TabsContent value="desempenho" className="mt-4 space-y-4">
+        <TabsContent value="desempenho" className="mt-6 space-y-5">
       <section className="grid grid-cols-1 gap-4 lg:grid-cols-3">
         <Card className="border-zinc-800/80 bg-zinc-900/50 shadow-none backdrop-blur">
           <CardHeader className="p-4 pb-2">
@@ -549,7 +549,7 @@ export default function AnalyticsPage() {
       </section>
         </TabsContent>
 
-        <TabsContent value="raio-x" className="mt-4">
+        <TabsContent value="raio-x" className="mt-6">
       <section className="grid grid-cols-1 gap-4 lg:grid-cols-12">
         <Card className="border-zinc-800/80 bg-zinc-900/50 shadow-none backdrop-blur lg:col-span-4">
           <CardHeader className="p-4 pb-2">

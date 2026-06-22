@@ -403,6 +403,52 @@ export default function DashboardPage() {
     [monthlyTransactions],
   );
 
+  const personalSpendingDistribution = useMemo(() => {
+    const categoryTotals = new Map<string, number>();
+
+    monthlyTransactions.forEach((transaction) => {
+      if (transaction.type === "income" || hasDependent(transaction)) return;
+
+      const amount =
+        transaction.type === "card"
+          ? getCardSignedAmount(transaction)
+          : transaction.amount;
+
+      if (amount <= 0) return;
+
+      const category =
+        transaction.category?.trim() || getTransactionFallbackLabel(transaction);
+
+      categoryTotals.set(category, (categoryTotals.get(category) ?? 0) + amount);
+    });
+
+    const sortedCategories = [...categoryTotals.entries()].sort(
+      (left, right) => right[1] - left[1],
+    );
+    const total = sortedCategories.reduce((sum, [, amount]) => sum + amount, 0);
+    const primaryCategories = sortedCategories.slice(0, 3);
+    const remainingTotal = sortedCategories
+      .slice(3)
+      .reduce((sum, [, amount]) => sum + amount, 0);
+    const categories = remainingTotal > 0
+      ? [...primaryCategories, ["Outros", remainingTotal] as [string, number]]
+      : primaryCategories;
+
+    return {
+      categories: categories.map(([label, amount], index) => ({
+        amount,
+        color: ["bg-emerald-500", "bg-blue-500", "bg-violet-500", "bg-zinc-600"][index],
+        label,
+        percentage: total > 0 ? (amount / total) * 100 : 0,
+      })),
+      savingsRate:
+        monthlyBalances.totalIncome > 0
+          ? ((monthlyBalances.totalIncome - total) / monthlyBalances.totalIncome) * 100
+          : 0,
+      total,
+    };
+  }, [monthlyBalances.totalIncome, monthlyTransactions]);
+
   const pendingVariableIncomes = useMemo(
     () => monthlyTransactions.filter(isPendingVariableIncome),
     [monthlyTransactions],
@@ -547,26 +593,18 @@ export default function DashboardPage() {
   }
 
   return (
-    <div className="w-full flex flex-col gap-6">
-      <div className="flex flex-col justify-between gap-4 md:flex-row md:items-center">
+    <div className="flex w-full flex-col gap-8">
+      <div className="flex flex-col justify-between gap-5 sm:flex-row sm:items-center">
         <div>
-          <h1 className="text-2xl font-bold tracking-tight lg:text-3xl">
+          <h1 className="text-3xl font-bold tracking-tight">
             Visão geral
           </h1>
-          <p className="text-sm text-muted-foreground lg:text-base">
+          <p className="mt-2 text-sm text-muted-foreground">
             Acompanhe saldos, faturas e movimentações do período.
           </p>
         </div>
 
-        <div className="flex items-center gap-4">
-          <AnimatedMonthSelector
-            currentMonth={currentMonth}
-            currentYear={currentYear}
-            onPreviousMonth={prevMonth}
-            onNextMonth={nextMonth}
-            isLoading={isFetching}
-          />
-
+        <div className="flex items-center gap-3">
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
               <Button className="h-12 gap-2 bg-emerald-600 px-6 text-base font-semibold text-white hover:bg-emerald-700">
@@ -628,14 +666,33 @@ export default function DashboardPage() {
         </div>
       </div>
 
-      <div className="grid grid-cols-1 gap-6 lg:grid-cols-12">
-        <div className="lg:col-span-6">
-          <Card className="rounded-2xl border border-border/50 bg-zinc-950 p-4 text-zinc-50 shadow-none">
+      <div className="flex justify-center border-y border-border/50 py-5">
+        <AnimatedMonthSelector
+          currentMonth={currentMonth}
+          currentYear={currentYear}
+          onPreviousMonth={prevMonth}
+          onNextMonth={nextMonth}
+          isLoading={isFetching}
+        />
+      </div>
+
+      <section>
+        <div className="mb-4">
+          <p className="text-xs font-medium uppercase text-muted-foreground">
+            Resumo do mês
+          </p>
+          <h2 className="mt-1 text-xl font-semibold text-foreground">
+            Seu dinheiro em um olhar
+          </h2>
+        </div>
+
+        <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-5">
+          <Card className="rounded-xl border border-border/50 bg-zinc-950 p-4 text-zinc-50 shadow-none">
             <CardHeader className="p-0">
               <CardDescription className="text-zinc-400">
                 Saldo Disponível Total
               </CardDescription>
-              <CardTitle className="mt-3 text-3xl font-semibold tracking-tight lg:text-4xl">
+              <CardTitle className="mt-3 text-xl font-semibold tracking-tight">
                 {brlFormatter.format(monthlyBalances.projectedBalance)}
               </CardTitle>
             </CardHeader>
@@ -644,13 +701,11 @@ export default function DashboardPage() {
               Após compromissos do mês, ignorando gastos de dependentes.
             </CardContent>
           </Card>
-        </div>
 
-        <div className="lg:col-span-2">
-          <Card className="rounded-2xl border border-border/50 bg-card p-5 shadow-none transition-colors hover:bg-accent/10">
+          <Card className="rounded-xl border border-border/50 bg-card p-4 shadow-none transition-colors hover:bg-accent/10">
             <CardHeader className="p-0">
               <CardDescription>Receitas do Mês</CardDescription>
-              <CardTitle className="mt-3 text-2xl tracking-normal text-emerald-300">
+              <CardTitle className="mt-3 text-xl tracking-normal text-emerald-300">
                 {brlFormatter.format(monthlyBalances.totalIncome)}
               </CardTitle>
             </CardHeader>
@@ -659,28 +714,37 @@ export default function DashboardPage() {
               Entradas registradas
             </CardContent>
           </Card>
-        </div>
 
-        <div className="lg:col-span-2">
-          <Card className="rounded-2xl border border-border/50 bg-card p-5 shadow-none transition-colors hover:bg-accent/10">
+          <Card className="rounded-xl border border-border/50 bg-card p-4 shadow-none transition-colors hover:bg-accent/10">
             <CardHeader className="p-0">
-              <CardDescription>Faturas do Mês</CardDescription>
-              <CardTitle className="mt-3 text-2xl tracking-normal text-red-300">
+              <CardDescription>Fatura Atual</CardDescription>
+              <CardTitle className="mt-3 text-xl tracking-normal text-violet-300">
                 {brlFormatter.format(monthlyBalances.creditCardUntilToday)}
               </CardTitle>
             </CardHeader>
             <CardContent className="flex items-center gap-2 p-0 pt-4 text-xs text-muted-foreground">
-              <CreditCard className="size-4 text-red-300" />
-              Total: {brlFormatter.format(monthlyBalances.creditCardProjected)}
+              <CreditCard className="size-4 text-violet-300" />
+              Lançado até hoje
             </CardContent>
           </Card>
-        </div>
 
-        <div className="lg:col-span-2">
-          <Card className="rounded-2xl border border-border/50 bg-card p-5 shadow-none transition-colors hover:bg-accent/10">
+          <Card className="rounded-xl border border-border/50 bg-card p-4 shadow-none transition-colors hover:bg-accent/10">
+            <CardHeader className="p-0">
+              <CardDescription>Fatura Total</CardDescription>
+              <CardTitle className="mt-3 text-xl tracking-normal text-blue-300">
+                {brlFormatter.format(monthlyBalances.creditCardProjected)}
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="flex items-center gap-2 p-0 pt-4 text-xs text-muted-foreground">
+              <CreditCard className="size-4 text-blue-300" />
+              Projeção de fechamento
+            </CardContent>
+          </Card>
+
+          <Card className="rounded-xl border border-border/50 bg-card p-4 shadow-none transition-colors hover:bg-accent/10">
             <CardHeader className="p-0">
               <CardDescription>Gastos Pendentes</CardDescription>
-              <CardTitle className="mt-3 text-2xl tracking-normal text-orange-300">
+              <CardTitle className="mt-3 text-xl tracking-normal text-orange-300">
                 {brlFormatter.format(monthlyBalances.totalPendingObligations)}
               </CardTitle>
             </CardHeader>
@@ -690,10 +754,10 @@ export default function DashboardPage() {
             </CardContent>
           </Card>
         </div>
-      </div>
+      </section>
 
       {pendingVariableIncomes.length ? (
-        <Card className="rounded-2xl border border-emerald-500/30 bg-emerald-500/10 shadow-none">
+        <Card className="rounded-xl border border-emerald-500/30 bg-emerald-500/10 shadow-none">
           <CardHeader className="border-b border-emerald-500/20 p-5">
             <CardDescription className="text-emerald-200/80">
               Confirmação rápida
@@ -741,9 +805,9 @@ export default function DashboardPage() {
         </Card>
       ) : null}
 
-      <div className="grid grid-cols-1 gap-6 lg:grid-cols-12">
-        <div className="lg:col-span-8">
-          <Card className="overflow-hidden rounded-2xl border border-border/50 bg-card shadow-none">
+      <div className="grid gap-5 xl:grid-cols-[minmax(0,2fr)_minmax(18rem,1fr)]">
+        <div className="min-w-0">
+          <Card className="overflow-hidden rounded-xl border border-border/50 bg-card shadow-none">
             <CardHeader className="flex flex-col gap-4 border-b border-border/50 p-5 sm:flex-row sm:items-center sm:justify-between">
               <div>
                 <CardTitle className="text-xl tracking-normal">Minha Carteira</CardTitle>
@@ -830,8 +894,8 @@ export default function DashboardPage() {
           </Card>
         </div>
 
-        <div className="lg:col-span-4">
-          <Card className="w-full rounded-2xl border border-border/50 bg-card shadow-none">
+        <div className="min-w-0">
+          <Card className="w-full rounded-xl border border-border/50 bg-card shadow-none">
             <CardHeader className="border-b border-border/50 p-5">
               <CardDescription>Valores a receber</CardDescription>
               <CardTitle className="text-xl tracking-normal">
@@ -873,40 +937,41 @@ export default function DashboardPage() {
           </Card>
         </div>
       </div>
-      <section className="space-y-2">
-        <div className="flex items-center justify-between gap-4">
-          <div>
-            <h2 className="text-lg font-medium tracking-normal text-foreground">
-              Movimentações recentes
-            </h2>
-            <p className="mt-1 text-sm text-muted-foreground">
-              Últimos dez lançamentos do período selecionado.
-            </p>
-          </div>
-          <div className="flex items-center gap-2">
-            <Badge variant="outline" className="hidden rounded-lg lg:inline-flex">
-              {monthlyTransactions.length} no mês
-            </Badge>
-            <Button
-              variant="ghost"
-              size="sm"
-              className="text-sm font-medium text-zinc-300 hover:text-white hover:bg-zinc-800/70 px-3 py-1.5 rounded-md transition-all"
-              asChild
-            >
-              <Link href="/dashboard/transactions">
-                Ver todas as movimentações
-              </Link>
-            </Button>
-          </div>
-        </div>
+      <section className="grid gap-5 xl:grid-cols-[minmax(0,1fr)_22rem]">
+        <Card className="min-w-0 overflow-hidden rounded-xl border border-border/50 bg-card shadow-none">
+          <CardHeader className="flex flex-row items-center justify-between gap-4 border-b border-border/50 p-5">
+            <div>
+              <CardTitle className="text-lg font-medium tracking-normal text-foreground">
+                Movimentações recentes
+              </CardTitle>
+              <CardDescription className="mt-1">
+                Últimos dez lançamentos do período selecionado.
+              </CardDescription>
+            </div>
+            <div className="flex items-center gap-2">
+              <Badge variant="outline" className="hidden rounded-lg lg:inline-flex">
+                {monthlyTransactions.length} no mês
+              </Badge>
+              <Button
+                variant="ghost"
+                size="sm"
+                className="rounded-md px-3 py-1.5 text-sm font-medium text-zinc-300 transition-all hover:bg-zinc-800/70 hover:text-white"
+                asChild
+              >
+                <Link href="/dashboard/transactions">
+                  Ver todas
+                </Link>
+              </Button>
+            </div>
+          </CardHeader>
 
-        <div
-          className={cn(
-            "overflow-hidden rounded-2xl border border-border/50 bg-card transition-opacity",
-            isFetching && "pointer-events-none opacity-50",
-          )}
-        >
-          <Table className="min-w-[640px] lg:min-w-full">
+          <div
+            className={cn(
+              "overflow-x-auto transition-opacity",
+              isFetching && "pointer-events-none opacity-50",
+            )}
+          >
+            <Table className="min-w-[640px] lg:min-w-full">
             <TableHeader className="bg-muted/30">
               <TableRow className="hover:bg-transparent">
                 <TableHead>Data</TableHead>
@@ -984,8 +1049,61 @@ export default function DashboardPage() {
                 </TableRow>
               )}
             </TableBody>
-          </Table>
-        </div>
+            </Table>
+          </div>
+        </Card>
+
+        <Card className="rounded-xl border border-border/50 bg-card shadow-none">
+          <CardHeader className="p-5 pb-2">
+            <CardDescription>Distribuição pessoal</CardDescription>
+            <CardTitle className="text-lg tracking-normal text-foreground">
+              Para onde foi seu dinheiro
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-5 p-5">
+            {personalSpendingDistribution.categories.length ? (
+              personalSpendingDistribution.categories.map((category) => (
+                <div key={category.label}>
+                  <div className="mb-2 flex items-center justify-between gap-3 text-xs">
+                    <span className="truncate text-muted-foreground">
+                      {category.label}
+                    </span>
+                    <span className="font-medium text-foreground">
+                      {category.percentage.toFixed(0)}%
+                    </span>
+                  </div>
+                  <div className="h-1.5 overflow-hidden rounded-full bg-muted">
+                    <div
+                      className={cn("h-full rounded-full", category.color)}
+                      style={{ width: `${category.percentage}%` }}
+                    />
+                  </div>
+                </div>
+              ))
+            ) : (
+              <div className="flex min-h-36 items-center justify-center rounded-lg border border-dashed border-border text-center text-sm text-muted-foreground">
+                Sem despesas pessoais neste período.
+              </div>
+            )}
+
+            <div className="grid grid-cols-2 gap-3 border-t border-border/50 pt-4">
+              <div>
+                <ArrowDown className="size-4 text-red-300" />
+                <p className="mt-2 text-xs text-muted-foreground">Saídas</p>
+                <strong className="text-sm text-foreground">
+                  {brlFormatter.format(personalSpendingDistribution.total)}
+                </strong>
+              </div>
+              <div>
+                <ArrowUp className="size-4 text-emerald-300" />
+                <p className="mt-2 text-xs text-muted-foreground">Economia</p>
+                <strong className="text-sm text-emerald-300">
+                  {personalSpendingDistribution.savingsRate.toFixed(1)}%
+                </strong>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
       </section>
 
       <AddCardModal

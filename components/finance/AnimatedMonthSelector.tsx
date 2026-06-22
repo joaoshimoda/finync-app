@@ -73,7 +73,7 @@ export function AnimatedMonthSelector({
 
       <div
         className={cn(
-          "whitespace-nowrap text-lg font-bold text-primary opacity-100 blur-none transition-all duration-300 ease-in-out lg:text-xl",
+          "flex min-w-36 scale-105 items-center justify-center whitespace-nowrap rounded-full border border-emerald-500/25 bg-emerald-500/10 px-4 py-2 text-lg font-bold text-emerald-300 shadow-[0_0_24px_rgba(16,185,129,0.08)] opacity-100 blur-none transition-all duration-300 ease-in-out lg:min-w-44 lg:text-xl",
           isLoading && "opacity-70",
         )}
       >

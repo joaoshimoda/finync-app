@@ -60,8 +60,10 @@ export default function DashboardLayout({
       <div className="pointer-events-none fixed inset-0 bg-[linear-gradient(rgba(255,255,255,0.025)_1px,transparent_1px),linear-gradient(90deg,rgba(255,255,255,0.025)_1px,transparent_1px)] bg-[size:72px_72px] opacity-35" />
       <div className="relative flex h-screen w-full">
         <Sidebar />
-        <main className="mx-auto h-screen w-full flex-1 overflow-x-hidden overflow-y-auto px-4 py-5 pb-24 lg:px-8 lg:py-4 lg:pb-4">
-          {children}
+        <main className="h-screen min-w-0 flex-1 overflow-x-hidden overflow-y-auto px-4 py-6 pb-24 sm:px-6 lg:px-8 lg:py-8 lg:pb-8">
+          <div className="mx-auto w-full max-w-[1440px]">
+            {children}
+          </div>
         </main>
       </div>
       <BottomNav />

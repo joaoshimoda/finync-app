@@ -402,12 +402,12 @@ export default function ConfiguracoesPage() {
   }
 
   return (
-    <div className="mx-auto flex w-full max-w-5xl flex-col gap-8">
-      <header className="max-w-2xl space-y-3">
-        <h1 className="text-3xl font-semibold tracking-tight text-white lg:text-4xl">
+    <div className="mx-auto flex w-full max-w-[1440px] flex-col gap-8 px-4 py-6 sm:px-6 lg:px-8 lg:py-8">
+      <header className="max-w-2xl">
+        <h1 className="text-3xl font-bold tracking-tight text-white">
           Sua conta, do seu jeito.
         </h1>
-        <p className="text-sm leading-6 text-zinc-400">
+        <p className="mt-2 text-sm leading-6 text-zinc-400">
           Atualize suas informações pessoais e ajuste a experiência do Finync.
         </p>
       </header>
