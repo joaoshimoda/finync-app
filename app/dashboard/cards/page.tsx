@@ -234,6 +234,7 @@ export default function CardsPage() {
   const [selectedCardId, setSelectedCardId] = useState<string | null>(null);
 
   const cards = useFinanceStore((state) => state.cards);
+  const dependents = useFinanceStore((state) => state.dependents);
   const transactions = useFinanceStore((state) => state.transactions);
   const fetchCards = useFinanceStore((state) => state.fetchCards);
   const fetchTransactions = useFinanceStore((state) => state.fetchTransactions);
@@ -473,14 +474,54 @@ export default function CardsPage() {
             </TableHeader>
             <TableBody>
               {selectedCardTransactions.length ? (
-                selectedCardTransactions.map((transaction) => (
-                  <TableRow key={transaction.id} className="hover:bg-muted/35">
+                selectedCardTransactions.map((transaction) => {
+                  const installmentNumber =
+                    transaction.installmentNumber ??
+                    transaction.current_installment ??
+                    1;
+                  const installmentsTotal =
+                    transaction.installmentsTotal ??
+                    transaction.installments ??
+                    1;
+                  const isLastInstallment =
+                    installmentsTotal > 1 &&
+                    installmentNumber === installmentsTotal;
+                  const dependent = transaction.dependentId
+                    ? dependents.find(
+                        (item) => item.id === transaction.dependentId,
+                      )
+                    : null;
+
+                  return (
+                  <TableRow
+                    key={transaction.id}
+                    className={cn(
+                      "hover:bg-muted/35",
+                      isLastInstallment &&
+                        "bg-emerald-950/20 hover:bg-emerald-950/30",
+                    )}
+                  >
                     <TableCell className="text-muted-foreground">
                       {formatDateOnlyBR(transaction.date)}
                     </TableCell>
                     <TableCell>
-                      <div className="font-medium text-foreground">
-                        <TransactionDescription transaction={transaction} />
+                      <div className="flex flex-wrap items-center gap-2 font-medium text-foreground">
+                        <span>
+                          <TransactionDescription transaction={transaction} />
+                        </span>
+                        {isLastInstallment ? (
+                          <Badge className="border border-emerald-800 bg-emerald-950 text-emerald-300 hover:bg-emerald-950">
+                            Última!
+                          </Badge>
+                        ) : null}
+                        {dependent ? (
+                          <Badge
+                            variant="outline"
+                            className="border-zinc-700 bg-zinc-900 text-zinc-300"
+                          >
+                            {dependent.name}
+                          </Badge>
+                        ) : null}
                       </div>
                     </TableCell>
                     <TableCell className="hidden lg:table-cell">
@@ -500,7 +541,8 @@ export default function CardsPage() {
                       {brlFormatter.format(transaction.amount)}
                     </TableCell>
                   </TableRow>
-                ))
+                  );
+                })
               ) : (
                 <TableRow className="hover:bg-transparent">
                   <TableCell

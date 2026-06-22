@@ -5,6 +5,9 @@ import { getDateOnlyParts } from "@/lib/dateUtils";
 import { ConfirmDialog } from "@/components/ui/ConfirmDialog";
 import { RecurringDeleteDialog } from "@/components/finance/RecurringDeleteDialog";
 import {
+  getTransactionDescriptionPresentation,
+} from "@/components/finance/TransactionDescription";
+import {
   useFinanceStore,
   type Card,
   type Transaction,
@@ -111,6 +114,8 @@ export function TransactionFeed({
         <div className="space-y-3">
           {transactions.slice(0, 8).map((transaction) => {
             const isIncome = transaction.type === "income";
+            const descriptionPresentation =
+              getTransactionDescriptionPresentation(transaction);
             const card = transaction.cardId ? cardsById.get(transaction.cardId) : null;
             const isDebitPix = !isIncome && (!transaction.cardId || transaction.type === "fixed");
             const status = isIncome
@@ -164,11 +169,12 @@ export function TransactionFeed({
                 <div className="min-w-0 flex-1">
                   <div className="flex flex-wrap items-center gap-2">
                     <h3 className="truncate text-sm font-semibold text-white sm:text-base">
-                      {transaction.description}
+                      {descriptionPresentation.description}
                     </h3>
-                    {transaction.installmentsTotal && transaction.installmentsTotal > 1 ? (
+                    {descriptionPresentation.hasInstallments ? (
                       <span className="rounded-full border border-white/[0.08] bg-white/[0.045] px-2 py-0.5 text-xs font-semibold text-zinc-300">
-                        {transaction.installmentNumber || 1}/{transaction.installmentsTotal}
+                        {descriptionPresentation.installmentNumber}/
+                        {descriptionPresentation.installmentsTotal}
                       </span>
                     ) : null}
                   </div>

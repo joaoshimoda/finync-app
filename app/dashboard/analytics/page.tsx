@@ -300,6 +300,7 @@ export default function AnalyticsPage() {
           .from("transactions")
           .select("id, month_start, type, description, category, amount, day, notes")
           .eq("user_id", user.id)
+          .is("dependent_id", null)
           .gte("month_start", startDate)
           .lt("month_start", endDate)
           .order("month_start", { ascending: true })
@@ -466,17 +467,23 @@ export default function AnalyticsPage() {
                   tickFormatter={(value) => `R$ ${(Number(value) / 1000).toFixed(0)}k`}
                 />
                 <Tooltip
+                  cursor={{ fill: "rgba(255, 255, 255, 0.04)" }}
                   contentStyle={{
-                    background: "#09090b",
-                    border: "1px solid rgba(63,63,70,0.8)",
-                    borderRadius: 12,
-                    color: "#fafafa",
+                    backgroundColor: "#18181b",
+                    border: "1px solid #27272a",
+                    borderRadius: "8px",
+                    color: "#f4f4f5",
                   }}
-                  formatter={(value) => brlFormatter.format(Number(value))}
+                  itemStyle={{ color: "#f4f4f5" }}
+                  formatter={(value, name) => [
+                    brlFormatter.format(Number(value)),
+                    name,
+                  ]}
                 />
                 <Area
                   type="monotone"
                   dataKey="receitas"
+                  name="Receitas"
                   stroke="#10b981"
                   strokeWidth={2}
                   fill="url(#incomeGradient)"
@@ -484,6 +491,7 @@ export default function AnalyticsPage() {
                 <Area
                   type="monotone"
                   dataKey="gastos"
+                  name="Gastos"
                   stroke="#a1a1aa"
                   strokeWidth={2}
                   fill="url(#expenseGradient)"
@@ -516,13 +524,18 @@ export default function AnalyticsPage() {
                   tickFormatter={(value) => `R$ ${(Number(value) / 1000).toFixed(0)}k`}
                 />
                 <Tooltip
+                  cursor={{ fill: "rgba(255, 255, 255, 0.04)" }}
                   contentStyle={{
-                    background: "#09090b",
-                    border: "1px solid rgba(63,63,70,0.8)",
-                    borderRadius: 12,
-                    color: "#fafafa",
+                    backgroundColor: "#18181b",
+                    border: "1px solid #27272a",
+                    borderRadius: "8px",
+                    color: "#f4f4f5",
                   }}
-                  formatter={(value) => brlFormatter.format(Number(value))}
+                  itemStyle={{ color: "#f4f4f5" }}
+                  formatter={(value) => [
+                    brlFormatter.format(Number(value)),
+                    "Total",
+                  ]}
                 />
                 <Bar dataKey="value" radius={[8, 8, 0, 0]}>
                   {balanceData.map((entry) => (
@@ -566,12 +579,16 @@ export default function AnalyticsPage() {
                     </Pie>
                     <Tooltip
                       contentStyle={{
-                        background: "#09090b",
-                        border: "1px solid rgba(63,63,70,0.8)",
-                        borderRadius: 12,
-                        color: "#fafafa",
+                        backgroundColor: "#18181b",
+                        border: "1px solid #27272a",
+                        borderRadius: "8px",
+                        color: "#f4f4f5",
                       }}
-                      formatter={(value) => brlFormatter.format(Number(value))}
+                      itemStyle={{ color: "#f4f4f5" }}
+                      formatter={(value, name) => [
+                        brlFormatter.format(Number(value)),
+                        name,
+                      ]}
                     />
                   </PieChart>
                 </ResponsiveContainer>
@@ -619,13 +636,18 @@ export default function AnalyticsPage() {
                   tickFormatter={(value) => `R$ ${(Number(value) / 1000).toFixed(0)}k`}
                 />
                 <Tooltip
+                  cursor={{ fill: "rgba(255, 255, 255, 0.04)" }}
                   contentStyle={{
-                    background: "#09090b",
-                    border: "1px solid rgba(63,63,70,0.8)",
-                    borderRadius: 12,
-                    color: "#fafafa",
+                    backgroundColor: "#18181b",
+                    border: "1px solid #27272a",
+                    borderRadius: "8px",
+                    color: "#f4f4f5",
                   }}
-                  formatter={(value) => brlFormatter.format(Number(value))}
+                  itemStyle={{ color: "#f4f4f5" }}
+                  formatter={(value, name) => [
+                    brlFormatter.format(Number(value)),
+                    name,
+                  ]}
                 />
                 <Bar
                   dataKey="fixed"

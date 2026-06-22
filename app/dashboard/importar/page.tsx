@@ -339,10 +339,7 @@ function mapCsvRow(
     installmentsTotal,
   } = parseInstallment(description || "Sem descrição");
   const isCredit = parsedAmount.isNegative;
-  const finalDescription =
-    !isCredit && installmentsTotal > 1
-      ? `${cleanDescription || "Sem descrição"} (${installmentNumber}/${installmentsTotal})`
-      : cleanDescription || "Sem descrição";
+  const finalDescription = cleanDescription || "Sem descrição";
 
   return [
     {
@@ -575,7 +572,7 @@ export default function ImportarPage() {
       return {
         ...transaction,
         date: addMonthsToDateOnly(transaction.date, index),
-        description: `${baseDescription} (${installmentNumber}/${transaction.installmentsTotal})`,
+        description: baseDescription,
         installmentNumber,
         referenceMonthOffset: index,
       };
