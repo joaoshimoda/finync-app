@@ -53,7 +53,6 @@ import {
 import { getCardGradient } from "@/lib/cardUtils";
 import {
   formatDateOnlyBR,
-  getDateOnlyParts,
   getLocalTodayDateOnly,
   normalizeDateOnly,
 } from "@/lib/dateUtils";
@@ -64,6 +63,7 @@ import {
   isCardCreditAdjustment,
 } from "@/lib/cardCredits";
 import { cn } from "@/lib/utils";
+import { isTransactionInSelectedPeriod } from "@/lib/transactionPeriod";
 import {
   useFinanceStore,
   type Card as FinanceCard,
@@ -333,16 +333,13 @@ export default function CardsPage() {
 
   const monthlyTransactions = useMemo(
     () =>
-      transactions.filter((transaction) => {
-        const transactionDate = getDateOnlyParts(
-          transaction.billingMonthStart ?? transaction.date,
-        );
-
-        return (
-          transactionDate.month === currentMonth &&
-          transactionDate.year === currentYear
-        );
-      }),
+      transactions.filter((transaction) =>
+        isTransactionInSelectedPeriod(
+          transaction,
+          currentMonth,
+          currentYear,
+        ),
+      ),
     [currentMonth, currentYear, transactions],
   );
 

@@ -48,13 +48,11 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import {
-  formatDateOnlyBR,
-  getDateOnlyParts,
-} from "@/lib/dateUtils";
+import { formatDateOnlyBR } from "@/lib/dateUtils";
 import { getCardSignedAmount, isCardCreditAdjustment } from "@/lib/cardCredits";
 import { supabase } from "@/lib/supabaseClient";
 import { cn } from "@/lib/utils";
+import { isTransactionInSelectedPeriod } from "@/lib/transactionPeriod";
 import { useFinanceStore, type Transaction } from "@/store/useFinanceStore";
 
 type TypeFilter = "all" | "income" | "expense" | "fixed";
@@ -101,10 +99,10 @@ function isSameSelectedMonth(
   currentMonth: number,
   currentYear: number,
 ) {
-  const transactionDate = getDateOnlyParts(transaction.date);
-
-  return (
-    transactionDate.month === currentMonth && transactionDate.year === currentYear
+  return isTransactionInSelectedPeriod(
+    transaction,
+    currentMonth,
+    currentYear,
   );
 }
 

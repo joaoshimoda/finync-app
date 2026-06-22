@@ -10,6 +10,7 @@ import {
 } from "@/lib/dateUtils";
 import type { User } from "@supabase/supabase-js";
 import { create } from "zustand";
+import { isTransactionInSelectedPeriod } from "@/lib/transactionPeriod";
 
 export type TransactionType = "income" | "fixed" | "card";
 export type TransactionStatus = "pending" | "confirmed" | "paid";
@@ -300,10 +301,7 @@ function toTransactionInsertPayload(
 }
 
 function isTransactionInSelectedRange(transaction: Transaction, month: number, year: number) {
-  const { startDate, endDate } = getSelectedMonthRange(month, year);
-  const monthStart = getMonthStart(transaction.date);
-
-  return monthStart >= startDate && monthStart < endDate;
+  return isTransactionInSelectedPeriod(transaction, month, year);
 }
 
 async function getCurrentUser(): Promise<User | null> {

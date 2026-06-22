@@ -30,7 +30,8 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { formatDateOnlyBR, getDateOnlyParts } from "@/lib/dateUtils";
+import { formatDateOnlyBR } from "@/lib/dateUtils";
+import { isTransactionInSelectedPeriod } from "@/lib/transactionPeriod";
 import { useFinanceStore, type Transaction } from "@/store/useFinanceStore";
 
 const brlFormatter = new Intl.NumberFormat("pt-BR", {
@@ -45,9 +46,7 @@ function isInSelectedMonth(
   month: number,
   year: number,
 ) {
-  const transactionDate = getDateOnlyParts(transaction.date);
-
-  return transactionDate.month === month && transactionDate.year === year;
+  return isTransactionInSelectedPeriod(transaction, month, year);
 }
 
 export default function FixedExpensesPage() {

@@ -68,6 +68,8 @@ import {
 } from "@/lib/cardCredits";
 import { isPendingVariableIncome } from "@/lib/incomeRecurrence";
 import { cn } from "@/lib/utils";
+import { isTransactionInSelectedPeriod } from "@/lib/transactionPeriod";
+import { aggregatePeriodExpenses } from "@/lib/financeAggregation";
 import {
   useFinanceStore,
   type Transaction,
@@ -103,10 +105,10 @@ function isSameSelectedMonth(
   currentMonth: number,
   currentYear: number,
 ) {
-  const transactionDate = getDateOnlyParts(transaction.date);
-
-  return (
-    transactionDate.month === currentMonth && transactionDate.year === currentYear
+  return isTransactionInSelectedPeriod(
+    transaction,
+    currentMonth,
+    currentYear,
   );
 }
 
@@ -139,6 +141,27 @@ function hasDependent(transaction: Transaction) {
     (transaction as Transaction & { dependent_id?: string | null })
       .dependent_id ?? transaction.dependentId,
   );
+}
+
+function calculatePendingExpenses(
+  calendarTransactions: Transaction[],
+  invoiceTransactions: Transaction[],
+) {
+  const pendingCalendarExpenses = calendarTransactions
+    .filter(
+      (transaction) =>
+        transaction.type === "fixed" && transaction.status !== "paid",
+    )
+    .reduce((sum, transaction) => sum + transaction.amount, 0);
+
+  const pendingCardExpenses = invoiceTransactions
+    .filter((transaction) => transaction.status !== "paid")
+    .reduce(
+      (sum, transaction) => sum + getCardSignedAmount(transaction),
+      0,
+    );
+
+  return Math.max(pendingCalendarExpenses, 0) + Math.max(pendingCardExpenses, 0);
 }
 
 interface CardSpendingSummary {
@@ -348,6 +371,23 @@ export default function DashboardPage() {
     [displayMonth, displayYear, transactions],
   );
 
+  const pendingExpensesTotal = useMemo(
+    () =>
+      calculatePendingExpenses(
+        monthlyTransactions,
+        invoiceCycleTransactions,
+      ),
+    [invoiceCycleTransactions, monthlyTransactions],
+  );
+
+  const personalExpenseTotals = useMemo(
+    () =>
+      aggregatePeriodExpenses(transactions, displayMonth, displayYear, {
+        excludeDependents: true,
+      }),
+    [displayMonth, displayYear, transactions],
+  );
+
   const monthlyBalances = useMemo(() => {
     const totals = monthlyTransactions.reduce(
       (acc, transaction) => {
@@ -368,21 +408,12 @@ export default function DashboardPage() {
           return acc;
         }
 
-        acc.nonCardTotal += transaction.amount;
-
-        if (transaction.status !== "paid") {
-          acc.nonCardPending += transaction.amount;
-          acc.pendingObligations += transaction.amount;
-        }
-
         return acc;
       },
       {
         creditCardProjected: 0,
         creditCardUntilToday: 0,
         nonCardTotal: 0,
-        nonCardPending: 0,
-        pendingObligations: 0,
         totalIncome: 0,
         userCreditCardProjected: 0,
         userCreditCardUntilToday: 0,
@@ -410,20 +441,27 @@ export default function DashboardPage() {
         totals.userCreditCardUntilToday += signedAmount;
       }
 
-      if (transaction.status !== "paid" && signedAmount > 0) {
-        totals.pendingObligations += signedAmount;
-      }
     });
 
     return {
       ...totals,
+      nonCardTotal: personalExpenseTotals.fixed,
+      userCreditCardProjected: personalExpenseTotals.card,
       availableBalance:
-        totals.totalIncome - totals.nonCardTotal - totals.userCreditCardUntilToday,
+        totals.totalIncome -
+        personalExpenseTotals.fixed -
+        totals.userCreditCardUntilToday,
       projectedBalance:
-        totals.totalIncome - totals.nonCardTotal - totals.userCreditCardProjected,
-      totalPendingObligations: totals.pendingObligations,
+        totals.totalIncome - personalExpenseTotals.total,
+      totalPendingObligations: pendingExpensesTotal,
     };
-  }, [invoiceCycleTransactions, monthlyTransactions, todayDate]);
+  }, [
+    invoiceCycleTransactions,
+    monthlyTransactions,
+    pendingExpensesTotal,
+    personalExpenseTotals,
+    todayDate,
+  ]);
 
   const recentTransactions = useMemo(
     () => [...monthlyTransactions].sort(sortByRecentDate).slice(0, 10),
@@ -443,8 +481,7 @@ export default function DashboardPage() {
 
       if (amount <= 0) return;
 
-      const category =
-        transaction.category?.trim() || getTransactionFallbackLabel(transaction);
+      const category = transaction.category?.trim() || "Outros";
 
       categoryTotals.set(category, (categoryTotals.get(category) ?? 0) + amount);
     });
@@ -453,12 +490,20 @@ export default function DashboardPage() {
       (left, right) => right[1] - left[1],
     );
     const total = sortedCategories.reduce((sum, [, amount]) => sum + amount, 0);
-    const primaryCategories = sortedCategories.slice(0, 3);
-    const remainingTotal = sortedCategories
+    const explicitOtherTotal = categoryTotals.get("Outros") ?? 0;
+    const categorizedExpenses = sortedCategories.filter(
+      ([label]) => label !== "Outros",
+    );
+    const primaryCategories = categorizedExpenses.slice(0, 3);
+    const remainingTotal = categorizedExpenses
       .slice(3)
       .reduce((sum, [, amount]) => sum + amount, 0);
-    const categories = remainingTotal > 0
-      ? [...primaryCategories, ["Outros", remainingTotal] as [string, number]]
+    const consolidatedOtherTotal = explicitOtherTotal + remainingTotal;
+    const categories = consolidatedOtherTotal > 0
+      ? [
+          ...primaryCategories,
+          ["Outros", consolidatedOtherTotal] as [string, number],
+        ]
       : primaryCategories;
 
     return {

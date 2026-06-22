@@ -29,12 +29,12 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import {
   formatDateOnlyBR,
   getDateOnlyParts,
-  getLocalTodayDateOnly,
   toDateOnly,
 } from "@/lib/dateUtils";
-import { isCardCreditAdjustment } from "@/lib/cardCredits";
+import { aggregatePeriodExpenses } from "@/lib/financeAggregation";
 import { supabase } from "@/lib/supabaseClient";
 import { cn } from "@/lib/utils";
+import { useFinanceStore } from "@/store/useFinanceStore";
 
 const brlFormatter = new Intl.NumberFormat("pt-BR", {
   style: "currency",
@@ -69,6 +69,7 @@ type ExpenseCompositionPoint = {
 
 type TransactionRow = {
   id: string;
+  card_id: string | null;
   month_start: string;
   type: "income" | "fixed" | "card" | string;
   description: string;
@@ -121,8 +122,7 @@ function getMonthLabel(monthStart: string) {
   return labels[month - 1] ?? monthStart.slice(5, 7);
 }
 
-function getMonthStartRange() {
-  const { month, year } = getDateOnlyParts(getLocalTodayDateOnly());
+function getMonthStartRange(month: number, year: number) {
   const firstMonth = addMonths(year, month, -5);
   const nextMonth = addMonths(year, month, 1);
 
@@ -133,9 +133,7 @@ function getMonthStartRange() {
   };
 }
 
-function createEmptyMonthlyEvolution() {
-  const { month, year } = getDateOnlyParts(getLocalTodayDateOnly());
-
+function createEmptyMonthlyEvolution(month: number, year: number) {
   return Array.from({ length: 6 }, (_, index) => {
     const itemMonth = addMonths(year, month, index - 5);
     const monthStart = toDateOnly(itemMonth.year, itemMonth.month, 1);
@@ -143,106 +141,130 @@ function createEmptyMonthlyEvolution() {
     return {
       month: getMonthLabel(monthStart),
       monthStart,
-      receitas: 0,
-      gastos: 0,
+      receitas: 0 as number,
+      gastos: 0 as number,
     };
   });
 }
 
-function buildAnalyticsData(rows: TransactionRow[]): AnalyticsData {
-  const monthlyEvolution = createEmptyMonthlyEvolution();
-  const monthlyMap = new Map(
-    monthlyEvolution.map((item) => [item.monthStart, item]),
+function buildAnalyticsData(
+  rows: TransactionRow[],
+  selectedMonth: number,
+  selectedYear: number,
+): AnalyticsData {
+  const baseTimeline = createEmptyMonthlyEvolution(selectedMonth, selectedYear);
+  const { currentMonthStart } = getMonthStartRange(
+    selectedMonth,
+    selectedYear,
   );
-  const { currentMonthStart } = getMonthStartRange();
-  const categoryTotals = new Map<string, number>();
-  const currentMonthExpenses: TransactionRow[] = [];
+  const aggregationEntries = rows.map((row) => {
+    const period = getDateOnlyParts(row.month_start);
 
-  for (const row of rows) {
-    const amount = toAmount(row.amount);
-    const signedAmount = isCardCreditAdjustment({
+    return {
+      id: row.id,
+      type: row.type,
+      date: toDateOnly(period.year, period.month, row.day || 1),
+      billingMonthStart: row.type === "card" ? row.month_start : undefined,
+      amount: toAmount(row.amount),
+      description: row.description,
       category: row.category,
       notes: row.notes,
-      type: row.type,
-    })
-      ? -amount
-      : amount;
-    const monthItem = monthlyMap.get(row.month_start);
+    };
+  });
+  const monthlyEvolution = baseTimeline.map((item) => {
+    const period = getDateOnlyParts(item.monthStart);
+    const expenses = aggregatePeriodExpenses(
+      aggregationEntries,
+      period.month,
+      period.year,
+    );
+    const income = rows
+      .filter(
+        (row) =>
+          row.type === "income" && row.month_start === item.monthStart,
+      )
+      .reduce((sum, row) => sum + toAmount(row.amount), 0);
 
-    if (!monthItem) continue;
+    return {
+      month: item.month,
+      monthStart: item.monthStart,
+      receitas: Number(income) || 0,
+      gastos: Number(expenses.total) || 0,
+    };
+  });
+  const currentExpenses = aggregatePeriodExpenses(
+    aggregationEntries,
+    selectedMonth,
+    selectedYear,
+  );
+  const previousPeriod = getDateOnlyParts(
+    monthlyEvolution.at(-2)?.monthStart ?? currentMonthStart,
+  );
+  const previousExpenses = aggregatePeriodExpenses(
+    aggregationEntries,
+    previousPeriod.month,
+    previousPeriod.year,
+  );
+  const categoryTotals = new Map<string, number>();
 
-    if (row.type === "income") {
-      monthItem.receitas += amount;
-      continue;
-    }
+  currentExpenses.entries.forEach((entry) => {
+    if (entry.signedAmount <= 0) return;
 
-    monthItem.gastos += signedAmount;
+    const category = entry.category?.trim() || "Sem categoria";
+    categoryTotals.set(
+      category,
+      (categoryTotals.get(category) ?? 0) + entry.signedAmount,
+    );
+  });
 
-    if (row.month_start === currentMonthStart && signedAmount > 0) {
-      currentMonthExpenses.push(row);
-      const category = row.category?.trim() || "Sem categoria";
-      categoryTotals.set(category, (categoryTotals.get(category) ?? 0) + signedAmount);
-    }
-  }
-
-  const currentMonth = monthlyMap.get(currentMonthStart);
-  const previousMonth = monthlyEvolution.at(-2);
   const categoryDistribution = Array.from(categoryTotals.entries())
     .sort((left, right) => right[1] - left[1])
     .map(([name, value], index) => ({
       name,
-      value,
+      value: Number(value) || 0,
       color: categoryColors[index % categoryColors.length],
     }));
   const expenseComposition = monthlyEvolution.map((item) => {
-    const monthRows = rows.filter((row) => row.month_start === item.monthStart);
+    const period = getDateOnlyParts(item.monthStart);
+    const expenses = aggregatePeriodExpenses(
+      aggregationEntries,
+      period.month,
+      period.year,
+    );
 
     return {
       month: item.month,
-      fixed: monthRows
-        .filter((row) => row.type === "fixed")
-        .reduce((sum, row) => sum + toAmount(row.amount), 0),
-      variable: monthRows
-        .filter((row) => row.type === "card")
-        .reduce(
-          (sum, row) =>
-            sum +
-            (isCardCreditAdjustment(row)
-              ? -toAmount(row.amount)
-              : toAmount(row.amount)),
-          0,
-        ),
+      fixed: Number(expenses.fixed) || 0,
+      variable: Number(expenses.card) || 0,
     };
   });
-  const topExpenses = currentMonthExpenses
-    .sort((left, right) => toAmount(right.amount) - toAmount(left.amount))
+  const topExpenses = [...currentExpenses.entries]
+    .filter((expense) => expense.signedAmount > 0)
+    .sort((left, right) => right.signedAmount - left.signedAmount)
     .slice(0, 5)
     .map((expense) => ({
-      name: expense.description,
-      date: formatDateOnlyBR(
-        toDateOnly(
-          getDateOnlyParts(expense.month_start).year,
-          getDateOnlyParts(expense.month_start).month,
-          expense.day,
-        ),
-      ),
-      amount: toAmount(expense.amount),
+      name: expense.description || "Sem descrição",
+      date: formatDateOnlyBR(expense.date),
+      amount: expense.signedAmount,
       icon: ReceiptText,
     }));
+  const currentMonth = monthlyEvolution.find(
+    (item) => item.monthStart === currentMonthStart,
+  );
 
   return {
     monthlyEvolution,
     categoryDistribution,
     expenseComposition,
     topExpenses,
-    totalIncome: currentMonth?.receitas ?? 0,
-    totalExpense: currentMonth?.gastos ?? 0,
-    previousExpense: previousMonth?.gastos ?? 0,
+    totalIncome: Number(currentMonth?.receitas) || 0,
+    totalExpense: Number(currentExpenses.total) || 0,
+    previousExpense: Number(previousExpenses.total) || 0,
   };
 }
 
-function createEmptyAnalyticsData(): AnalyticsData {
-  return buildAnalyticsData([]);
+function createEmptyAnalyticsData(month: number, year: number): AnalyticsData {
+  return buildAnalyticsData([], month, year);
 }
 
 function AnalyticsSkeleton() {
@@ -273,9 +295,11 @@ function AnalyticsSkeleton() {
 }
 
 export default function AnalyticsPage() {
+  const currentMonth = useFinanceStore((state) => state.currentMonth);
+  const currentYear = useFinanceStore((state) => state.currentYear);
   const [isLoading, setIsLoading] = useState(true);
   const [analyticsData, setAnalyticsData] = useState<AnalyticsData>(() =>
-    createEmptyAnalyticsData(),
+    createEmptyAnalyticsData(currentMonth, currentYear),
   );
 
   useEffect(() => {
@@ -291,14 +315,17 @@ export default function AnalyticsPage() {
         if (userError) throw userError;
 
         if (!user) {
-          setAnalyticsData(createEmptyAnalyticsData());
+          setAnalyticsData(createEmptyAnalyticsData(currentMonth, currentYear));
           return;
         }
 
-        const { startDate, endDate } = getMonthStartRange();
+        const { startDate, endDate } = getMonthStartRange(
+          currentMonth,
+          currentYear,
+        );
         const { data, error } = await supabase
           .from("transactions")
-          .select("id, month_start, type, description, category, amount, day, notes")
+          .select("id, card_id, month_start, type, description, category, amount, day, notes")
           .eq("user_id", user.id)
           .is("dependent_id", null)
           .gte("month_start", startDate)
@@ -309,17 +336,23 @@ export default function AnalyticsPage() {
 
         if (error) throw error;
 
-        setAnalyticsData(buildAnalyticsData((data ?? []) as TransactionRow[]));
+        setAnalyticsData(
+          buildAnalyticsData(
+            (data ?? []) as TransactionRow[],
+            currentMonth,
+            currentYear,
+          ),
+        );
       } catch (error) {
         console.error("Erro ao carregar analytics:", error);
-        setAnalyticsData(createEmptyAnalyticsData());
+        setAnalyticsData(createEmptyAnalyticsData(currentMonth, currentYear));
       } finally {
         setIsLoading(false);
       }
     }
 
     void fetchAnalyticsData();
-  }, []);
+  }, [currentMonth, currentYear]);
 
   if (isLoading) {
     return <AnalyticsSkeleton />;
@@ -347,8 +380,8 @@ export default function AnalyticsPage() {
   );
   const hasTopExpenses = topExpenses.length > 0;
   const balanceData = [
-    { name: "Receitas", value: totalIncome, fill: "#10b981" },
-    { name: "Despesas", value: totalExpense, fill: "#71717a" },
+    { name: "Receitas", value: Number(totalIncome) || 0, fill: "#10b981" },
+    { name: "Despesas", value: Number(totalExpense) || 0, fill: "#71717a" },
   ];
 
   return (
