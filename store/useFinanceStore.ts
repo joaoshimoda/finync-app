@@ -1,6 +1,7 @@
 "use client";
 
 import { supabase } from "@/lib/supabaseClient";
+import { getCardInvoiceMonthStart } from "@/lib/cardBilling";
 import {
   getDateOnlyParts,
   getLocalTodayDateOnly,
@@ -51,6 +52,7 @@ export interface Transaction {
   installmentNumber?: number;
   installmentsTotal?: number;
   notes?: string;
+  billingMonthStart?: string;
   createdAt?: string;
   updatedAt?: string;
 }
@@ -174,19 +176,6 @@ function getMonthStart(date: string) {
   return toDateOnly(year, month, 1);
 }
 
-function getCardInvoiceMonthStart(date: string, closingDay?: number) {
-  const { day, month, year } = getDateOnlyParts(date);
-
-  if (!closingDay || day < closingDay) {
-    return toDateOnly(year, month, 1);
-  }
-
-  const nextMonth = month === 12 ? 1 : month + 1;
-  const nextYear = month === 12 ? year + 1 : year;
-
-  return toDateOnly(nextYear, nextMonth, 1);
-}
-
 function getSelectedMonthRange(month: number, year: number) {
   const startDate = toDateOnly(year, month, 1);
   const nextMonth = month === 12 ? 1 : month + 1;
@@ -258,6 +247,7 @@ function mapTransaction(row: TransactionRow): Transaction {
     installmentNumber: row.installment_number ?? undefined,
     installmentsTotal: row.installments_total ?? undefined,
     notes: row.notes ?? undefined,
+    billingMonthStart: row.month_start,
     createdAt: row.created_at,
     updatedAt: row.updated_at,
   };
@@ -279,7 +269,9 @@ function toTransactionInsertPayload(
   const normalizedDate = normalizeDateOnly(transaction.date);
   const monthStart =
     transaction.type === "card"
-      ? getCardInvoiceMonthStart(normalizedDate, cardClosingDay)
+      ? transaction.billingMonthStart
+        ? getMonthStart(transaction.billingMonthStart)
+        : getCardInvoiceMonthStart(normalizedDate, cardClosingDay)
       : getMonthStart(normalizedDate);
 
   return {

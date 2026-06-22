@@ -15,6 +15,7 @@ import {
   normalizeDateOnly,
   toDateOnly,
 } from "@/lib/dateUtils";
+import { getInstallmentInvoiceMonthStart } from "@/lib/cardBilling";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -256,6 +257,11 @@ function TransactionModalContent({
             groupId,
             amount: installmentAmount,
             date: addMonthsToDateOnly(normalizedDate, index),
+            billingMonthStart: getInstallmentInvoiceMonthStart(
+              normalizedDate,
+              selectedCard?.closingDay,
+              index,
+            ),
             installments: parsedInstallmentCount,
             current_installment: index + 1,
             installmentsTotal: parsedInstallmentCount,

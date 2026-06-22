@@ -43,6 +43,7 @@ import {
   CARD_CREDIT_ADJUSTMENT_CATEGORY,
   CARD_CREDIT_ADJUSTMENT_NOTE,
 } from "@/lib/cardCredits";
+import { getCardInvoiceMonthStart } from "@/lib/cardBilling";
 import {
   getDateOnlyParts,
   getLocalTodayDateOnly,
@@ -378,9 +379,7 @@ export default function ImportarPage() {
   const [splitDependentId, setSplitDependentId] = useState("");
   const [splitUserAmount, setSplitUserAmount] = useState("");
   const referenceMonthOptions = useMemo(() => getReferenceMonthOptions(), []);
-  const [referenceMonth, setReferenceMonth] = useState(
-    () => getMonthStartFromReference(getLocalTodayDateOnly()),
-  );
+  const [referenceMonth, setReferenceMonth] = useState("");
   const [selectedCardId, setSelectedCardId] = useState("");
 
   useEffect(() => {
@@ -448,6 +447,16 @@ export default function ImportarPage() {
   }, []);
 
   const effectiveSelectedCardId = selectedCardId || cards[0]?.id || "";
+  const effectiveSelectedCard = cards.find(
+    (card) => card.id === effectiveSelectedCardId,
+  );
+  const effectiveReferenceMonth = referenceMonth ||
+    (effectiveSelectedCard
+      ? getCardInvoiceMonthStart(
+          getLocalTodayDateOnly(),
+          effectiveSelectedCard.closingDay,
+        )
+      : getMonthStartFromReference(getLocalTodayDateOnly()));
 
   const onDrop = useCallback((acceptedFiles: File[]) => {
     const file = acceptedFiles[0];
@@ -692,7 +701,7 @@ export default function ImportarPage() {
 
       if (profileError) throw profileError;
 
-      const monthStart = getMonthStartFromReference(referenceMonth);
+      const monthStart = getMonthStartFromReference(effectiveReferenceMonth);
       const rowsToImport = parsedData.flatMap(getRowsForImport);
       const formattedData = rowsToImport.map((transaction) => {
         const dependent = transaction.dependentId
@@ -813,7 +822,10 @@ export default function ImportarPage() {
                 <p className="text-xs font-medium uppercase tracking-wide text-zinc-400">
                   Mês de Referência
                 </p>
-                <Select value={referenceMonth} onValueChange={setReferenceMonth}>
+                <Select
+                  value={effectiveReferenceMonth}
+                  onValueChange={setReferenceMonth}
+                >
                   <SelectTrigger className="border-zinc-700 bg-zinc-900 text-zinc-100">
                     <SelectValue placeholder="Selecione a competência" />
                   </SelectTrigger>
@@ -831,7 +843,13 @@ export default function ImportarPage() {
                 <p className="text-xs font-medium uppercase tracking-wide text-zinc-400">
                   Selecionar Cartão
                 </p>
-                <Select value={effectiveSelectedCardId} onValueChange={setSelectedCardId}>
+                <Select
+                  value={effectiveSelectedCardId}
+                  onValueChange={(cardId) => {
+                    setSelectedCardId(cardId);
+                    setReferenceMonth("");
+                  }}
+                >
                   <SelectTrigger className="border-zinc-700 bg-zinc-900 text-zinc-100">
                     <SelectValue placeholder="Selecione um cartão" />
                   </SelectTrigger>

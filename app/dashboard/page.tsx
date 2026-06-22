@@ -109,6 +109,22 @@ function isSameSelectedMonth(
   );
 }
 
+function isSameSelectedInvoiceCycle(
+  transaction: Transaction,
+  currentMonth: number,
+  currentYear: number,
+) {
+  const billingDate = getDateOnlyParts(
+    transaction.billingMonthStart ?? transaction.date,
+  );
+
+  return (
+    transaction.type === "card" &&
+    billingDate.month === currentMonth &&
+    billingDate.year === currentYear
+  );
+}
+
 function sortByRecentDate(left: Transaction, right: Transaction) {
   const dateOrder = right.date.localeCompare(left.date);
 
@@ -323,6 +339,14 @@ export default function DashboardPage() {
     [displayMonth, displayYear, transactions],
   );
 
+  const invoiceCycleTransactions = useMemo(
+    () =>
+      transactions.filter((transaction) =>
+        isSameSelectedInvoiceCycle(transaction, displayMonth, displayYear),
+      ),
+    [displayMonth, displayYear, transactions],
+  );
+
   const monthlyBalances = useMemo(() => {
     const totals = monthlyTransactions.reduce(
       (acc, transaction) => {
@@ -337,31 +361,7 @@ export default function DashboardPage() {
           return acc;
         }
 
-        if (transaction.type === "card") {
-          const signedAmount = getCardSignedAmount(transaction);
-
-          acc.creditCardProjected += signedAmount;
-
-          if (normalizeDateOnly(transaction.date) <= todayDate) {
-            acc.creditCardUntilToday += signedAmount;
-          }
-
-          if (isDependentTransaction) {
-            return acc;
-          }
-
-          acc.userCreditCardProjected += signedAmount;
-
-          if (normalizeDateOnly(transaction.date) <= todayDate) {
-            acc.userCreditCardUntilToday += signedAmount;
-          }
-
-          if (transaction.status !== "paid" && signedAmount > 0) {
-            acc.pendingObligations += signedAmount;
-          }
-
-          return acc;
-        }
+        if (transaction.type === "card") return acc;
 
         if (isDependentTransaction) {
           return acc;
@@ -388,6 +388,32 @@ export default function DashboardPage() {
       },
     );
 
+    invoiceCycleTransactions.forEach((transaction) => {
+      const signedAmount = getCardSignedAmount(transaction);
+      const isDependentTransaction = hasDependent(transaction);
+      const isAlreadyInOpenInvoice =
+        transaction.is_recurring !== true ||
+        normalizeDateOnly(transaction.date) <= todayDate;
+
+      totals.creditCardProjected += signedAmount;
+
+      if (isAlreadyInOpenInvoice) {
+        totals.creditCardUntilToday += signedAmount;
+      }
+
+      if (isDependentTransaction) return;
+
+      totals.userCreditCardProjected += signedAmount;
+
+      if (isAlreadyInOpenInvoice) {
+        totals.userCreditCardUntilToday += signedAmount;
+      }
+
+      if (transaction.status !== "paid" && signedAmount > 0) {
+        totals.pendingObligations += signedAmount;
+      }
+    });
+
     return {
       ...totals,
       availableBalance:
@@ -396,7 +422,7 @@ export default function DashboardPage() {
         totals.totalIncome - totals.nonCardTotal - totals.userCreditCardProjected,
       totalPendingObligations: totals.pendingObligations,
     };
-  }, [monthlyTransactions, todayDate]);
+  }, [invoiceCycleTransactions, monthlyTransactions, todayDate]);
 
   const recentTransactions = useMemo(
     () => [...monthlyTransactions].sort(sortByRecentDate).slice(0, 10),
@@ -471,7 +497,7 @@ export default function DashboardPage() {
       card.limitAmount && card.limitAmount > 0
         ? Math.min((calculateCardDebt(transactions, card.id) / card.limitAmount) * 100, 100)
         : 0,
-    ...monthlyTransactions
+    ...invoiceCycleTransactions
       .filter((transaction) => {
         const dbCardId =
           (transaction as Transaction & { card_id?: string | null }).card_id ??
@@ -485,7 +511,10 @@ export default function DashboardPage() {
 
           totals.projected += signedAmount;
 
-          if (normalizeDateOnly(transaction.date) <= todayDate) {
+          if (
+            transaction.is_recurring !== true ||
+            normalizeDateOnly(transaction.date) <= todayDate
+          ) {
             totals.current += signedAmount;
           }
 
@@ -717,27 +746,27 @@ export default function DashboardPage() {
 
           <Card className="rounded-xl border border-border/50 bg-card p-4 shadow-none transition-colors hover:bg-accent/10">
             <CardHeader className="p-0">
-              <CardDescription>Fatura Atual</CardDescription>
+              <CardDescription>Faturas em Aberto</CardDescription>
               <CardTitle className="mt-3 text-xl tracking-normal text-violet-300">
                 {brlFormatter.format(monthlyBalances.creditCardUntilToday)}
               </CardTitle>
             </CardHeader>
             <CardContent className="flex items-center gap-2 p-0 pt-4 text-xs text-muted-foreground">
               <CreditCard className="size-4 text-violet-300" />
-              Lançado até hoje
+              Total consolidado no dia de hoje
             </CardContent>
           </Card>
 
           <Card className="rounded-xl border border-border/50 bg-card p-4 shadow-none transition-colors hover:bg-accent/10">
             <CardHeader className="p-0">
-              <CardDescription>Fatura Total</CardDescription>
+              <CardDescription>Projeção de Fechamento</CardDescription>
               <CardTitle className="mt-3 text-xl tracking-normal text-blue-300">
                 {brlFormatter.format(monthlyBalances.creditCardProjected)}
               </CardTitle>
             </CardHeader>
             <CardContent className="flex items-center gap-2 p-0 pt-4 text-xs text-muted-foreground">
               <CreditCard className="size-4 text-blue-300" />
-              Projeção de fechamento
+              Faturas atuais + lançamentos futuros
             </CardContent>
           </Card>
 

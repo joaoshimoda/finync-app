@@ -50,7 +50,12 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { getCardGradient } from "@/lib/cardUtils";
-import { formatDateOnlyBR, getDateOnlyParts } from "@/lib/dateUtils";
+import {
+  formatDateOnlyBR,
+  getDateOnlyParts,
+  getLocalTodayDateOnly,
+  normalizeDateOnly,
+} from "@/lib/dateUtils";
 import {
   calculateAvailableCardLimit,
   calculateCardDebt,
@@ -61,6 +66,8 @@ import { cn } from "@/lib/utils";
 import {
   useFinanceStore,
   type Card as FinanceCard,
+  type Dependent,
+  type Transaction,
 } from "@/store/useFinanceStore";
 
 const brlFormatter = new Intl.NumberFormat("pt-BR", {
@@ -68,10 +75,55 @@ const brlFormatter = new Intl.NumberFormat("pt-BR", {
   currency: "BRL",
 });
 
+interface InvoiceBreakdown {
+  personal: number;
+  dependents: Array<{
+    id: string;
+    name: string;
+    total: number;
+  }>;
+}
+
+function getInvoiceBreakdown(
+  transactions: Transaction[],
+  dependents: Dependent[],
+): InvoiceBreakdown {
+  const dependentTotals = new Map<string, number>();
+  let personal = 0;
+
+  transactions.forEach((transaction) => {
+    const amount = getCardSignedAmount(transaction);
+
+    if (!transaction.dependentId) {
+      personal += amount;
+      return;
+    }
+
+    dependentTotals.set(
+      transaction.dependentId,
+      (dependentTotals.get(transaction.dependentId) ?? 0) + amount,
+    );
+  });
+
+  return {
+    personal,
+    dependents: [...dependentTotals.entries()]
+      .map(([dependentId, total]) => ({
+        id: dependentId,
+        name:
+          dependents.find((dependent) => dependent.id === dependentId)?.name ??
+          "Dependente",
+        total,
+      }))
+      .sort((left, right) => right.total - left.total),
+  };
+}
+
 function FlippableManagedCard({
   card,
   availableLimit,
   invoiceTotal,
+  invoiceBreakdown,
   limitUsage,
   isSelected,
   onSelect,
@@ -83,6 +135,7 @@ function FlippableManagedCard({
   card: FinanceCard;
   availableLimit: number;
   invoiceTotal: number;
+  invoiceBreakdown: InvoiceBreakdown;
   limitUsage: number;
   isSelected: boolean;
   onSelect: (cardId: string) => void;
@@ -188,34 +241,55 @@ function FlippableManagedCard({
               <X className="size-4" />
             </Button>
           </div>
-          <div className="relative grid grid-cols-2 gap-2">
+
+          <div className="relative max-h-[58px] space-y-1 overflow-y-auto pr-1 text-[11px] [scrollbar-color:rgba(255,255,255,0.25)_transparent] [scrollbar-width:thin]">
+            <div className="flex items-center justify-between gap-3 rounded-md bg-black/15 px-2 py-1">
+              <span className="text-white/65">Meus Gastos</span>
+              <strong className="font-semibold text-white">
+                {brlFormatter.format(invoiceBreakdown.personal)}
+              </strong>
+            </div>
+            {invoiceBreakdown.dependents.map((dependent) => (
+              <div
+                key={dependent.id}
+                className="flex items-center justify-between gap-3 rounded-md bg-black/15 px-2 py-1"
+              >
+                <span className="truncate text-white/65">{dependent.name}</span>
+                <strong className="shrink-0 font-semibold text-white">
+                  {brlFormatter.format(dependent.total)}
+                </strong>
+              </div>
+            ))}
+          </div>
+
+          <div className="relative flex gap-2">
             <Button
               type="button"
               size="sm"
-              className="col-span-2 h-8 bg-white text-zinc-950 hover:bg-white/90"
+              className="h-8 flex-1 bg-white text-zinc-950 hover:bg-white/90"
               onClick={() => onPayInvoice(card.id)}
             >
               Pagar Fatura
             </Button>
             <Button
               type="button"
-              size="sm"
+              size="icon-sm"
               variant="outline"
-              className="h-8 border-white/25 bg-white/10 text-white hover:bg-white/20 hover:text-white"
+              className="size-8 border-white/25 bg-white/10 text-white hover:bg-white/20 hover:text-white"
               onClick={() => onEdit(card)}
+              aria-label={`Editar ${card.name}`}
             >
               <Edit3 className="size-4" />
-              Editar
             </Button>
             <Button
               type="button"
-              size="sm"
+              size="icon-sm"
               variant="outline"
-              className="h-8 border-white/25 bg-white/10 text-white hover:bg-red-500/30 hover:text-white"
+              className="size-8 border-white/25 bg-white/10 text-white hover:bg-red-500/30 hover:text-white"
               onClick={() => onDelete(card)}
+              aria-label={`Excluir ${card.name}`}
             >
               <Trash2 className="size-4" />
-              Excluir
             </Button>
           </div>
         </div>
@@ -237,6 +311,7 @@ export default function CardsPage() {
   const dependents = useFinanceStore((state) => state.dependents);
   const transactions = useFinanceStore((state) => state.transactions);
   const fetchCards = useFinanceStore((state) => state.fetchCards);
+  const fetchDependents = useFinanceStore((state) => state.fetchDependents);
   const fetchTransactions = useFinanceStore((state) => state.fetchTransactions);
   const deleteCard = useFinanceStore((state) => state.deleteCard);
   const payCardInvoice = useFinanceStore((state) => state.payCardInvoice);
@@ -245,13 +320,22 @@ export default function CardsPage() {
 
   useEffect(() => {
     void fetchCards();
+    void fetchDependents();
     void fetchTransactions();
-  }, [currentMonth, currentYear, fetchCards, fetchTransactions]);
+  }, [
+    currentMonth,
+    currentYear,
+    fetchCards,
+    fetchDependents,
+    fetchTransactions,
+  ]);
 
   const monthlyTransactions = useMemo(
     () =>
       transactions.filter((transaction) => {
-        const transactionDate = getDateOnlyParts(transaction.date);
+        const transactionDate = getDateOnlyParts(
+          transaction.billingMonthStart ?? transaction.date,
+        );
 
         return (
           transactionDate.month === currentMonth &&
@@ -379,9 +463,19 @@ export default function CardsPage() {
               const cardTransactions = monthlyTransactions.filter(
                 (transaction) => transaction.cardId === card.id,
               );
-              const invoiceTotal = cardTransactions.reduce(
+              const currentInvoiceTransactions = cardTransactions.filter(
+                (transaction) =>
+                  transaction.is_recurring !== true ||
+                  normalizeDateOnly(transaction.date) <=
+                    getLocalTodayDateOnly(),
+              );
+              const invoiceTotal = currentInvoiceTransactions.reduce(
                 (total, transaction) => total + getCardSignedAmount(transaction),
                 0,
+              );
+              const invoiceBreakdown = getInvoiceBreakdown(
+                currentInvoiceTransactions,
+                dependents,
               );
               const debtTotal = calculateCardDebt(transactions, card.id);
               const limitAmount = card.limitAmount ?? 0;
@@ -404,6 +498,7 @@ export default function CardsPage() {
                       limitAmount,
                     )}
                     invoiceTotal={invoiceTotal}
+                    invoiceBreakdown={invoiceBreakdown}
                     limitUsage={limitUsage}
                     isSelected={isSelected}
                     onSelect={setSelectedCardId}
