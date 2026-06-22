@@ -94,16 +94,6 @@ const monthLabels = [
   "Novembro",
   "Dezembro",
 ];
-const defaultExpenseCategories = [
-  "Alimentação",
-  "Transporte",
-  "Moradia",
-  "Lazer",
-  "Saúde",
-  "Educação",
-  "Outros",
-];
-
 function normalizeKey(value: string) {
   return value
     .replace(/^\uFEFF/, "")
@@ -142,6 +132,21 @@ function findHistoricalCategory(
   });
 
   return similarEntry?.[1] ?? null;
+}
+
+function normalizeImportedExpenseCategory(category: string | null) {
+  const normalizedCategory = category ? normalizeKey(category) : "";
+
+  if (
+    !normalizedCategory ||
+    normalizedCategory === "cartao" ||
+    normalizedCategory.includes("credito") ||
+    normalizedCategory.includes("estorno")
+  ) {
+    return "Outros";
+  }
+
+  return category?.trim() || "Outros";
 }
 
 function parseAmount(value: string) {
@@ -350,7 +355,9 @@ function mapCsvRow(
       amount: Math.abs(parsedAmount.amount),
       category: isCredit
         ? CARD_CREDIT_ADJUSTMENT_CATEGORY
-        : findHistoricalCategory(finalDescription, categoryDictionary),
+        : normalizeImportedExpenseCategory(
+            findHistoricalCategory(finalDescription, categoryDictionary),
+          ),
       dependentId: null,
       type: isCredit ? "credit" : "expense",
       projectFutureInstallments:
@@ -366,8 +373,10 @@ function mapCsvRow(
 export default function ImportarPage() {
   const cards = useFinanceStore((state) => state.cards);
   const dependents = useFinanceStore((state) => state.dependents);
+  const categories = useFinanceStore((state) => state.categories);
   const fetchCards = useFinanceStore((state) => state.fetchCards);
   const fetchDependents = useFinanceStore((state) => state.fetchDependents);
+  const fetchCategories = useFinanceStore((state) => state.fetchCategories);
   const [parsedData, setParsedData] = useState<ParsedTransaction[]>([]);
   const [historicalCategoryMap, setHistoricalCategoryMap] = useState<
     Record<string, string>
@@ -386,7 +395,8 @@ export default function ImportarPage() {
   useEffect(() => {
     void fetchCards();
     void fetchDependents();
-  }, [fetchCards, fetchDependents]);
+    void fetchCategories();
+  }, [fetchCards, fetchCategories, fetchDependents]);
 
   useEffect(() => {
     let isMounted = true;
@@ -422,7 +432,7 @@ export default function ImportarPage() {
               : "";
           const category =
             typeof transaction.category === "string"
-              ? transaction.category.trim()
+              ? normalizeImportedExpenseCategory(transaction.category)
               : "";
           const key = normalizeDescriptionForCategory(description);
 
@@ -503,20 +513,30 @@ export default function ImportarPage() {
 
   const previewRows = parsedData;
   const categoryOptions = useMemo(() => {
-    const categories = new Set(defaultExpenseCategories);
+    const categoryLabels = new Set(
+      categories
+        .filter((category) => category.kind === "expense")
+        .map((category) => category.label),
+    );
 
     Object.values(historicalCategoryMap).forEach((category) => {
-      if (category) categories.add(category);
+      categoryLabels.add(normalizeImportedExpenseCategory(category));
     });
 
     parsedData.forEach((transaction) => {
-      if (transaction.category) categories.add(transaction.category);
+      if (transaction.category && transaction.type !== "credit") {
+        categoryLabels.add(
+          normalizeImportedExpenseCategory(transaction.category),
+        );
+      }
     });
 
-    return Array.from(categories).sort((left, right) =>
+    categoryLabels.add("Outros");
+
+    return Array.from(categoryLabels).sort((left, right) =>
       left.localeCompare(right, "pt-BR"),
     );
-  }, [historicalCategoryMap, parsedData]);
+  }, [categories, historicalCategoryMap, parsedData]);
   const selectedSplitTransaction =
     splitDialogIndex === null ? null : parsedData[splitDialogIndex] ?? null;
   const selectedSplitDependent = dependents.find(

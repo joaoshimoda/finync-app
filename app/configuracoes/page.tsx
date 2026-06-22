@@ -15,6 +15,7 @@ import { toast } from "sonner";
 
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { DependentManager } from "@/components/settings/DependentManager";
+import { CategoryManager } from "@/components/settings/CategoryManager";
 import { Button } from "@/components/ui/button";
 import {
   Card,
@@ -690,6 +691,8 @@ export default function ConfiguracoesPage() {
               </div>
             </CardContent>
           </Card>
+
+          <CategoryManager />
         </TabsContent>
 
         <TabsContent

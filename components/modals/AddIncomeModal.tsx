@@ -1,6 +1,6 @@
 "use client";
 
-import { FormEvent, useState } from "react";
+import { FormEvent, useEffect, useMemo, useState } from "react";
 import { ArrowUp, CalendarDays, ReceiptText } from "lucide-react";
 import { toast } from "sonner";
 
@@ -44,15 +44,6 @@ interface AddIncomeModalProps {
   editingTransaction?: Transaction | null;
 }
 
-const incomeCategories = [
-  "Receita",
-  "Salário",
-  "Freelance",
-  "Reembolso",
-  "Investimentos",
-  "Outros",
-];
-
 function addMonthsToDateOnly(date: string, monthsToAdd: number) {
   const { day, month, year } = getDateOnlyParts(date);
   const monthIndex = month - 1 + monthsToAdd;
@@ -89,6 +80,8 @@ function IncomeModalContent({
   onClose: () => void;
 }) {
   const authUser = useFinanceStore((state) => state.authUser);
+  const categories = useFinanceStore((state) => state.categories);
+  const fetchCategories = useFinanceStore((state) => state.fetchCategories);
   const addTransaction = useFinanceStore((state) => state.addTransaction);
   const addTransactions = useFinanceStore((state) => state.addTransactions);
   const fetchTransactions = useFinanceStore((state) => state.fetchTransactions);
@@ -116,6 +109,14 @@ function IncomeModalContent({
   );
   const [isSubmitting, setIsSubmitting] = useState(false);
 
+  const incomeCategories = useMemo(
+    () => categories.filter((item) => item.kind === "income"),
+    [categories],
+  );
+
+  useEffect(() => {
+    void fetchCategories();
+  }, [fetchCategories]);
 
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -308,8 +309,11 @@ function IncomeModalContent({
                 </SelectTrigger>
                 <SelectContent>
                   {incomeCategories.map((incomeCategory) => (
-                    <SelectItem key={incomeCategory} value={incomeCategory}>
-                      {incomeCategory}
+                    <SelectItem
+                      key={incomeCategory.id}
+                      value={incomeCategory.label}
+                    >
+                      {incomeCategory.label}
                     </SelectItem>
                   ))}
                 </SelectContent>

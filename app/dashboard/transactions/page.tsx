@@ -148,13 +148,18 @@ export default function TransactionsPage() {
 
   const cards = useFinanceStore((state) => state.cards);
   const dependents = useFinanceStore((state) => state.dependents);
+  const storedCategories = useFinanceStore((state) => state.categories);
   const transactions = useFinanceStore((state) => state.transactions);
   const fetchCards = useFinanceStore((state) => state.fetchCards);
   const fetchDependents = useFinanceStore((state) => state.fetchDependents);
+  const fetchCategories = useFinanceStore((state) => state.fetchCategories);
   const fetchTransactions = useFinanceStore((state) => state.fetchTransactions);
   const deleteTransaction = useFinanceStore((state) => state.deleteTransaction);
   const deleteTransactionGroup = useFinanceStore(
     (state) => state.deleteTransactionGroup,
+  );
+  const updateTransactionCategories = useFinanceStore(
+    (state) => state.updateTransactionCategories,
   );
   const currentMonth = useFinanceStore((state) => state.currentMonth);
   const currentYear = useFinanceStore((state) => state.currentYear);
@@ -164,8 +169,16 @@ export default function TransactionsPage() {
   useEffect(() => {
     void fetchCards();
     void fetchDependents();
+    void fetchCategories();
     void fetchTransactions();
-  }, [currentMonth, currentYear, fetchCards, fetchDependents, fetchTransactions]);
+  }, [
+    currentMonth,
+    currentYear,
+    fetchCards,
+    fetchCategories,
+    fetchDependents,
+    fetchTransactions,
+  ]);
 
   const selectedPeriodLabel = monthFormatter.format(
     new Date(currentYear, currentMonth - 1, 1),
@@ -183,17 +196,28 @@ export default function TransactionsPage() {
     [currentMonth, currentYear, transactions],
   );
 
-  const categories = useMemo(() => {
+  const activeCategories = useMemo(() => {
     const uniqueCategories = new Set(
       monthlyTransactions
-        .map((transaction) => transaction.category)
-        .filter(Boolean),
+        .map((transaction) => transaction.category?.trim())
+        .filter((category): category is string => Boolean(category)),
     );
 
     return Array.from(uniqueCategories).sort((left, right) =>
       left.localeCompare(right, "pt-BR"),
     );
   }, [monthlyTransactions]);
+
+  const assignableCategories = useMemo(() => {
+    const uniqueCategories = new Set([
+      ...storedCategories.map((category) => category.label),
+      ...activeCategories,
+    ]);
+
+    return Array.from(uniqueCategories).sort((left, right) =>
+      left.localeCompare(right, "pt-BR"),
+    );
+  }, [activeCategories, storedCategories]);
 
   const filteredTransactions = useMemo(() => {
     const normalizedSearch = searchTerm.trim().toLowerCase();
@@ -361,12 +385,7 @@ export default function TransactionsPage() {
     setIsBulkSubmitting(true);
 
     try {
-      const { error } = await supabase
-        .from("transactions")
-        .update({ category })
-        .in("id", selectedIds);
-
-      if (error) throw error;
+      await updateTransactionCategories(selectedIds, category);
 
       toast.success("Categoria atualizada nas transações selecionadas.");
       setSelectedIds([]);
@@ -497,7 +516,7 @@ export default function TransactionsPage() {
             </SelectTrigger>
             <SelectContent>
               <SelectItem value="all">Todas categorias</SelectItem>
-              {categories.map((category) => (
+              {activeCategories.map((category) => (
                 <SelectItem key={category} value={category}>
                   {category}
                 </SelectItem>
@@ -562,13 +581,13 @@ export default function TransactionsPage() {
                     type="button"
                     variant="outline"
                     size="sm"
-                    disabled={isBulkSubmitting || !categories.length}
+                    disabled={isBulkSubmitting || !assignableCategories.length}
                   >
                     Definir Categoria
                   </Button>
                 </DropdownMenuTrigger>
                 <DropdownMenuContent align="end" className="max-h-72 w-56 overflow-y-auto">
-                  {categories.map((category) => (
+                  {assignableCategories.map((category) => (
                     <DropdownMenuItem
                       key={category}
                       className="cursor-pointer"

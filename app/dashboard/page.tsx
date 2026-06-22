@@ -146,16 +146,23 @@ function hasDependent(transaction: Transaction) {
 function calculatePendingExpenses(
   calendarTransactions: Transaction[],
   invoiceTransactions: Transaction[],
+  excludeDependents = false,
 ) {
   const pendingCalendarExpenses = calendarTransactions
     .filter(
       (transaction) =>
-        transaction.type === "fixed" && transaction.status !== "paid",
+        transaction.type === "fixed" &&
+        transaction.status !== "paid" &&
+        (!excludeDependents || !hasDependent(transaction)),
     )
     .reduce((sum, transaction) => sum + transaction.amount, 0);
 
   const pendingCardExpenses = invoiceTransactions
-    .filter((transaction) => transaction.status !== "paid")
+    .filter(
+      (transaction) =>
+        transaction.status !== "paid" &&
+        (!excludeDependents || !hasDependent(transaction)),
+    )
     .reduce(
       (sum, transaction) => sum + getCardSignedAmount(transaction),
       0,
@@ -380,6 +387,16 @@ export default function DashboardPage() {
     [invoiceCycleTransactions, monthlyTransactions],
   );
 
+  const personalPendingExpensesTotal = useMemo(
+    () =>
+      calculatePendingExpenses(
+        monthlyTransactions,
+        invoiceCycleTransactions,
+        true,
+      ),
+    [invoiceCycleTransactions, monthlyTransactions],
+  );
+
   const personalExpenseTotals = useMemo(
     () =>
       aggregatePeriodExpenses(transactions, displayMonth, displayYear, {
@@ -454,11 +471,21 @@ export default function DashboardPage() {
       projectedBalance:
         totals.totalIncome - personalExpenseTotals.total,
       totalPendingObligations: pendingExpensesTotal,
+      personalPendingObligations: personalPendingExpensesTotal,
+      dependentPendingObligations: Math.max(
+        pendingExpensesTotal - personalPendingExpensesTotal,
+        0,
+      ),
+      dependentCreditCardUntilToday: Math.max(
+        totals.creditCardUntilToday - totals.userCreditCardUntilToday,
+        0,
+      ),
     };
   }, [
     invoiceCycleTransactions,
     monthlyTransactions,
     pendingExpensesTotal,
+    personalPendingExpensesTotal,
     personalExpenseTotals,
     todayDate,
   ]);
@@ -797,9 +824,16 @@ export default function DashboardPage() {
                 {brlFormatter.format(monthlyBalances.creditCardUntilToday)}
               </CardTitle>
             </CardHeader>
-            <CardContent className="flex items-center gap-2 p-0 pt-4 text-xs text-muted-foreground">
-              <CreditCard className="size-4 text-violet-300" />
-              Total consolidado no dia de hoje
+            <CardContent className="p-0 pt-3 text-xs text-muted-foreground">
+              <div className="flex items-center gap-2">
+                <CreditCard className="size-4 shrink-0 text-violet-300" />
+                Total consolidado no dia de hoje
+              </div>
+              <p className="mt-2 text-[10px] leading-4 text-zinc-500 sm:text-xs">
+                Meu: {brlFormatter.format(monthlyBalances.userCreditCardUntilToday)}
+                <span className="mx-1">•</span>
+                Dependentes: {brlFormatter.format(monthlyBalances.dependentCreditCardUntilToday)}
+              </p>
             </CardContent>
           </Card>
 
@@ -823,9 +857,16 @@ export default function DashboardPage() {
                 {brlFormatter.format(monthlyBalances.totalPendingObligations)}
               </CardTitle>
             </CardHeader>
-            <CardContent className="flex items-center gap-2 p-0 pt-4 text-xs text-muted-foreground">
-              <ReceiptText className="size-4 text-orange-300" />
-              Faturas e contas em aberto
+            <CardContent className="p-0 pt-3 text-xs text-muted-foreground">
+              <div className="flex items-center gap-2">
+                <ReceiptText className="size-4 shrink-0 text-orange-300" />
+                Faturas e contas em aberto
+              </div>
+              <p className="mt-2 text-[10px] leading-4 text-zinc-500 sm:text-xs">
+                Meu: {brlFormatter.format(monthlyBalances.personalPendingObligations)}
+                <span className="mx-1">•</span>
+                Dependentes: {brlFormatter.format(monthlyBalances.dependentPendingObligations)}
+              </p>
             </CardContent>
           </Card>
         </div>

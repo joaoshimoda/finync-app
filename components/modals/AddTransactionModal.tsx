@@ -48,16 +48,6 @@ interface AddTransactionModalProps {
 
 type ExpenseTransactionType = "fixed" | "card";
 
-const categories = [
-  "Alimentação",
-  "Transporte",
-  "Moradia",
-  "Lazer",
-  "Saúde",
-  "Educação",
-  "Outros",
-];
-
 function addMonthsToDateOnly(date: string, monthsToAdd: number) {
   const { day, month, year } = getDateOnlyParts(date);
   const monthIndex = month - 1 + monthsToAdd;
@@ -111,8 +101,10 @@ function TransactionModalContent({
 }) {
   const cards = useFinanceStore((state) => state.cards);
   const dependents = useFinanceStore((state) => state.dependents);
+  const categories = useFinanceStore((state) => state.categories);
   const fetchCards = useFinanceStore((state) => state.fetchCards);
   const fetchDependents = useFinanceStore((state) => state.fetchDependents);
+  const fetchCategories = useFinanceStore((state) => state.fetchCategories);
   const fetchTransactions = useFinanceStore((state) => state.fetchTransactions);
   const authUser = useFinanceStore((state) => state.authUser);
   const addTransaction = useFinanceStore((state) => state.addTransaction);
@@ -132,7 +124,7 @@ function TransactionModalContent({
       : getLocalTodayDateOnly(),
   );
   const [category, setCategory] = useState(
-    editingTransaction?.category || categories[0],
+    editingTransaction?.category || "Outros",
   );
   const [transactionType, setTransactionType] =
     useState<ExpenseTransactionType>(
@@ -152,8 +144,13 @@ function TransactionModalContent({
   const [isSubmitting, setIsSubmitting] = useState(false);
 
   useEffect(() => {
-    void Promise.all([fetchCards(), fetchDependents()]);
-  }, [fetchCards, fetchDependents]);
+    void Promise.all([fetchCards(), fetchDependents(), fetchCategories()]);
+  }, [fetchCards, fetchCategories, fetchDependents]);
+
+  const expenseCategories = useMemo(
+    () => categories.filter((item) => item.kind === "expense"),
+    [categories],
+  );
 
   const selectedCard = useMemo(() => {
     if (transactionType !== "card") return null;
@@ -440,9 +437,9 @@ function TransactionModalContent({
                   <SelectValue placeholder="Categoria" />
                 </SelectTrigger>
                 <SelectContent>
-                  {categories.map((item) => (
-                    <SelectItem key={item} value={item}>
-                      {item}
+                  {expenseCategories.map((item) => (
+                    <SelectItem key={item.id} value={item.label}>
+                      {item.label}
                     </SelectItem>
                   ))}
                 </SelectContent>

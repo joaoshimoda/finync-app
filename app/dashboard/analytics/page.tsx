@@ -70,6 +70,7 @@ type ExpenseCompositionPoint = {
 type TransactionRow = {
   id: string;
   card_id: string | null;
+  dependent_id: string | null;
   month_start: string;
   type: "income" | "fixed" | "card" | string;
   description: string;
@@ -153,11 +154,12 @@ function buildAnalyticsData(
   selectedYear: number,
 ): AnalyticsData {
   const baseTimeline = createEmptyMonthlyEvolution(selectedMonth, selectedYear);
+  const personalRows = rows.filter((row) => row.dependent_id === null);
   const { currentMonthStart } = getMonthStartRange(
     selectedMonth,
     selectedYear,
   );
-  const aggregationEntries = rows.map((row) => {
+  const aggregationEntries = personalRows.map((row) => {
     const period = getDateOnlyParts(row.month_start);
 
     return {
@@ -178,7 +180,7 @@ function buildAnalyticsData(
       period.month,
       period.year,
     );
-    const income = rows
+    const income = personalRows
       .filter(
         (row) =>
           row.type === "income" && row.month_start === item.monthStart,
@@ -325,7 +327,7 @@ export default function AnalyticsPage() {
         );
         const { data, error } = await supabase
           .from("transactions")
-          .select("id, card_id, month_start, type, description, category, amount, day, notes")
+          .select("id, card_id, dependent_id, month_start, type, description, category, amount, day, notes")
           .eq("user_id", user.id)
           .is("dependent_id", null)
           .gte("month_start", startDate)

@@ -11,6 +11,11 @@ import {
 import type { User } from "@supabase/supabase-js";
 import { create } from "zustand";
 import { isTransactionInSelectedPeriod } from "@/lib/transactionPeriod";
+import {
+  DEFAULT_CATEGORIES,
+  isEssentialCategory,
+  type CategoryKind,
+} from "@/lib/categories";
 
 export type TransactionType = "income" | "fixed" | "card";
 export type TransactionStatus = "pending" | "confirmed" | "paid";
@@ -31,6 +36,15 @@ export interface Card {
 export interface Dependent {
   id: string;
   name: string;
+  createdAt?: string;
+}
+
+export interface Category {
+  id: string;
+  label: string;
+  kind: CategoryKind;
+  icon: string;
+  isDefault?: boolean;
   createdAt?: string;
 }
 
@@ -67,6 +81,7 @@ export type UpdateTransactionInput = Partial<CreateTransactionInput>;
 export type CreateCardInput = Omit<Card, "id" | "createdAt" | "updatedAt">;
 export type UpdateCardInput = Partial<CreateCardInput>;
 export type CreateDependentInput = Pick<Dependent, "name">;
+export type CreateCategoryInput = Pick<Category, "label" | "kind" | "icon">;
 
 interface CardRow {
   id: string;
@@ -110,9 +125,18 @@ interface DependentRow {
   created_at: string;
 }
 
+interface CategoryRow {
+  id: string;
+  label: string;
+  kind: CategoryKind;
+  icon: string;
+  created_at: string;
+}
+
 interface FinanceState {
   cards: Card[];
   dependents: Dependent[];
+  categories: Category[];
   transactions: Transaction[];
   authUser: User | null;
   isAuthReady: boolean;
@@ -128,6 +152,9 @@ interface FinanceState {
   prevMonth: () => void;
   fetchCards: () => Promise<void>;
   fetchDependents: () => Promise<void>;
+  fetchCategories: () => Promise<void>;
+  addCategory: (category: CreateCategoryInput) => Promise<void>;
+  deleteCategory: (categoryId: string) => Promise<void>;
   addDependent: (dependent: CreateDependentInput) => Promise<void>;
   deleteDependent: (dependentId: string) => Promise<void>;
   addCard: (card: CreateCardInput) => Promise<void>;
@@ -139,6 +166,10 @@ interface FinanceState {
   updateTransaction: (
     transactionId: string,
     transaction: UpdateTransactionInput,
+  ) => Promise<void>;
+  updateTransactionCategories: (
+    transactionIds: string[],
+    category: string,
   ) => Promise<void>;
   payCardInvoice: (cardId: string) => Promise<void>;
   addIncome: (
@@ -304,6 +335,49 @@ function isTransactionInSelectedRange(transaction: Transaction, month: number, y
   return isTransactionInSelectedPeriod(transaction, month, year);
 }
 
+function getDefaultCategories(): Category[] {
+  return DEFAULT_CATEGORIES.map((category) => ({
+    ...category,
+    id: `default-${category.kind}-${slugify(category.label)}`,
+    isDefault: true,
+  }));
+}
+
+function getEssentialCategories() {
+  return getDefaultCategories().filter((category) =>
+    isEssentialCategory(category.label),
+  );
+}
+
+function mapCategory(row: CategoryRow): Category {
+  return {
+    id: row.id,
+    label: row.label,
+    kind: row.kind,
+    icon: row.icon,
+    createdAt: row.created_at,
+  };
+}
+
+function mergeCategories(customCategories: Category[]) {
+  const customKeys = new Set(
+    customCategories.map(
+      (category) =>
+        `${category.kind}:${category.label.toLocaleLowerCase("pt-BR")}`,
+    ),
+  );
+
+  return [
+    ...customCategories,
+    ...getEssentialCategories().filter(
+      (category) =>
+        !customKeys.has(
+          `${category.kind}:${category.label.toLocaleLowerCase("pt-BR")}`,
+        ),
+    ),
+  ].sort((left, right) => left.label.localeCompare(right.label, "pt-BR"));
+}
+
 async function getCurrentUser(): Promise<User | null> {
   const {
     data: { session },
@@ -329,6 +403,7 @@ async function getCurrentUser(): Promise<User | null> {
 export const useFinanceStore = create<FinanceState>()((set, get) => ({
   cards: [],
   dependents: [],
+  categories: getEssentialCategories(),
   transactions: [],
   authUser: null,
   isAuthReady: false,
@@ -394,6 +469,7 @@ export const useFinanceStore = create<FinanceState>()((set, get) => ({
           void Promise.all([
             get().fetchCards(),
             get().fetchDependents(),
+            get().fetchCategories(),
             get().fetchTransactions(),
           ]).finally(() => {
             if (isFirstAuthCheck) {
@@ -409,7 +485,8 @@ export const useFinanceStore = create<FinanceState>()((set, get) => ({
         set({
           authUser: null,
           cards: [],
-                  dependents: [],
+          dependents: [],
+          categories: getEssentialCategories(),
           transactions: [],
           isAuthReady: true,
           isLoading: false,
@@ -427,7 +504,8 @@ export const useFinanceStore = create<FinanceState>()((set, get) => ({
     set({
       authUser: null,
       cards: [],
-          dependents: [],
+      dependents: [],
+      categories: getEssentialCategories(),
       transactions: [],
       isAuthReady: true,
       isLoading: false,
@@ -453,6 +531,85 @@ export const useFinanceStore = create<FinanceState>()((set, get) => ({
       console.error("Erro ao buscar dependentes:", error);
       throw error;
     }
+  },
+
+  fetchCategories: async () => {
+    try {
+      const user = await getCurrentUser();
+      if (!user) return;
+
+      const { data, error } = await supabase
+        .from("categories")
+        .select("id, label, kind, icon, created_at")
+        .eq("user_id", user.id)
+        .order("label", { ascending: true });
+
+      if (error) throw error;
+
+      set({
+        categories: mergeCategories(
+          ((data ?? []) as CategoryRow[]).map(mapCategory),
+        ),
+      });
+    } catch (error) {
+      console.error("Erro ao buscar categorias:", error);
+      set({ categories: getEssentialCategories() });
+    }
+  },
+
+  addCategory: async (category) => {
+    const user = await getCurrentUser();
+    if (!user) throw new Error("Usuário não autenticado.");
+
+    const { data, error } = await supabase
+      .from("categories")
+      .insert({
+        user_id: user.id,
+        label: category.label.trim(),
+        kind: category.kind,
+        icon: category.icon,
+      })
+      .select("id, label, kind, icon, created_at")
+      .single();
+
+    if (error) throw error;
+
+    set((state) => ({
+      categories: mergeCategories([
+        ...state.categories.filter((item) => !item.isDefault),
+        mapCategory(data as CategoryRow),
+      ]),
+    }));
+  },
+
+  deleteCategory: async (categoryId) => {
+    const category = get().categories.find((item) => item.id === categoryId);
+    if (!category) throw new Error("Categoria não encontrada.");
+    if (isEssentialCategory(category.label)) {
+      throw new Error("Esta categoria é essencial e não pode ser excluída.");
+    }
+
+    const user = await getCurrentUser();
+    if (!user) throw new Error("Usuário não autenticado.");
+
+    const { data, error } = await supabase
+      .from("categories")
+      .delete()
+      .eq("id", categoryId)
+      .eq("user_id", user.id)
+      .select("id")
+      .maybeSingle();
+
+    if (error) throw error;
+    if (!data) {
+      throw new Error("A categoria não foi removida pelo banco de dados.");
+    }
+
+    set((state) => ({
+      categories: mergeCategories(
+        state.categories.filter((item) => item.id !== categoryId),
+      ),
+    }));
   },
 
   addDependent: async (dependent) => {
@@ -886,17 +1043,88 @@ export const useFinanceStore = create<FinanceState>()((set, get) => ({
       if (error) throw error;
       if (!data) throw new Error("Supabase não retornou a transação atualizada.");
 
+      if (transaction.category !== undefined && currentTransaction?.groupId) {
+        const { error: groupCategoryError } = await supabase
+          .from("transactions")
+          .update({ category: transaction.category })
+          .eq("user_id", user.id)
+          .eq("group_id", currentTransaction.groupId);
+
+        if (groupCategoryError) throw groupCategoryError;
+      }
+
       const updatedTransaction = mapTransaction(data as TransactionRow);
 
       set((state) => ({
-        transactions: state.transactions.map((currentTransaction) =>
-          currentTransaction.id === transactionId
-            ? updatedTransaction
-            : currentTransaction,
-        ),
+        transactions: state.transactions.map((item) => {
+          if (item.id === transactionId) return updatedTransaction;
+
+          if (
+            transaction.category !== undefined &&
+            currentTransaction?.groupId &&
+            item.groupId === currentTransaction.groupId
+          ) {
+            return { ...item, category: transaction.category };
+          }
+
+          return item;
+        }),
       }));
     } catch (error) {
       console.error("Erro ao atualizar transação:", error);
+      throw error;
+    }
+  },
+
+  updateTransactionCategories: async (transactionIds, category) => {
+    if (!transactionIds.length) return;
+
+    try {
+      const user = await getCurrentUser();
+      if (!user) throw new Error("Usuário não autenticado.");
+
+      const selectedIdSet = new Set(transactionIds);
+      const selectedTransactions = get().transactions.filter((transaction) =>
+        selectedIdSet.has(transaction.id),
+      );
+      const groupIds = Array.from(
+        new Set(
+          selectedTransactions
+            .map((transaction) => transaction.groupId)
+            .filter((groupId): groupId is string => Boolean(groupId)),
+        ),
+      );
+
+      const updateRequests = [
+        supabase
+          .from("transactions")
+          .update({ category })
+          .eq("user_id", user.id)
+          .in("id", transactionIds),
+        ...groupIds.map((groupId) =>
+          supabase
+            .from("transactions")
+            .update({ category })
+            .eq("user_id", user.id)
+            .eq("group_id", groupId),
+        ),
+      ];
+      const results = await Promise.all(updateRequests);
+      const failedRequest = results.find((result) => result.error);
+
+      if (failedRequest?.error) throw failedRequest.error;
+
+      const groupIdSet = new Set(groupIds);
+      set((state) => ({
+        transactions: state.transactions.map((transaction) =>
+          selectedIdSet.has(transaction.id) ||
+          (transaction.groupId && groupIdSet.has(transaction.groupId))
+            ? { ...transaction, category }
+            : transaction,
+        ),
+      }));
+    } catch (error) {
+      console.error("Erro ao atualizar categorias das transações:", error);
       throw error;
     }
   },
