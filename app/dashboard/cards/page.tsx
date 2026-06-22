@@ -120,6 +120,60 @@ function getInvoiceBreakdown(
   };
 }
 
+function TopCategories({ transactions }: { transactions: Transaction[] }) {
+  const categories = useMemo(() => {
+    const totals = new Map<string, number>();
+
+    transactions.forEach((transaction) => {
+      if (isCardCreditAdjustment(transaction)) return;
+
+      const amount = getCardSignedAmount(transaction);
+      if (amount <= 0) return;
+
+      const category = transaction.category?.trim() || "Outros";
+      totals.set(category, (totals.get(category) ?? 0) + amount);
+    });
+
+    return Array.from(totals, ([name, total]) => ({ name, total }))
+      .filter((category) => category.total > 0)
+      .sort((left, right) => right.total - left.total)
+      .slice(0, 5);
+  }, [transactions]);
+
+  return (
+    <section className="mb-3 min-w-0 border-b border-border/50 pb-3">
+      <div className="flex items-center justify-between gap-3">
+        <h3 className="text-sm font-medium text-foreground">
+          Gastos por categoria
+        </h3>
+        <span className="text-xs text-muted-foreground">
+          {categories.length} {categories.length === 1 ? "categoria" : "categorias"}
+        </span>
+      </div>
+
+      {categories.length ? (
+        <div className="mt-2 flex min-w-0 flex-row items-center gap-2 overflow-x-auto pb-1 [&::-webkit-scrollbar]:hidden [-ms-overflow-style:none] [scrollbar-width:none]">
+          {categories.map((category) => (
+            <div
+              key={category.name}
+              className="flex shrink-0 items-center gap-2 whitespace-nowrap rounded-full border border-zinc-800 bg-zinc-900/80 px-3 py-1.5 text-xs"
+            >
+              <span className="text-zinc-400">{category.name}</span>
+              <strong className="font-medium text-zinc-100">
+                {brlFormatter.format(category.total)}
+              </strong>
+            </div>
+          ))}
+        </div>
+      ) : (
+        <p className="mt-2 text-xs text-muted-foreground">
+          Nenhum gasto categorizado nesta fatura.
+        </p>
+      )}
+    </section>
+  );
+}
+
 function FlippableManagedCard({
   card,
   availableLimit,
@@ -148,7 +202,7 @@ function FlippableManagedCard({
   const [isFlipped, setIsFlipped] = useState(false);
 
   return (
-    <div className="h-[190px] w-full perspective-[1000px] lg:w-[304px]">
+    <div className="h-[190px] w-full max-w-[340px] perspective-[1000px] sm:w-[304px]">
       <div
         className={cn(
           "relative h-full w-full transition-all duration-500 [transform-style:preserve-3d]",
@@ -455,9 +509,9 @@ export default function CardsPage() {
         </div>
       </div>
 
-      <section className="space-y-4">
-        <Carousel opts={{ dragFree: true }} className="w-full">
-          <CarouselContent className="-ml-4 px-2 pt-2 pb-6">
+      <section className="min-w-0 space-y-4 overflow-visible px-1 sm:px-2">
+        <Carousel opts={{ align: "start", dragFree: true }} className="min-w-0 w-full">
+          <CarouselContent className="!ml-0 px-2 py-4">
             {cards.map((card) => {
               const cardTransactions = monthlyTransactions.filter(
                 (transaction) => transaction.cardId === card.id,
@@ -487,7 +541,7 @@ export default function CardsPage() {
               return (
                 <CarouselItem
                   key={card.id}
-                  className="basis-full pl-4 lg:basis-auto"
+                  className="basis-full !pl-0 pr-4 sm:basis-auto"
                 >
                   <FlippableManagedCard
                     card={card}
@@ -510,8 +564,8 @@ export default function CardsPage() {
               );
             })}
           </CarouselContent>
-          <CarouselPrevious className="absolute -left-12 z-50 hidden bg-background/80 lg:-left-16 lg:inline-flex" />
-          <CarouselNext className="absolute -right-12 z-50 hidden bg-background/80 lg:-right-16 lg:inline-flex" />
+          <CarouselPrevious className="absolute !left-2 z-50 hidden bg-background/90 lg:inline-flex" />
+          <CarouselNext className="absolute !right-2 z-50 hidden bg-background/90 lg:inline-flex" />
         </Carousel>
 
         {!cards.length ? (
@@ -557,6 +611,8 @@ export default function CardsPage() {
         </CardHeader>
 
         <CardContent className="pt-4">
+          <TopCategories transactions={selectedCardTransactions} />
+
           <div className="space-y-2 md:hidden">
             {selectedCardTransactions.length ? (
               selectedCardTransactions.map((transaction) => {
