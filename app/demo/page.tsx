@@ -1,4 +1,5 @@
 import { Badge } from "@/components/ui/badge";
+import { MobileTransactionItem } from "@/components/finance/MobileTransactionItem";
 import { Button } from "@/components/ui/button";
 import {
   Card,
@@ -156,7 +157,7 @@ const transactions = [
 
 function StaticSidebar() {
   return (
-    <aside className="hidden h-screen w-64 shrink-0 border-r border-zinc-800 bg-zinc-950 p-4 lg:flex lg:flex-col">
+    <aside className="hidden h-screen w-64 shrink-0 border-r border-zinc-800 bg-zinc-950 p-4 md:flex md:flex-col">
       <div className="flex h-14 items-center gap-3 px-2">
         <span className="flex size-9 items-center justify-center rounded-lg bg-emerald-500 text-zinc-950">
           <Landmark className="size-5" />
@@ -217,14 +218,14 @@ export default function DemoPage() {
         <StaticSidebar />
 
         <div className="min-w-0 flex-1">
-          <header className="flex h-16 items-center justify-between border-b border-zinc-800 bg-zinc-950/95 px-4 sm:px-6 lg:px-8">
-            <div className="flex items-center gap-3 lg:hidden">
+          <header className="fixed inset-x-0 top-0 z-50 flex h-16 items-center justify-between border-b border-zinc-800 bg-zinc-950/90 px-4 backdrop-blur-xl md:static md:px-6 lg:px-8">
+            <div className="flex items-center gap-3 md:hidden">
               <span className="flex size-9 items-center justify-center rounded-lg bg-emerald-500 text-zinc-950">
                 <Landmark className="size-5" />
               </span>
               <span className="font-semibold">Finync Demo</span>
             </div>
-            <div className="hidden items-center gap-2 text-sm text-zinc-500 lg:flex">
+            <div className="hidden items-center gap-2 text-sm text-zinc-500 md:flex">
               <ShieldCheck className="size-4 text-emerald-400" />
               Visualização pública com dados simulados
             </div>
@@ -241,9 +242,9 @@ export default function DemoPage() {
             </div>
           </header>
 
-          <div className="h-[calc(100vh-4rem)] overflow-y-auto">
-            <div className="mx-auto flex w-full max-w-[1440px] flex-col gap-8 px-4 py-6 sm:px-6 lg:px-8 lg:py-8">
-              <section className="flex flex-col justify-between gap-5 sm:flex-row sm:items-center">
+          <div className="h-screen overflow-y-auto pb-24 pt-16 md:h-[calc(100vh-4rem)] md:pb-0 md:pt-0">
+            <div className="mx-auto flex w-full max-w-lg flex-col gap-6 px-4 py-6 md:max-w-[1440px] md:gap-8 md:px-6 lg:px-8 lg:py-8">
+              <section className="flex items-start justify-between gap-4">
                 <div>
                   <Badge
                     variant="outline"
@@ -251,22 +252,22 @@ export default function DemoPage() {
                   >
                     Modo demonstração
                   </Badge>
-                  <h1 className="text-3xl font-bold text-zinc-50">Visão Geral</h1>
+                  <h1 className="text-2xl font-bold text-zinc-50 md:text-3xl">Visão Geral</h1>
                   <p className="mt-2 text-sm text-zinc-400">
                     Uma visão completa da sua vida financeira, sem planilhas.
                   </p>
                 </div>
-                <Button disabled className="h-11 bg-emerald-600 px-5 text-white opacity-70">
+                <Button disabled className="hidden h-11 bg-emerald-600 px-5 text-white opacity-70 sm:inline-flex">
                   Nova movimentação
                 </Button>
               </section>
 
-              <section className="flex justify-center border-y border-zinc-800 py-5">
-                <div className="flex w-full max-w-md items-center justify-between rounded-full border border-zinc-800 bg-zinc-900/70 px-4 py-3">
+              <section className="flex justify-center border-y border-zinc-800 py-4 md:py-5">
+                <div className="flex w-full max-w-md items-center justify-between gap-2 rounded-full border border-zinc-800 bg-zinc-900/70 px-3 py-2.5 sm:px-4 sm:py-3">
                   <ChevronLeft className="size-5 text-zinc-600" />
-                  <span className="text-sm text-zinc-600">Maio</span>
-                  <strong className="text-xl text-emerald-300">Junho 2026</strong>
-                  <span className="text-sm text-zinc-600">Julho</span>
+                  <span className="hidden text-sm text-zinc-600 min-[390px]:inline">Maio</span>
+                  <strong className="rounded-full border border-emerald-500/25 bg-emerald-500/10 px-4 py-2 text-base text-emerald-300 min-[390px]:text-lg">Junho 2026</strong>
+                  <span className="hidden text-sm text-zinc-600 min-[390px]:inline">Julho</span>
                   <ChevronRight className="size-5 text-zinc-600" />
                 </div>
               </section>
@@ -280,12 +281,15 @@ export default function DemoPage() {
                   <span className="text-xs text-zinc-600">Atualizado hoje, 09:42</span>
                 </div>
 
-                <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-5">
-                  {summary.map((item) => {
+                <div className="grid grid-cols-2 gap-3 xl:grid-cols-5">
+                  {summary.map((item, index) => {
                     const Icon = item.icon;
 
                     return (
-                      <Card key={item.label} className="border-zinc-800 bg-zinc-900/55 shadow-none">
+                      <Card
+                        key={item.label}
+                        className={`${index === 0 ? "col-span-2 xl:col-span-1" : ""} min-h-32 rounded-2xl border-zinc-800 bg-zinc-900/55 shadow-none`}
+                      >
                         <CardHeader className="gap-3 p-4 pb-2">
                           <div className="flex items-center justify-between">
                             <CardDescription className="text-xs text-zinc-400">
@@ -293,7 +297,7 @@ export default function DemoPage() {
                             </CardDescription>
                             <Icon className={`size-4 ${item.color}`} />
                           </div>
-                          <CardTitle className={`text-xl font-semibold ${item.color}`}>
+                          <CardTitle className={`text-base font-semibold sm:text-xl ${item.color}`}>
                             {item.value}
                           </CardTitle>
                         </CardHeader>
@@ -317,12 +321,12 @@ export default function DemoPage() {
                     </div>
                     <CreditCard className="size-5 text-zinc-500" />
                   </CardHeader>
-                  <CardContent className="overflow-x-auto p-5">
-                    <div className="flex min-w-max gap-4">
+                  <CardContent className="p-4 sm:p-5">
+                    <div className="grid gap-4 md:flex md:min-w-max">
                       {cards.map((card) => (
                         <article
                           key={card.name}
-                          className={`h-[190px] w-[310px] shrink-0 rounded-xl border border-l-4 border-zinc-800 ${card.accent} bg-zinc-950 p-5`}
+                          className={`h-[190px] w-full shrink-0 rounded-2xl border border-l-4 border-zinc-800 ${card.accent} bg-zinc-950 p-5 md:w-[310px]`}
                         >
                           <div className="flex items-start justify-between">
                             <div>
@@ -345,7 +349,7 @@ export default function DemoPage() {
                         </article>
                       ))}
 
-                      <article className="h-[190px] w-[270px] shrink-0 rounded-xl border border-l-4 border-zinc-800 border-l-blue-500 bg-zinc-950 p-5">
+                      <article className="h-[190px] w-full shrink-0 rounded-2xl border border-l-4 border-zinc-800 border-l-blue-500 bg-zinc-950 p-5 md:w-[270px]">
                         <span className="flex size-9 items-center justify-center rounded-lg bg-blue-500/10 text-blue-300">
                           <CalendarDays className="size-4" />
                         </span>
@@ -356,7 +360,7 @@ export default function DemoPage() {
                         </div>
                       </article>
 
-                      <article className="h-[190px] w-[270px] shrink-0 rounded-xl border border-l-4 border-zinc-800 border-l-emerald-500 bg-zinc-950 p-5">
+                      <article className="h-[190px] w-full shrink-0 rounded-2xl border border-l-4 border-zinc-800 border-l-emerald-500 bg-zinc-950 p-5 md:w-[270px]">
                         <span className="flex size-9 items-center justify-center rounded-lg bg-emerald-500/10 text-emerald-300">
                           <QrCode className="size-4" />
                         </span>
@@ -413,7 +417,19 @@ export default function DemoPage() {
                       28 no mês
                     </Badge>
                   </CardHeader>
-                  <div className="overflow-x-auto">
+                  <div className="space-y-2 p-3 md:hidden">
+                    {transactions.map((transaction) => (
+                      <MobileTransactionItem
+                        key={`${transaction.date}-${transaction.description}`}
+                        title={transaction.description}
+                        category={transaction.category}
+                        date={transaction.date}
+                        amount={transaction.amount}
+                        positive={transaction.income}
+                      />
+                    ))}
+                  </div>
+                  <div className="hidden overflow-x-auto md:block">
                     <Table className="min-w-[720px]">
                       <TableHeader className="bg-zinc-950/70">
                         <TableRow className="border-zinc-800 hover:bg-transparent">
@@ -486,14 +502,14 @@ export default function DemoPage() {
                 </Card>
               </section>
 
-              <section className="flex flex-col items-center justify-between gap-5 rounded-xl border border-emerald-500/20 bg-emerald-500/[0.06] p-6 text-center sm:flex-row sm:text-left">
+              <section className="flex flex-col items-center justify-between gap-5 rounded-2xl border border-emerald-500/20 bg-emerald-500/[0.06] p-6 text-center sm:flex-row sm:text-left">
                 <div>
                   <p className="text-lg font-semibold">Gostou do que viu?</p>
                   <p className="mt-1 text-sm text-zinc-400">
                     Crie sua conta e comece a organizar suas finanças com seus próprios dados.
                   </p>
                 </div>
-                <Button className="h-11 shrink-0 bg-emerald-600 px-6 text-white hover:bg-emerald-700" asChild>
+                <Button className="h-12 w-full max-w-xs shrink-0 bg-emerald-600 px-6 text-white hover:bg-emerald-700 sm:w-auto" asChild>
                   <Link href="/signup">Começar grátis</Link>
                 </Button>
               </section>
@@ -508,6 +524,24 @@ export default function DemoPage() {
           </div>
         </div>
       </div>
+
+      <nav className="fixed inset-x-0 bottom-0 z-50 border-t border-white/[0.08] bg-black/80 px-2 pb-[calc(env(safe-area-inset-bottom)+8px)] pt-2 backdrop-blur-xl md:hidden">
+        <div className="mx-auto grid max-w-lg grid-cols-5 gap-1">
+          {navigation.slice(0, 5).map((item) => {
+            const Icon = item.icon;
+
+            return (
+              <div
+                key={item.label}
+                className={`flex min-h-14 flex-col items-center justify-center gap-1 rounded-xl px-1 text-[10px] font-medium ${item.active ? "bg-emerald-500/10 text-emerald-300" : "text-zinc-500"}`}
+              >
+                <Icon className="size-5" />
+                <span className="max-w-full truncate">{item.label}</span>
+              </div>
+            );
+          })}
+        </div>
+      </nav>
     </main>
   );
 }

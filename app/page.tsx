@@ -77,7 +77,7 @@ export default async function Home() {
   return (
     <main className="min-h-screen overflow-x-hidden bg-zinc-950 text-zinc-50">
       <header className="relative z-50 border-b border-white/[0.08] bg-zinc-950/90 backdrop-blur-xl">
-        <div className="mx-auto flex h-20 w-full max-w-7xl items-center justify-between px-5 sm:px-8 lg:px-10">
+        <div className="mx-auto flex h-16 w-full max-w-7xl items-center justify-between px-4 sm:h-20 sm:px-8 lg:px-10">
           <Link href="/" className="flex items-center gap-3" aria-label="Finync">
             <span className="flex size-10 items-center justify-center rounded-lg bg-emerald-400 text-zinc-950">
               <Landmark className="size-5" strokeWidth={2.2} />
@@ -118,39 +118,39 @@ export default async function Home() {
         <div className="pointer-events-none absolute inset-0 opacity-30 [background-image:linear-gradient(rgba(255,255,255,0.035)_1px,transparent_1px),linear-gradient(90deg,rgba(255,255,255,0.035)_1px,transparent_1px)] [background-size:72px_72px]" />
         <div className="pointer-events-none absolute inset-x-0 top-0 h-px bg-emerald-400/60" />
 
-        <div className="relative z-10 mx-auto flex w-full max-w-7xl flex-col items-center px-5 pb-10 pt-16 text-center sm:px-8 sm:pt-20 lg:px-10 lg:pt-24">
+        <div className="relative z-10 mx-auto flex w-full max-w-7xl flex-col items-center px-4 pb-12 pt-12 text-center sm:px-8 sm:pt-20 lg:px-10 lg:pt-24">
           <div className="inline-flex items-center gap-2 rounded-full border border-white/10 bg-white/[0.05] px-3 py-1.5 text-xs font-medium text-zinc-300">
             <ScanLine className="size-3.5 text-emerald-400" />
             Sua vida financeira, finalmente legível
           </div>
 
-          <h1 className="mt-7 max-w-5xl text-5xl font-semibold leading-[1.02] sm:text-7xl lg:text-[88px]">
+          <h1 className="mt-6 max-w-5xl text-4xl font-semibold leading-[1.06] sm:mt-7 sm:text-7xl sm:leading-[1.02] lg:text-[88px]">
             Assuma o controle financeiro sem planilhas.
           </h1>
 
-          <p className="mt-7 max-w-2xl text-base leading-7 text-zinc-400 sm:text-lg sm:leading-8">
+          <p className="mt-5 max-w-2xl text-[15px] leading-7 text-zinc-400 sm:mt-7 sm:text-lg sm:leading-8">
             Importe sua fatura, organize responsáveis e entenda o seu dinheiro
             em um painel direto, preciso e construído para o dia a dia.
           </p>
 
-          <div className="mt-9 flex w-full flex-col justify-center gap-3 sm:w-auto sm:flex-row">
+          <div className="mt-8 flex w-full max-w-xs flex-col justify-center gap-3 sm:mt-9 sm:max-w-none sm:flex-row">
             <Link
               href="/signup"
-              className="inline-flex h-12 items-center justify-center gap-2 rounded-lg bg-emerald-400 px-6 text-sm font-semibold text-zinc-950 transition-colors hover:bg-emerald-300"
+              className="inline-flex h-12 w-full items-center justify-center gap-2 rounded-xl bg-emerald-400 px-6 text-sm font-semibold text-zinc-950 transition-colors hover:bg-emerald-300 sm:w-auto"
             >
               Começar grátis
               <ArrowRight className="size-4" />
             </Link>
             <Link
               href="/demo"
-              className="inline-flex h-12 items-center justify-center gap-2 rounded-lg border border-white/12 bg-zinc-950 px-6 text-sm font-semibold text-white transition-colors hover:bg-white/[0.06]"
+              className="inline-flex h-12 w-full items-center justify-center gap-2 rounded-xl border border-white/12 bg-zinc-950 px-6 text-sm font-semibold text-white transition-colors hover:bg-white/[0.06] sm:w-auto"
             >
               Ver painel demo
               <ChevronRight className="size-4 text-zinc-500" />
             </Link>
           </div>
 
-          <div className="mt-14 w-full max-w-6xl overflow-hidden rounded-lg border border-white/10 bg-zinc-900/90 text-left shadow-2xl shadow-black/40 sm:mt-16">
+          <div className="mt-12 w-full max-w-6xl overflow-hidden rounded-2xl border border-white/10 bg-zinc-900/90 text-left shadow-2xl shadow-black/40 sm:mt-16">
             <div className="flex h-12 items-center justify-between border-b border-white/[0.08] px-4 sm:px-5">
               <div className="flex items-center gap-2">
                 <span className="size-2 rounded-full bg-emerald-400" />
@@ -162,24 +162,24 @@ export default async function Home() {
               </div>
             </div>
 
-            <div className="grid gap-px bg-white/[0.08] sm:grid-cols-3">
-              <div className="bg-zinc-900 p-5 sm:p-6">
+            <div className="grid grid-cols-2 gap-px bg-white/[0.08] sm:grid-cols-3">
+              <div className="col-span-2 bg-zinc-900 p-5 sm:col-span-1 sm:p-6">
                 <p className="text-xs text-zinc-500">Saldo disponível</p>
                 <p className="mt-2 text-2xl font-semibold text-white sm:text-3xl">
                   R$ 4.380,20
                 </p>
                 <p className="mt-3 text-xs text-emerald-400">+8,4% neste mês</p>
               </div>
-              <div className="bg-zinc-900 p-5 sm:p-6">
+              <div className="bg-zinc-900 p-4 sm:p-6">
                 <p className="text-xs text-zinc-500">Fatura projetada</p>
-                <p className="mt-2 text-2xl font-semibold text-white sm:text-3xl">
+                <p className="mt-2 text-lg font-semibold text-white sm:text-3xl">
                   R$ 2.146,80
                 </p>
                 <p className="mt-3 text-xs text-zinc-500">Fecha em 8 dias</p>
               </div>
-              <div className="bg-zinc-900 p-5 sm:p-6">
+              <div className="bg-zinc-900 p-4 sm:p-6">
                 <p className="text-xs text-zinc-500">Contas pendentes</p>
-                <p className="mt-2 text-2xl font-semibold text-white sm:text-3xl">
+                <p className="mt-2 text-lg font-semibold text-white sm:text-3xl">
                   R$ 684,00
                 </p>
                 <p className="mt-3 text-xs text-zinc-500">3 lançamentos</p>
@@ -230,11 +230,11 @@ export default async function Home() {
         </div>
       </section>
 
-      <section id="recursos" className="border-b border-white/[0.08] py-24 sm:py-32">
-        <div className="mx-auto w-full max-w-7xl px-5 sm:px-8 lg:px-10">
+      <section id="recursos" className="border-b border-white/[0.08] py-16 sm:py-32">
+        <div className="mx-auto w-full max-w-7xl px-4 sm:px-8 lg:px-10">
           <div className="max-w-3xl">
             <p className="text-sm font-semibold text-emerald-400">O que muda na prática</p>
-            <h2 className="mt-4 text-4xl font-semibold leading-tight sm:text-5xl">
+            <h2 className="mt-4 text-3xl font-semibold leading-tight sm:text-5xl">
               Menos trabalho operacional. Mais contexto para decidir.
             </h2>
             <p className="mt-5 max-w-2xl text-base leading-7 text-zinc-400">
@@ -243,8 +243,8 @@ export default async function Home() {
             </p>
           </div>
 
-          <div className="mt-12 grid gap-4 lg:grid-cols-12">
-            <article className="overflow-hidden rounded-lg border border-white/10 bg-white/[0.04] p-6 lg:col-span-7 lg:p-8">
+          <div className="mt-10 grid gap-5 sm:mt-12 lg:grid-cols-12">
+            <article className="overflow-hidden rounded-2xl border border-white/10 bg-white/[0.04] p-5 sm:p-6 lg:col-span-7 lg:p-8">
               <div className="flex size-11 items-center justify-center rounded-lg bg-emerald-400 text-zinc-950">
                 <FileSpreadsheet className="size-5" />
               </div>
@@ -282,7 +282,7 @@ export default async function Home() {
               </div>
             </article>
 
-            <article className="rounded-lg border border-white/10 bg-white/[0.04] p-6 lg:col-span-5 lg:p-8">
+            <article className="rounded-2xl border border-white/10 bg-white/[0.04] p-5 sm:p-6 lg:col-span-5 lg:p-8">
               <div className="flex size-11 items-center justify-center rounded-lg bg-white/[0.08] text-emerald-400">
                 <CircleUserRound className="size-5" />
               </div>
@@ -319,7 +319,7 @@ export default async function Home() {
               </div>
             </article>
 
-            <article className="rounded-lg border border-white/10 bg-white/[0.04] p-6 lg:col-span-12 lg:p-8">
+            <article className="rounded-2xl border border-white/10 bg-white/[0.04] p-5 sm:p-6 lg:col-span-12 lg:p-8">
               <div className="grid gap-10 lg:grid-cols-[0.7fr_1.3fr] lg:items-center">
                 <div>
                   <div className="flex size-11 items-center justify-center rounded-lg bg-white/[0.08] text-emerald-400">
@@ -362,16 +362,16 @@ export default async function Home() {
         </div>
       </section>
 
-      <section id="como-funciona" className="border-b border-white/[0.08] py-24 sm:py-32">
-        <div className="mx-auto w-full max-w-7xl px-5 sm:px-8 lg:px-10">
+      <section id="como-funciona" className="border-b border-white/[0.08] py-16 sm:py-32">
+        <div className="mx-auto w-full max-w-7xl px-4 sm:px-8 lg:px-10">
           <div className="max-w-2xl">
             <p className="text-sm font-semibold text-emerald-400">Como funciona</p>
-            <h2 className="mt-4 text-4xl font-semibold leading-tight sm:text-5xl">
+            <h2 className="mt-4 text-3xl font-semibold leading-tight sm:text-5xl">
               Da fatura ao resumo em três passos.
             </h2>
           </div>
 
-          <div className="mt-14 grid gap-0 border-y border-white/10 md:grid-cols-3">
+          <div className="mt-10 grid gap-0 border-y border-white/10 sm:mt-14 md:grid-cols-3">
             {steps.map((step, index) => (
               <article
                 key={step.number}
@@ -386,15 +386,15 @@ export default async function Home() {
         </div>
       </section>
 
-      <section id="seguranca" className="py-24 sm:py-32">
-        <div className="mx-auto w-full max-w-7xl px-5 sm:px-8 lg:px-10">
-          <div className="grid gap-8 rounded-lg border border-white/10 bg-white/[0.04] p-7 sm:p-10 lg:grid-cols-[1fr_auto] lg:items-center lg:p-14">
+      <section id="seguranca" className="py-16 sm:py-32">
+        <div className="mx-auto w-full max-w-7xl px-4 sm:px-8 lg:px-10">
+          <div className="grid gap-8 rounded-2xl border border-white/10 bg-white/[0.04] p-6 sm:p-10 lg:grid-cols-[1fr_auto] lg:items-center lg:p-14">
             <div className="max-w-3xl">
               <div className="flex items-center gap-2 text-sm font-medium text-emerald-400">
                 <LockKeyhole className="size-4" />
                 Privacidade por padrão
               </div>
-              <h2 className="mt-5 text-4xl font-semibold leading-tight sm:text-5xl">
+              <h2 className="mt-5 text-3xl font-semibold leading-tight sm:text-5xl">
                 Seu dinheiro merece uma visão melhor.
               </h2>
               <p className="mt-5 max-w-2xl text-base leading-7 text-zinc-400">
@@ -405,7 +405,7 @@ export default async function Home() {
 
             <Link
               href="/signup"
-              className="inline-flex h-14 items-center justify-center gap-2 rounded-lg bg-emerald-400 px-7 text-base font-semibold text-zinc-950 transition-colors hover:bg-emerald-300"
+              className="inline-flex h-14 w-full max-w-xs items-center justify-center gap-2 rounded-xl bg-emerald-400 px-7 text-base font-semibold text-zinc-950 transition-colors hover:bg-emerald-300 lg:w-auto"
             >
               Criar minha conta
               <ArrowRight className="size-5" />
