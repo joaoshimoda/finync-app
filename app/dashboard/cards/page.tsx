@@ -509,9 +509,9 @@ export default function CardsPage() {
         </div>
       </div>
 
-      <section className="min-w-0 space-y-4 overflow-visible px-1 sm:px-2">
+      <section className="min-w-0 space-y-4 overflow-visible px-2 py-2 sm:px-4">
         <Carousel opts={{ align: "start", dragFree: true }} className="min-w-0 w-full">
-          <CarouselContent className="!ml-0 px-2 py-4">
+          <CarouselContent className="!ml-0 px-3 py-5 sm:px-4">
             {cards.map((card) => {
               const cardTransactions = monthlyTransactions.filter(
                 (transaction) => transaction.cardId === card.id,
