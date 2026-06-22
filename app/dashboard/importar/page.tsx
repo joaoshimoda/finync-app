@@ -7,6 +7,7 @@ import { useDropzone } from "react-dropzone";
 import { toast } from "sonner";
 
 import { Button } from "@/components/ui/button";
+import { MobileTransactionItem } from "@/components/finance/MobileTransactionItem";
 import { Checkbox } from "@/components/ui/checkbox";
 import {
   Card,
@@ -754,9 +755,9 @@ export default function ImportarPage() {
   }
 
   return (
-    <div className="flex w-full flex-col gap-8">
+    <div className="flex w-full flex-col gap-6 md:gap-8">
       <header className="space-y-2">
-        <h1 className="text-3xl font-semibold tracking-tight text-zinc-50">
+        <h1 className="text-2xl font-bold tracking-tight text-zinc-50 md:text-3xl">
           Importar Fatura
         </h1>
         <p className="text-sm text-zinc-400">
@@ -871,7 +872,102 @@ export default function ImportarPage() {
             </div>
 
             <div className="overflow-hidden">
-              <Table className="w-full table-fixed text-xs">
+              <div className="space-y-3 p-3 md:hidden">
+                {previewRows.map((transaction, index) => (
+                  <div
+                    key={`${transaction.description}-${index}`}
+                    className="rounded-2xl border border-zinc-800 bg-zinc-900/50 p-3"
+                  >
+                    <MobileTransactionItem
+                      className="min-h-16 rounded-none border-0 bg-transparent p-0"
+                      title={transaction.description}
+                      category={
+                        transaction.type === "credit"
+                          ? CARD_CREDIT_ADJUSTMENT_CATEGORY
+                          : transaction.category || "Sem categoria"
+                      }
+                      date={formatPreviewDate(transaction.date)}
+                      amount={brlFormatter.format(transaction.amount)}
+                      positive={transaction.type === "credit"}
+                      trailing={
+                        <Button
+                          type="button"
+                          variant="ghost"
+                          size="icon"
+                          className="size-11 rounded-xl"
+                          onClick={() => openSplitDialog(index)}
+                          disabled={transaction.type === "credit"}
+                          aria-label="Dividir ou atribuir gasto"
+                        >
+                          <Split className="size-5" />
+                        </Button>
+                      }
+                    />
+                    <div className="mt-3 grid gap-3 border-t border-zinc-800 pt-3">
+                      {transaction.type !== "credit" ? (
+                        <Select
+                          value={transaction.category || "__no_category__"}
+                          onValueChange={(nextCategory) =>
+                            setParsedData((currentRows) =>
+                              currentRows.map((item, itemIndex) =>
+                                itemIndex === index
+                                  ? {
+                                      ...item,
+                                      category:
+                                        nextCategory === "__no_category__"
+                                          ? null
+                                          : nextCategory,
+                                    }
+                                  : item,
+                              ),
+                            )
+                          }
+                        >
+                          <SelectTrigger className="h-11 border-zinc-700 bg-zinc-950 text-zinc-100">
+                            <SelectValue placeholder="Categoria" />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="__no_category__">Sem categoria</SelectItem>
+                            {categoryOptions.map((category) => (
+                              <SelectItem key={category} value={category}>
+                                {category}
+                              </SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                      ) : null}
+                      <div className="flex items-center justify-between text-xs text-zinc-400">
+                        <span>{getTransactionOwnerLabel(transaction)}</span>
+                        {transaction.installmentsTotal > 1 &&
+                        transaction.type !== "credit" ? (
+                          <label className="flex min-h-10 items-center gap-2">
+                            <Checkbox
+                              className="size-5"
+                              checked={transaction.projectFutureInstallments}
+                              onCheckedChange={(checked) =>
+                                setParsedData((currentRows) =>
+                                  currentRows.map((item, itemIndex) =>
+                                    itemIndex === index
+                                      ? {
+                                          ...item,
+                                          projectFutureInstallments:
+                                            checked === true,
+                                        }
+                                      : item,
+                                  ),
+                                )
+                              }
+                            />
+                            Projetar parcelas
+                          </label>
+                        ) : null}
+                      </div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+
+              <Table className="hidden w-full table-fixed text-xs md:table">
                 <TableHeader className="bg-muted/30">
                   <TableRow>
                     <TableHead className="w-[64px] px-3">Data</TableHead>

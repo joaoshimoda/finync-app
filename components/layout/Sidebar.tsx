@@ -58,7 +58,7 @@ export function Sidebar() {
   }
 
   return (
-    <aside className="hidden h-screen w-72 shrink-0 flex-col justify-between border-r border-white/[0.08] bg-white/[0.045] px-5 py-6 shadow-2xl shadow-black/20 backdrop-blur-2xl lg:sticky lg:top-0 lg:flex">
+    <aside className="hidden h-screen w-72 shrink-0 flex-col justify-between border-r border-white/[0.08] bg-white/[0.045] px-5 py-6 shadow-2xl shadow-black/20 backdrop-blur-2xl md:sticky md:top-0 md:flex">
       <Link href="/dashboard" className="mb-10 flex items-center gap-3 px-2">
         <div className="flex h-11 w-11 items-center justify-center rounded-2xl border border-brand-500/20 bg-brand-500/10 text-lg font-bold text-brand-100">
           <Landmark className="h-5 w-5 text-brand-300" />

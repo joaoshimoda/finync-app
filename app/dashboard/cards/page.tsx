@@ -14,6 +14,7 @@ import { toast } from "sonner";
 
 import { AddCardModal } from "@/components/modals/AddCardModal";
 import { TransactionDescription } from "@/components/finance/TransactionDescription";
+import { MobileTransactionItem } from "@/components/finance/MobileTransactionItem";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -433,10 +434,10 @@ export default function CardsPage() {
   }
 
   return (
-    <div className="flex w-full flex-col gap-8">
-      <div className="flex flex-col items-start justify-between gap-5 sm:flex-row sm:items-center">
+    <div className="flex w-full flex-col gap-6 md:gap-8">
+      <div className="flex items-start justify-between gap-4">
         <div>
-          <h1 className="text-3xl font-bold tracking-tight">
+          <h1 className="text-2xl font-bold tracking-tight md:text-3xl">
             Meus Cartões
           </h1>
           <p className="mt-2 text-sm text-muted-foreground">
@@ -447,11 +448,12 @@ export default function CardsPage() {
         <div className="flex items-center gap-3">
           <Button
             type="button"
+            aria-label="Adicionar cartão"
             onClick={openCreateModal}
-            className="h-12 gap-2 bg-emerald-600 px-6 text-base font-semibold text-white hover:bg-emerald-700"
+            className="h-11 gap-2 bg-emerald-600 px-3.5 text-sm font-semibold text-white hover:bg-emerald-700 md:h-12 md:px-6 md:text-base"
           >
             <PlusCircle className="size-5" />
-            Adicionar Cartão
+            <span className="hidden min-[410px]:inline">Adicionar Cartão</span>
           </Button>
         </div>
       </div>
@@ -558,7 +560,31 @@ export default function CardsPage() {
         </CardHeader>
 
         <CardContent className="pt-4">
-          <Table className="min-w-[560px] lg:min-w-full">
+          <div className="space-y-2 md:hidden">
+            {selectedCardTransactions.length ? (
+              selectedCardTransactions.map((transaction) => {
+                const isPositive = isCardCreditAdjustment(transaction);
+
+                return (
+                  <MobileTransactionItem
+                    key={transaction.id}
+                    title={<TransactionDescription transaction={transaction} />}
+                    category={transaction.category || "Sem categoria"}
+                    date={formatDateOnlyBR(transaction.date)}
+                    amount={`${isPositive ? "+" : "-"}${brlFormatter.format(transaction.amount)}`}
+                    positive={isPositive}
+                  />
+                );
+              })
+            ) : (
+              <div className="flex min-h-40 flex-col items-center justify-center text-center text-sm text-muted-foreground">
+                <Receipt className="mb-3 size-8" />
+                Nenhuma transação deste cartão no mês atual.
+              </div>
+            )}
+          </div>
+
+          <Table className="hidden min-w-[560px] md:table lg:min-w-full">
             <TableHeader className="bg-muted/30">
               <TableRow className="hover:bg-transparent">
                 <TableHead>Data</TableHead>

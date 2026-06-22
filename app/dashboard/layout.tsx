@@ -2,6 +2,7 @@
 
 import { BottomNav } from "@/components/layout/BottomNav";
 import { Sidebar } from "@/components/layout/Sidebar";
+import { MobileTopBar } from "@/components/layout/MobileTopBar";
 import { supabase } from "@/lib/supabaseClient";
 import { useFinanceStore } from "@/store/useFinanceStore";
 import { useRouter } from "next/navigation";
@@ -60,8 +61,9 @@ export default function DashboardLayout({
       <div className="pointer-events-none fixed inset-0 bg-[linear-gradient(rgba(255,255,255,0.025)_1px,transparent_1px),linear-gradient(90deg,rgba(255,255,255,0.025)_1px,transparent_1px)] bg-[size:72px_72px] opacity-35" />
       <div className="relative flex h-screen w-full">
         <Sidebar />
-        <main className="h-screen min-w-0 flex-1 overflow-x-hidden overflow-y-auto px-4 py-6 pb-24 sm:px-6 lg:px-8 lg:py-8 lg:pb-8">
-          <div className="mx-auto w-full max-w-[1440px]">
+        <MobileTopBar />
+        <main className="h-screen min-w-0 flex-1 overflow-x-hidden overflow-y-auto px-4 pb-28 pt-20 sm:px-5 md:px-6 md:pb-8 md:pt-8 lg:px-8">
+          <div className="mx-auto w-full max-w-lg md:max-w-[1440px]">
             {children}
           </div>
         </main>

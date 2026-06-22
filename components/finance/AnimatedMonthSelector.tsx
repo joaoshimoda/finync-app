@@ -51,7 +51,7 @@ export function AnimatedMonthSelector({
   const nextMonth = getMonthDate(currentMonth, currentYear, 1);
 
   return (
-    <div className="mx-auto flex w-full max-w-lg flex-row items-center justify-center gap-3 overflow-hidden rounded-full border border-border/50 bg-muted/30 px-4 py-2 shadow-inner lg:gap-5 lg:px-6 lg:py-1.5">
+    <div className="mx-auto flex w-full max-w-lg flex-row items-center justify-between gap-1 overflow-hidden rounded-full border border-border/50 bg-muted/30 px-2 py-2 shadow-inner min-[390px]:gap-2 min-[390px]:px-3 lg:gap-5 lg:px-6 lg:py-1.5">
       <Button
         type="button"
         variant="ghost"
@@ -66,14 +66,14 @@ export function AnimatedMonthSelector({
       <button
         type="button"
         onClick={onPreviousMonth}
-        className="min-w-12 scale-75 cursor-pointer px-2 py-2 text-sm font-medium opacity-40 blur-[1px] transition-all duration-300 ease-in-out hover:scale-90 hover:opacity-80 hover:blur-none lg:text-base"
+        className="hidden min-w-12 scale-75 cursor-pointer px-2 py-2 text-sm font-medium opacity-40 blur-[1px] transition-all duration-300 ease-in-out hover:scale-90 hover:opacity-80 hover:blur-none min-[390px]:block lg:text-base"
       >
         {formatShortMonth(previousMonth)}
       </button>
 
       <div
         className={cn(
-          "flex min-w-36 scale-105 items-center justify-center whitespace-nowrap rounded-full border border-emerald-500/25 bg-emerald-500/10 px-4 py-2 text-lg font-bold text-emerald-300 shadow-[0_0_24px_rgba(16,185,129,0.08)] opacity-100 blur-none transition-all duration-300 ease-in-out lg:min-w-44 lg:text-xl",
+          "flex min-w-0 flex-1 scale-[1.02] items-center justify-center whitespace-nowrap rounded-full border border-emerald-500/25 bg-emerald-500/10 px-3 py-2 text-base font-bold text-emerald-300 shadow-[0_0_24px_rgba(16,185,129,0.08)] opacity-100 blur-none transition-all duration-300 ease-in-out min-[390px]:min-w-36 min-[390px]:flex-none min-[390px]:text-lg lg:min-w-44 lg:text-xl",
           isLoading && "opacity-70",
         )}
       >
@@ -83,7 +83,7 @@ export function AnimatedMonthSelector({
       <button
         type="button"
         onClick={onNextMonth}
-        className="min-w-12 scale-75 cursor-pointer px-2 py-2 text-sm font-medium opacity-40 blur-[1px] transition-all duration-300 ease-in-out hover:scale-90 hover:opacity-80 hover:blur-none lg:text-base"
+        className="hidden min-w-12 scale-75 cursor-pointer px-2 py-2 text-sm font-medium opacity-40 blur-[1px] transition-all duration-300 ease-in-out hover:scale-90 hover:opacity-80 hover:blur-none min-[390px]:block lg:text-base"
       >
         {formatShortMonth(nextMonth)}
       </button>

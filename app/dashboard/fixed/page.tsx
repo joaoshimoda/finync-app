@@ -16,6 +16,7 @@ import { toast } from "sonner";
 
 import { RecurringDeleteDialog } from "@/components/finance/RecurringDeleteDialog";
 import { TransactionDescription } from "@/components/finance/TransactionDescription";
+import { MobileTransactionItem } from "@/components/finance/MobileTransactionItem";
 import { AddTransactionModal } from "@/components/modals/AddTransactionModal";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -227,8 +228,88 @@ export default function FixedExpensesPage() {
 
   function renderTransactionTable(items: Transaction[]) {
     return (
-      <div className="overflow-x-auto border border-zinc-800 bg-zinc-950">
-        <Table className="min-w-[820px]">
+      <div className="overflow-hidden rounded-xl border border-zinc-800 bg-zinc-950">
+        <div className="space-y-2 p-3 md:hidden">
+          {items.length ? (
+            items.map((transaction) => {
+              const isPaid = transaction.status === "paid";
+
+              return (
+                <div
+                  key={transaction.id}
+                  className="rounded-2xl border border-zinc-800 bg-zinc-900/55 p-3"
+                >
+                  <MobileTransactionItem
+                    className="min-h-16 rounded-none border-0 bg-transparent p-0"
+                    title={<TransactionDescription transaction={transaction} />}
+                    category={transaction.category || "Sem categoria"}
+                    date={formatDateOnlyBR(transaction.date)}
+                    amount={`-${brlFormatter.format(transaction.amount)}`}
+                  />
+                  <div className="mt-3 flex items-center justify-between border-t border-zinc-800 pt-3">
+                    <button
+                      type="button"
+                      onClick={() => void togglePaymentStatus(transaction)}
+                      className="min-h-10 cursor-pointer"
+                    >
+                      <Badge
+                        variant="outline"
+                        className={
+                          isPaid
+                            ? "border-emerald-800 bg-emerald-950 text-emerald-300"
+                            : "border-amber-800 bg-amber-950 text-amber-300"
+                        }
+                      >
+                        {isPaid ? "Pago" : "Pendente"}
+                      </Badge>
+                    </button>
+                    <div className="flex items-center gap-1">
+                      <Checkbox
+                        aria-label={`Selecionar ${transaction.description}`}
+                        checked={effectiveSelectedIds.includes(transaction.id)}
+                        disabled={isPaid}
+                        onCheckedChange={() => toggleSelection(transaction.id)}
+                        className="mr-2 size-5 border-zinc-600"
+                      />
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="icon"
+                        className="size-11 rounded-xl text-zinc-400"
+                        onClick={() => openEditModal(transaction)}
+                        aria-label="Editar lançamento"
+                      >
+                        <Pencil className="size-5" />
+                      </Button>
+                      <RecurringDeleteDialog
+                        transaction={transaction}
+                        onDeleteSingle={(item) => handleDeleteTransaction(item.id)}
+                        onDeleteFuture={handleDeleteFutureTransactions}
+                      >
+                        <Button
+                          type="button"
+                          variant="ghost"
+                          size="icon"
+                          className="size-11 rounded-xl text-zinc-400 hover:text-red-300"
+                          aria-label="Excluir lançamento"
+                        >
+                          <Trash2 className="size-5" />
+                        </Button>
+                      </RecurringDeleteDialog>
+                    </div>
+                  </div>
+                </div>
+              );
+            })
+          ) : (
+            <div className="flex min-h-44 flex-col items-center justify-center gap-3 text-center text-sm text-zinc-500">
+              <CalendarX className="size-7" />
+              Nenhum lançamento recorrente neste período.
+            </div>
+          )}
+        </div>
+
+        <Table className="hidden min-w-[820px] md:table">
           <TableHeader>
             <TableRow className="border-zinc-800 bg-zinc-900/60 hover:bg-zinc-900/60">
               <TableHead className="w-12 px-4">
@@ -355,10 +436,10 @@ export default function FixedExpensesPage() {
 
   return (
     <>
-      <div className="flex w-full flex-col gap-8">
-        <header className="flex flex-col items-start justify-between gap-5 lg:flex-row lg:items-end">
+      <div className="flex w-full flex-col gap-6 md:gap-8">
+        <header className="flex items-start justify-between gap-4">
           <div className="max-w-2xl">
-            <h1 className="text-3xl font-semibold tracking-tight text-zinc-50">
+            <h1 className="text-2xl font-bold tracking-tight text-zinc-50 md:text-3xl">
               Contas e assinaturas
             </h1>
             <p className="mt-3 text-sm leading-6 text-zinc-400">
@@ -369,28 +450,29 @@ export default function FixedExpensesPage() {
 
           <Button
             type="button"
+            aria-label="Criar nova recorrência"
             onClick={openCreateModal}
-            className="h-12 gap-2 bg-emerald-600 px-6 text-base font-semibold text-white hover:bg-emerald-700"
+            className="h-11 gap-2 bg-emerald-600 px-3.5 text-sm font-semibold text-white hover:bg-emerald-700 md:h-12 md:px-6 md:text-base"
           >
             <PlusCircle className="size-5" />
-            Nova Recorrência
+            <span className="hidden min-[410px]:inline">Nova Recorrência</span>
           </Button>
         </header>
 
-        <section className="grid grid-cols-1 border-y border-zinc-800 sm:grid-cols-3">
-          <div className="px-1 py-5 sm:border-r sm:border-zinc-800 sm:px-6">
+        <section className="grid grid-cols-2 overflow-hidden rounded-2xl border border-zinc-800 sm:grid-cols-3">
+          <div className="col-span-2 border-b border-zinc-800 px-4 py-5 sm:col-span-1 sm:border-b-0 sm:border-r sm:px-6">
             <p className="text-sm text-zinc-500">Total do período</p>
             <strong className="mt-2 block text-2xl font-semibold text-zinc-100">
               {brlFormatter.format(totalAmount)}
             </strong>
           </div>
-          <div className="border-t border-zinc-800 px-1 py-5 sm:border-r sm:border-t-0 sm:px-6">
+          <div className="border-r border-zinc-800 px-4 py-5 sm:px-6">
             <p className="text-sm text-zinc-500">Pago</p>
             <strong className="mt-2 block text-2xl font-semibold text-emerald-300">
               {brlFormatter.format(paidAmount)}
             </strong>
           </div>
-          <div className="border-t border-zinc-800 px-1 py-5 sm:border-t-0 sm:px-6">
+          <div className="px-4 py-5 sm:px-6">
             <p className="text-sm text-zinc-500">Pendente</p>
             <strong className="mt-2 block text-2xl font-semibold text-amber-300">
               {brlFormatter.format(pendingAmount)}

@@ -19,6 +19,7 @@ import { toast } from "sonner";
 
 import { RecurringDeleteDialog } from "@/components/finance/RecurringDeleteDialog";
 import { TransactionDescription } from "@/components/finance/TransactionDescription";
+import { MobileTransactionItem } from "@/components/finance/MobileTransactionItem";
 import { AddIncomeModal } from "@/components/modals/AddIncomeModal";
 import { AddTransactionModal } from "@/components/modals/AddTransactionModal";
 import { Badge } from "@/components/ui/badge";
@@ -381,10 +382,10 @@ export default function TransactionsPage() {
   }
 
   return (
-    <div className="flex w-full flex-col gap-8">
-      <div className="flex flex-col items-start justify-between gap-4 lg:flex-row lg:items-center">
+    <div className="flex w-full flex-col gap-6 md:gap-8">
+      <div className="flex items-start justify-between gap-4">
         <div>
-          <h1 className="text-3xl font-bold tracking-tight">
+          <h1 className="text-2xl font-bold tracking-tight md:text-3xl">
             Transações
           </h1>
           <p className="mt-2 text-sm text-muted-foreground">
@@ -397,13 +398,14 @@ export default function TransactionsPage() {
           <DropdownMenuTrigger asChild>
             <Button
               type="button"
-              className="h-12 gap-2 bg-emerald-600 px-6 text-base font-semibold text-white hover:bg-emerald-700"
+              aria-label="Criar nova transação"
+              className="h-11 gap-2 bg-emerald-600 px-3.5 text-sm font-semibold text-white hover:bg-emerald-700 md:h-12 md:px-6 md:text-base"
             >
               <PlusCircle className="size-5" />
-              Nova Transação
+              <span className="hidden min-[410px]:inline">Nova Transação</span>
             </Button>
           </DropdownMenuTrigger>
-          <DropdownMenuContent align="end" className="w-72 p-2">
+          <DropdownMenuContent align="end" className="w-[calc(100vw-2rem)] max-w-72 p-2">
             <DropdownMenuItem
               className="flex cursor-pointer items-center gap-4 rounded-md p-3 hover:bg-muted"
               onClick={() => {
@@ -442,8 +444,8 @@ export default function TransactionsPage() {
         </DropdownMenu>
       </div>
 
-      <section className="grid grid-cols-2 gap-4 lg:grid-cols-3">
-        <div className="rounded-xl border border-border/50 bg-card/80 p-5 shadow-none transition-colors hover:bg-accent/10">
+      <section className="grid grid-cols-2 gap-3 lg:grid-cols-3 lg:gap-4">
+        <div className="min-h-28 rounded-2xl border border-border/50 bg-card/80 p-4 shadow-none transition-colors hover:bg-accent/10 md:p-5">
           <div className="flex items-center justify-between gap-4">
             <p className="text-sm text-muted-foreground">Total de Entradas</p>
             <ArrowUpRight className="size-4 text-emerald-400" />
@@ -453,7 +455,7 @@ export default function TransactionsPage() {
           </strong>
         </div>
 
-        <div className="rounded-xl border border-border/50 bg-card/80 p-5 shadow-none transition-colors hover:bg-accent/10">
+        <div className="min-h-28 rounded-2xl border border-border/50 bg-card/80 p-4 shadow-none transition-colors hover:bg-accent/10 md:p-5">
           <div className="flex items-center justify-between gap-4">
             <p className="text-sm text-muted-foreground">Total de Saídas</p>
             <ArrowDownRight className="size-4 text-red-400" />
@@ -463,7 +465,7 @@ export default function TransactionsPage() {
           </strong>
         </div>
 
-        <div className="rounded-xl border border-border/50 bg-card/80 p-5 shadow-none transition-colors hover:bg-accent/10">
+        <div className="col-span-2 min-h-28 rounded-2xl border border-border/50 bg-card/80 p-4 shadow-none transition-colors hover:bg-accent/10 lg:col-span-1 md:p-5">
           <div className="flex items-center justify-between gap-4">
             <p className="text-sm text-muted-foreground">Saldo Líquido</p>
             <Wallet className="size-4 text-brand-300" />
@@ -479,20 +481,20 @@ export default function TransactionsPage() {
         </div>
       </section>
 
-      <section className="flex flex-col gap-4 rounded-xl border border-border bg-muted/20 p-4 lg:flex-row lg:items-center lg:justify-between">
-        <div className="grid flex-1 grid-cols-1 gap-3 lg:grid-cols-4">
-          <div className="relative lg:col-span-2">
+      <section className="flex flex-col gap-3 rounded-2xl border border-border bg-muted/20 p-3.5 md:p-4 lg:flex-row lg:items-center lg:justify-between">
+        <div className="grid flex-1 grid-cols-2 gap-3 lg:grid-cols-4">
+          <div className="relative col-span-2 lg:col-span-2">
             <Search className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
             <Input
               value={searchTerm}
               onChange={(event) => setSearchTerm(event.target.value)}
               placeholder="Buscar por descrição"
-              className="pl-9"
+              className="h-11 pl-9"
             />
           </div>
 
           <Select value={categoryFilter} onValueChange={setCategoryFilter}>
-            <SelectTrigger>
+            <SelectTrigger className="h-11 w-full">
               <SelectValue placeholder="Categoria" />
             </SelectTrigger>
             <SelectContent>
@@ -509,7 +511,7 @@ export default function TransactionsPage() {
             value={typeFilter}
             onValueChange={(value) => setTypeFilter(value as TypeFilter)}
           >
-            <SelectTrigger>
+            <SelectTrigger className="h-11 w-full">
               <SelectValue placeholder="Tipo" />
             </SelectTrigger>
             <SelectContent>
@@ -591,7 +593,77 @@ export default function TransactionsPage() {
             </div>
           </div>
         ) : null}
-        <Table className="min-w-[760px] lg:min-w-full">
+        <div className="space-y-2 p-3 md:hidden">
+          {filteredTransactions.length ? (
+            filteredTransactions.map((transaction) => {
+              const categoryLabel =
+                transaction.category || getTransactionFallbackLabel(transaction);
+              const isPositive =
+                transaction.type === "income" ||
+                isCardCreditAdjustment(transaction);
+
+              return (
+                <div key={transaction.id} className="flex items-center gap-2">
+                  <Checkbox
+                    checked={selectedIds.includes(transaction.id)}
+                    onCheckedChange={(checked) =>
+                      toggleTransactionSelection(transaction.id, checked)
+                    }
+                    aria-label={`Selecionar ${transaction.description}`}
+                    className="size-5 shrink-0 border-zinc-600"
+                  />
+                  <MobileTransactionItem
+                    className="min-w-0 flex-1"
+                    title={<TransactionDescription transaction={transaction} />}
+                    category={categoryLabel}
+                    date={formatDateOnlyBR(transaction.date)}
+                    amount={`${isPositive ? "+" : "-"}${brlFormatter.format(transaction.amount)}`}
+                    positive={isPositive}
+                    trailing={
+                      <DropdownMenu>
+                        <DropdownMenuTrigger asChild>
+                          <Button
+                            type="button"
+                            variant="ghost"
+                            size="icon"
+                            className="size-10 rounded-xl"
+                            aria-label="Ações da transação"
+                          >
+                            <MoreHorizontal className="size-5" />
+                          </Button>
+                        </DropdownMenuTrigger>
+                        <DropdownMenuContent align="end" className="w-52 p-2">
+                          <DropdownMenuItem
+                            className="min-h-11 cursor-pointer rounded-lg"
+                            onClick={() => handleEditTransaction(transaction)}
+                          >
+                            <Pencil className="size-4" />
+                            Editar transação
+                          </DropdownMenuItem>
+                          <DropdownMenuItem
+                            variant="destructive"
+                            className="min-h-11 cursor-pointer rounded-lg"
+                            onClick={() => setDeleteTarget(transaction)}
+                          >
+                            <Trash2 className="size-4" />
+                            Excluir transação
+                          </DropdownMenuItem>
+                        </DropdownMenuContent>
+                      </DropdownMenu>
+                    }
+                  />
+                </div>
+              );
+            })
+          ) : (
+            <div className="flex min-h-44 flex-col items-center justify-center gap-2 text-center text-sm text-muted-foreground">
+              <SearchX className="size-7" />
+              Nenhuma transação encontrada para os filtros selecionados.
+            </div>
+          )}
+        </div>
+
+        <Table className="hidden min-w-[760px] md:table lg:min-w-full">
           <TableHeader className="bg-muted/30">
             <TableRow className="hover:bg-transparent">
               <TableHead className="w-12">

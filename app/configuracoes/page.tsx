@@ -402,9 +402,9 @@ export default function ConfiguracoesPage() {
   }
 
   return (
-    <div className="mx-auto flex w-full max-w-[1440px] flex-col gap-8 px-4 py-6 sm:px-6 lg:px-8 lg:py-8">
+    <div className="flex w-full flex-col gap-6 md:gap-8">
       <header className="max-w-2xl">
-        <h1 className="text-3xl font-bold tracking-tight text-white">
+        <h1 className="text-2xl font-bold tracking-tight text-white md:text-3xl">
           Sua conta, do seu jeito.
         </h1>
         <p className="mt-2 text-sm leading-6 text-zinc-400">
@@ -413,7 +413,7 @@ export default function ConfiguracoesPage() {
       </header>
 
       <Tabs defaultValue="perfil" className="w-full">
-        <TabsList className="grid w-full grid-cols-2 border border-zinc-800 bg-zinc-900/60 p-1 backdrop-blur sm:w-[680px] sm:grid-cols-4">
+        <TabsList className="grid h-auto w-full grid-cols-2 gap-1 rounded-2xl border border-zinc-800 bg-zinc-900/60 p-1 sm:w-[680px] sm:grid-cols-4">
           <TabsTrigger value="perfil">Meu Perfil</TabsTrigger>
           <TabsTrigger value="dependentes">Dependentes</TabsTrigger>
           <TabsTrigger value="preferencias">Preferências</TabsTrigger>

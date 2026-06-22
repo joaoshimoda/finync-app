@@ -352,9 +352,9 @@ export default function AnalyticsPage() {
   ];
 
   return (
-    <div className="flex min-h-full w-full flex-col gap-8">
+    <div className="flex min-h-full w-full flex-col gap-6 md:gap-8">
       <header>
-        <h1 className="text-3xl font-bold tracking-tight text-zinc-50">
+        <h1 className="text-2xl font-bold tracking-tight text-zinc-50 md:text-3xl">
           Análise Financeira
         </h1>
         <p className="mt-2 text-sm text-zinc-400">
@@ -369,8 +369,8 @@ export default function AnalyticsPage() {
         </TabsList>
 
         <TabsContent value="desempenho" className="mt-6 space-y-5">
-      <section className="grid grid-cols-1 gap-4 lg:grid-cols-3">
-        <Card className="border-zinc-800/80 bg-zinc-900/50 shadow-none backdrop-blur">
+      <section className="grid grid-cols-2 gap-3 lg:grid-cols-3 lg:gap-4">
+        <Card className="col-span-2 border-zinc-800/80 bg-zinc-900/50 shadow-none backdrop-blur lg:col-span-1">
           <CardHeader className="p-4 pb-2">
             <CardDescription>Despesa Total do Mês</CardDescription>
             <CardTitle className="text-2xl text-zinc-50">

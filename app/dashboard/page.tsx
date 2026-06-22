@@ -22,6 +22,7 @@ import { AddCardModal } from "@/components/modals/AddCardModal";
 import { AddIncomeModal } from "@/components/modals/AddIncomeModal";
 import { AddTransactionModal } from "@/components/modals/AddTransactionModal";
 import { TransactionDescription } from "@/components/finance/TransactionDescription";
+import { MobileTransactionItem } from "@/components/finance/MobileTransactionItem";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -622,10 +623,10 @@ export default function DashboardPage() {
   }
 
   return (
-    <div className="flex w-full flex-col gap-8">
-      <div className="flex flex-col justify-between gap-5 sm:flex-row sm:items-center">
+    <div className="flex w-full flex-col gap-6 md:gap-8">
+      <div className="flex items-start justify-between gap-4">
         <div>
-          <h1 className="text-3xl font-bold tracking-tight">
+          <h1 className="text-2xl font-bold tracking-tight md:text-3xl">
             Visão geral
           </h1>
           <p className="mt-2 text-sm text-muted-foreground">
@@ -636,12 +637,12 @@ export default function DashboardPage() {
         <div className="flex items-center gap-3">
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
-              <Button className="h-12 gap-2 bg-emerald-600 px-6 text-base font-semibold text-white hover:bg-emerald-700">
+              <Button aria-label="Criar novo item" className="h-11 gap-2 bg-emerald-600 px-3.5 text-sm font-semibold text-white hover:bg-emerald-700 md:h-12 md:px-6 md:text-base">
                 <PlusCircle className="size-5" />
-                Novo
+                <span className="hidden min-[380px]:inline">Novo</span>
               </Button>
             </DropdownMenuTrigger>
-            <DropdownMenuContent align="end" className="w-80 p-2">
+            <DropdownMenuContent align="end" className="w-[calc(100vw-2rem)] max-w-80 p-2">
               <DropdownMenuItem
                 className="cursor-pointer gap-4 rounded-xl p-3"
                 onClick={() => {
@@ -695,7 +696,7 @@ export default function DashboardPage() {
         </div>
       </div>
 
-      <div className="flex justify-center border-y border-border/50 py-5">
+      <div className="flex justify-center border-y border-border/50 py-4 md:py-5">
         <AnimatedMonthSelector
           currentMonth={currentMonth}
           currentYear={currentYear}
@@ -715,13 +716,13 @@ export default function DashboardPage() {
           </h2>
         </div>
 
-        <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-5">
-          <Card className="rounded-xl border border-border/50 bg-zinc-950 p-4 text-zinc-50 shadow-none">
+        <div className="grid grid-cols-2 gap-3 xl:grid-cols-5">
+          <Card className="col-span-2 min-h-28 rounded-2xl border border-border/50 bg-zinc-950 p-4 text-zinc-50 shadow-none xl:col-span-1">
             <CardHeader className="p-0">
               <CardDescription className="text-zinc-400">
                 Saldo Disponível Total
               </CardDescription>
-              <CardTitle className="mt-3 text-xl font-semibold tracking-tight">
+              <CardTitle className="mt-3 text-base font-semibold tracking-tight sm:text-xl">
                 {brlFormatter.format(monthlyBalances.projectedBalance)}
               </CardTitle>
             </CardHeader>
@@ -731,10 +732,10 @@ export default function DashboardPage() {
             </CardContent>
           </Card>
 
-          <Card className="rounded-xl border border-border/50 bg-card p-4 shadow-none transition-colors hover:bg-accent/10">
+          <Card className="min-h-32 rounded-2xl border border-border/50 bg-card p-3.5 shadow-none transition-colors hover:bg-accent/10 sm:p-4">
             <CardHeader className="p-0">
               <CardDescription>Receitas do Mês</CardDescription>
-              <CardTitle className="mt-3 text-xl tracking-normal text-emerald-300">
+              <CardTitle className="mt-3 text-base tracking-normal text-emerald-300 sm:text-xl">
                 {brlFormatter.format(monthlyBalances.totalIncome)}
               </CardTitle>
             </CardHeader>
@@ -744,10 +745,10 @@ export default function DashboardPage() {
             </CardContent>
           </Card>
 
-          <Card className="rounded-xl border border-border/50 bg-card p-4 shadow-none transition-colors hover:bg-accent/10">
+          <Card className="min-h-32 rounded-2xl border border-border/50 bg-card p-3.5 shadow-none transition-colors hover:bg-accent/10 sm:p-4">
             <CardHeader className="p-0">
               <CardDescription>Faturas em Aberto</CardDescription>
-              <CardTitle className="mt-3 text-xl tracking-normal text-violet-300">
+              <CardTitle className="mt-3 text-base tracking-normal text-violet-300 sm:text-xl">
                 {brlFormatter.format(monthlyBalances.creditCardUntilToday)}
               </CardTitle>
             </CardHeader>
@@ -757,10 +758,10 @@ export default function DashboardPage() {
             </CardContent>
           </Card>
 
-          <Card className="rounded-xl border border-border/50 bg-card p-4 shadow-none transition-colors hover:bg-accent/10">
+          <Card className="min-h-32 rounded-2xl border border-border/50 bg-card p-3.5 shadow-none transition-colors hover:bg-accent/10 sm:p-4">
             <CardHeader className="p-0">
               <CardDescription>Projeção de Fechamento</CardDescription>
-              <CardTitle className="mt-3 text-xl tracking-normal text-blue-300">
+              <CardTitle className="mt-3 text-base tracking-normal text-blue-300 sm:text-xl">
                 {brlFormatter.format(monthlyBalances.creditCardProjected)}
               </CardTitle>
             </CardHeader>
@@ -770,10 +771,10 @@ export default function DashboardPage() {
             </CardContent>
           </Card>
 
-          <Card className="rounded-xl border border-border/50 bg-card p-4 shadow-none transition-colors hover:bg-accent/10">
+          <Card className="min-h-32 rounded-2xl border border-border/50 bg-card p-3.5 shadow-none transition-colors hover:bg-accent/10 sm:p-4">
             <CardHeader className="p-0">
               <CardDescription>Gastos Pendentes</CardDescription>
-              <CardTitle className="mt-3 text-xl tracking-normal text-orange-300">
+              <CardTitle className="mt-3 text-base tracking-normal text-orange-300 sm:text-xl">
                 {brlFormatter.format(monthlyBalances.totalPendingObligations)}
               </CardTitle>
             </CardHeader>
@@ -994,9 +995,37 @@ export default function DashboardPage() {
             </div>
           </CardHeader>
 
+          <div className="space-y-2 p-3 md:hidden">
+            {recentTransactions.length ? (
+              recentTransactions.map((transaction) => {
+                const categoryLabel =
+                  transaction.category || getTransactionFallbackLabel(transaction);
+                const isPositive =
+                  transaction.type === "income" ||
+                  isCardCreditAdjustment(transaction);
+
+                return (
+                  <MobileTransactionItem
+                    key={transaction.id}
+                    title={<TransactionDescription transaction={transaction} />}
+                    category={categoryLabel}
+                    date={formatDateOnlyBR(transaction.date)}
+                    amount={`${isPositive ? "+" : "-"}${brlFormatter.format(transaction.amount)}`}
+                    positive={isPositive}
+                  />
+                );
+              })
+            ) : (
+              <div className="flex min-h-36 flex-col items-center justify-center gap-2 text-sm text-muted-foreground">
+                <Inbox className="size-7" />
+                Nenhuma movimentação neste período.
+              </div>
+            )}
+          </div>
+
           <div
             className={cn(
-              "overflow-x-auto transition-opacity",
+              "hidden overflow-x-auto transition-opacity md:block",
               isFetching && "pointer-events-none opacity-50",
             )}
           >
