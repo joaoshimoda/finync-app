@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import {
   ArrowDownRight,
   ArrowUpRight,
@@ -279,17 +279,17 @@ export default function TransactionsPage() {
     };
   }, [filteredTransactions]);
 
-  function handleCloseIncomeModal() {
+  const handleCloseIncomeModal = useCallback(() => {
     setIsAddIncomeModalOpen(false);
     setEditingTransaction(null);
-  }
+  }, []);
 
-  function handleCloseTransactionModal() {
+  const handleCloseTransactionModal = useCallback(() => {
     setIsAddTransactionModalOpen(false);
     setEditingTransaction(null);
-  }
+  }, []);
 
-  function handleEditTransaction(transaction: Transaction) {
+  const handleEditTransaction = useCallback((transaction: Transaction) => {
     setEditingTransaction(transaction);
 
     if (transaction.type === "income") {
@@ -298,9 +298,9 @@ export default function TransactionsPage() {
     }
 
     setIsAddTransactionModalOpen(true);
-  }
+  }, []);
 
-  async function handleDeleteTransaction(transactionId: string) {
+  const handleDeleteTransaction = useCallback(async (transactionId: string) => {
     try {
       await deleteTransaction(transactionId);
       toast.success("Movimentação excluída.");
@@ -309,9 +309,9 @@ export default function TransactionsPage() {
       console.error("Erro ao excluir movimentação:", error);
       toast.error("Não foi possível excluir agora.");
     }
-  }
+  }, [deleteTransaction]);
 
-  async function handleDeleteFutureTransactions(transaction: Transaction) {
+  const handleDeleteFutureTransactions = useCallback(async (transaction: Transaction) => {
     if (!transaction.groupId) return;
 
     try {
@@ -322,9 +322,9 @@ export default function TransactionsPage() {
       console.error("Erro ao excluir recorrência:", error);
       toast.error("Não foi possível excluir a recorrência agora.");
     }
-  }
+  }, [deleteTransactionGroup]);
 
-  function toggleSelectAllVisible(checked: boolean | "indeterminate") {
+  const toggleSelectAllVisible = useCallback((checked: boolean | "indeterminate") => {
     if (checked) {
       setSelectedIds((currentIds) =>
         Array.from(new Set([...currentIds, ...visibleTransactionIds])),
@@ -335,12 +335,12 @@ export default function TransactionsPage() {
     setSelectedIds((currentIds) =>
       currentIds.filter((id) => !visibleTransactionIds.includes(id)),
     );
-  }
+  }, [visibleTransactionIds]);
 
-  function toggleTransactionSelection(
+  const toggleTransactionSelection = useCallback((
     transactionId: string,
     checked: boolean | "indeterminate",
-  ) {
+  ) => {
     if (checked) {
       setSelectedIds((currentIds) =>
         currentIds.includes(transactionId)
@@ -353,9 +353,9 @@ export default function TransactionsPage() {
     setSelectedIds((currentIds) =>
       currentIds.filter((id) => id !== transactionId),
     );
-  }
+  }, []);
 
-  async function handleBulkDelete() {
+  const handleBulkDelete = useCallback(async () => {
     if (!selectedIds.length) return;
 
     setIsBulkSubmitting(true);
@@ -377,9 +377,9 @@ export default function TransactionsPage() {
     } finally {
       setIsBulkSubmitting(false);
     }
-  }
+  }, [fetchTransactions, selectedIds]);
 
-  async function handleBulkCategory(category: string) {
+  const handleBulkCategory = useCallback(async (category: string) => {
     if (!selectedIds.length) return;
 
     setIsBulkSubmitting(true);
@@ -396,7 +396,7 @@ export default function TransactionsPage() {
     } finally {
       setIsBulkSubmitting(false);
     }
-  }
+  }, [fetchTransactions, selectedIds, updateTransactionCategories]);
 
   return (
     <div className="flex w-full flex-col gap-6 md:gap-8">

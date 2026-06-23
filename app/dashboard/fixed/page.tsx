@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import {
   CalendarDays,
   CalendarX,
@@ -95,48 +95,68 @@ export default function FixedExpensesPage() {
     [currentMonth, currentYear, transactions],
   );
 
-  const activeTransactions =
-    activeTab === "fixed" ? fixedTransactions : subscriptionTransactions;
-  const pendingTransactions = activeTransactions.filter(
-    (transaction) => transaction.status !== "paid",
+  const activeTransactions = useMemo(
+    () => (activeTab === "fixed" ? fixedTransactions : subscriptionTransactions),
+    [activeTab, fixedTransactions, subscriptionTransactions],
   );
-  const activePendingIds = new Set(
-    pendingTransactions.map((transaction) => transaction.id),
+  const pendingTransactions = useMemo(
+    () =>
+      activeTransactions.filter((transaction) => transaction.status !== "paid"),
+    [activeTransactions],
   );
-  const effectiveSelectedIds = selectedIds.filter((id) =>
-    activePendingIds.has(id),
+  const activePendingIds = useMemo(
+    () => new Set(pendingTransactions.map((transaction) => transaction.id)),
+    [pendingTransactions],
   );
-  const totalAmount = activeTransactions.reduce(
-    (total, transaction) => total + transaction.amount,
-    0,
+  const effectiveSelectedIds = useMemo(
+    () => selectedIds.filter((id) => activePendingIds.has(id)),
+    [activePendingIds, selectedIds],
   );
-  const paidAmount = activeTransactions
-    .filter((transaction) => transaction.status === "paid")
-    .reduce((total, transaction) => total + transaction.amount, 0);
-  const pendingAmount = totalAmount - paidAmount;
-  const allPendingSelected =
-    pendingTransactions.length > 0 &&
-    pendingTransactions.every((transaction) =>
-      effectiveSelectedIds.includes(transaction.id),
-    );
+  const fixedSummary = useMemo(
+    () =>
+      activeTransactions.reduce(
+        (summary, transaction) => {
+          summary.totalAmount += transaction.amount;
 
-  function toggleSelection(transactionId: string) {
+          if (transaction.status === "paid") {
+            summary.paidAmount += transaction.amount;
+          }
+
+          return summary;
+        },
+        { paidAmount: 0, totalAmount: 0 },
+      ),
+    [activeTransactions],
+  );
+  const totalAmount = fixedSummary.totalAmount;
+  const paidAmount = fixedSummary.paidAmount;
+  const pendingAmount = totalAmount - paidAmount;
+  const allPendingSelected = useMemo(
+    () =>
+      pendingTransactions.length > 0 &&
+      pendingTransactions.every((transaction) =>
+        effectiveSelectedIds.includes(transaction.id),
+      ),
+    [effectiveSelectedIds, pendingTransactions],
+  );
+
+  const toggleSelection = useCallback((transactionId: string) => {
     setSelectedIds((currentIds) =>
       currentIds.includes(transactionId)
         ? currentIds.filter((id) => id !== transactionId)
         : [...currentIds, transactionId],
     );
-  }
+  }, []);
 
-  function toggleAllPending() {
+  const toggleAllPending = useCallback(() => {
     setSelectedIds(
       allPendingSelected
         ? []
         : pendingTransactions.map((transaction) => transaction.id),
     );
-  }
+  }, [allPendingSelected, pendingTransactions]);
 
-  async function paySelectedTransactions() {
+  const paySelectedTransactions = useCallback(async () => {
     if (!effectiveSelectedIds.length || isPayingSelected) return;
 
     setIsPayingSelected(true);
@@ -159,9 +179,14 @@ export default function FixedExpensesPage() {
     } finally {
       setIsPayingSelected(false);
     }
-  }
+  }, [
+    effectiveSelectedIds,
+    fetchTransactions,
+    isPayingSelected,
+    updateTransaction,
+  ]);
 
-  async function togglePaymentStatus(transaction: Transaction) {
+  const togglePaymentStatus = useCallback(async (transaction: Transaction) => {
     const nextStatus = transaction.status === "paid" ? "pending" : "paid";
 
     try {
@@ -178,9 +203,9 @@ export default function FixedExpensesPage() {
       console.error("Erro ao atualizar pagamento:", error);
       toast.error("Não foi possível atualizar o pagamento.");
     }
-  }
+  }, [updateTransaction]);
 
-  async function handleDeleteTransaction(transactionId: string) {
+  const handleDeleteTransaction = useCallback(async (transactionId: string) => {
     try {
       await deleteTransaction(transactionId);
       setSelectedIds((currentIds) =>
@@ -191,9 +216,9 @@ export default function FixedExpensesPage() {
       console.error("Erro ao remover lançamento:", error);
       toast.error("Não foi possível remover agora.");
     }
-  }
+  }, [deleteTransaction]);
 
-  async function handleDeleteFutureTransactions(transaction: Transaction) {
+  const handleDeleteFutureTransactions = useCallback(async (transaction: Transaction) => {
     if (!transaction.groupId) return;
 
     try {
@@ -204,7 +229,7 @@ export default function FixedExpensesPage() {
       console.error("Erro ao remover recorrência:", error);
       toast.error("Não foi possível remover a recorrência agora.");
     }
-  }
+  }, [deleteTransactionGroup]);
 
   function openCreateModal() {
     setEditingTransaction(null);

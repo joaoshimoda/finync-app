@@ -49,6 +49,24 @@ import { useFinanceStore } from "@/store/useFinanceStore";
 
 const AVATAR_CROP_SIZE = 280;
 const AVATAR_OUTPUT_SIZE = 512;
+const invoiceReminderStorageKey = "finync-invoice-reminder";
+const weeklySummaryStorageKey = "finync-weekly-summary";
+
+function isNotificationPermissionDenied() {
+  return (
+    typeof window !== "undefined" &&
+    "Notification" in window &&
+    Notification.permission === "denied"
+  );
+}
+
+function getStoredBoolean(key: string) {
+  if (typeof window === "undefined" || isNotificationPermissionDenied()) {
+    return false;
+  }
+
+  return window.localStorage.getItem(key) === "true";
+}
 
 function getInitials(name: string, email: string) {
   const source = name.trim() || email.split("@")[0] || "US";
@@ -109,6 +127,12 @@ async function loadImage(src: string) {
 export default function ConfiguracoesPage() {
   const authUser = useFinanceStore((state) => state.authUser);
   const updateAuthUser = useFinanceStore((state) => state.updateAuthUser);
+  const hideBalancesByDefault = useFinanceStore(
+    (state) => state.hideBalancesByDefault,
+  );
+  const setHideBalancesByDefault = useFinanceStore(
+    (state) => state.setHideBalancesByDefault,
+  );
   const metadataName = authUser?.user_metadata?.name;
   const currentName =
     typeof metadataName === "string" ? metadataName.trim() : "";
@@ -121,9 +145,15 @@ export default function ConfiguracoesPage() {
   const [isUploadingAvatar, setIsUploadingAvatar] = useState(false);
   const [defaultCurrency, setDefaultCurrency] = useState("BRL");
   const [dateFormat, setDateFormat] = useState("DD/MM/AAAA");
-  const [hideBalances, setHideBalances] = useState(false);
-  const [invoiceReminder, setInvoiceReminder] = useState(true);
-  const [weeklySummary, setWeeklySummary] = useState(false);
+  const [invoiceReminder, setInvoiceReminder] = useState(() =>
+    getStoredBoolean(invoiceReminderStorageKey),
+  );
+  const [weeklySummary, setWeeklySummary] = useState(() =>
+    getStoredBoolean(weeklySummaryStorageKey),
+  );
+  const [notificationsBlocked, setNotificationsBlocked] = useState(
+    isNotificationPermissionDenied,
+  );
   const [currentPassword, setCurrentPassword] = useState("");
   const [newPassword, setNewPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
@@ -153,6 +183,63 @@ export default function ConfiguracoesPage() {
       }
     };
   }, [cropImageUrl]);
+
+  async function enableNativeNotifications() {
+    if (!("Notification" in window)) {
+      toast.error("Este navegador não suporta notificações nativas.");
+      return false;
+    }
+
+    if (Notification.permission === "denied") {
+      setNotificationsBlocked(true);
+      toast.error("As notificações estão bloqueadas no navegador.");
+      return false;
+    }
+
+    const permission =
+      Notification.permission === "granted"
+        ? "granted"
+        : await Notification.requestPermission();
+
+    if (permission !== "granted") {
+      setNotificationsBlocked(permission === "denied");
+      toast.error("As notificações estão bloqueadas no navegador.");
+      return false;
+    }
+
+    setNotificationsBlocked(false);
+    new Notification("Finync", {
+      body: "Notificações ativadas com sucesso! Você receberá seus alertas aqui.",
+    });
+
+    return true;
+  }
+
+  async function handleInvoiceReminderChange(checked: boolean) {
+    if (!checked) {
+      setInvoiceReminder(false);
+      window.localStorage.setItem(invoiceReminderStorageKey, "false");
+      return;
+    }
+
+    const canEnable = await enableNativeNotifications();
+
+    setInvoiceReminder(canEnable);
+    window.localStorage.setItem(invoiceReminderStorageKey, String(canEnable));
+  }
+
+  async function handleWeeklySummaryChange(checked: boolean) {
+    if (!checked) {
+      setWeeklySummary(false);
+      window.localStorage.setItem(weeklySummaryStorageKey, "false");
+      return;
+    }
+
+    const canEnable = await enableNativeNotifications();
+
+    setWeeklySummary(canEnable);
+    window.localStorage.setItem(weeklySummaryStorageKey, String(canEnable));
+  }
 
   function closeCropDialog() {
     if (cropImageUrl) {
@@ -643,8 +730,8 @@ export default function ConfiguracoesPage() {
                 </div>
                 <Switch
                   id="hide-balances"
-                  checked={hideBalances}
-                  onCheckedChange={setHideBalances}
+                  checked={hideBalancesByDefault}
+                  onCheckedChange={setHideBalancesByDefault}
                 />
               </div>
             </CardContent>
@@ -670,7 +757,10 @@ export default function ConfiguracoesPage() {
                 <Switch
                   id="invoice-reminder"
                   checked={invoiceReminder}
-                  onCheckedChange={setInvoiceReminder}
+                  disabled={notificationsBlocked}
+                  onCheckedChange={(checked) =>
+                    void handleInvoiceReminderChange(checked)
+                  }
                 />
               </div>
 
@@ -686,7 +776,10 @@ export default function ConfiguracoesPage() {
                 <Switch
                   id="weekly-summary"
                   checked={weeklySummary}
-                  onCheckedChange={setWeeklySummary}
+                  disabled={notificationsBlocked}
+                  onCheckedChange={(checked) =>
+                    void handleWeeklySummaryChange(checked)
+                  }
                 />
               </div>
             </CardContent>

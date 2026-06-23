@@ -12,8 +12,15 @@ interface WalletSliderProps {
   transactions?: Transaction[];
 }
 
+const hiddenCurrencyLabel = "R$ ••••";
+
 export function WalletSlider({ cards = [], transactions = [] }: WalletSliderProps) {
   const deleteCard = useFinanceStore((state) => state.deleteCard);
+  const hideBalancesByDefault = useFinanceStore(
+    (state) => state.hideBalancesByDefault,
+  );
+  const formatPrivateCurrency = (value: number) =>
+    hideBalancesByDefault ? hiddenCurrencyLabel : formatCurrency(value);
 
   async function handleDeleteCard(cardId: string) {
     try {
@@ -124,10 +131,12 @@ export function WalletSlider({ cards = [], transactions = [] }: WalletSliderProp
                       Limite disponível
                     </p>
                     <p className="mt-2 text-3xl font-semibold tracking-tight text-white">
-                      {formatCurrency(limit - debt)}
+                      {formatPrivateCurrency(limit - debt)}
                     </p>
                     <p className="mt-2 text-xs text-zinc-400">
-                      {limit > 0 ? `Devedor ${formatCurrency(debt)}` : "Sem limite definido"}
+                      {limit > 0
+                        ? `Devedor ${formatPrivateCurrency(debt)}`
+                        : "Sem limite definido"}
                     </p>
                   </div>
 
@@ -145,13 +154,13 @@ export function WalletSlider({ cards = [], transactions = [] }: WalletSliderProp
                       <div className="rounded-2xl border border-white/[0.08] bg-black/15 p-3">
                         <p className="text-xs text-zinc-400">Pago</p>
                         <p className="mt-1 text-sm font-semibold text-emerald-300">
-                          {formatCurrency(paid)}
+                          {formatPrivateCurrency(paid)}
                         </p>
                       </div>
                       <div className="rounded-2xl border border-white/[0.08] bg-black/15 p-3">
                         <p className="text-xs text-zinc-400">Pendente</p>
                         <p className="mt-1 text-sm font-semibold text-amber-300">
-                          {formatCurrency(pending)}
+                          {formatPrivateCurrency(pending)}
                         </p>
                       </div>
                     </div>

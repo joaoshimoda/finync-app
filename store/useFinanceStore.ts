@@ -127,6 +127,7 @@ interface DependentRow {
 
 interface CategoryRow {
   id: string;
+  name: string | null;
   label: string;
   kind: CategoryKind;
   icon: string;
@@ -142,10 +143,13 @@ interface FinanceState {
   isAuthReady: boolean;
   isLoading: boolean;
   isFetching: boolean;
+  hideBalancesByDefault: boolean;
   currentMonth: number;
   currentYear: number;
   fetchedMonth: number;
   fetchedYear: number;
+  setHideBalancesByDefault: (hideBalances: boolean) => void;
+  toggleHideBalancesByDefault: () => void;
   updateAuthUser: (user: User) => void;
   initializeAuth: () => () => void;
   nextMonth: () => void;
@@ -352,7 +356,7 @@ function getEssentialCategories() {
 function mapCategory(row: CategoryRow): Category {
   return {
     id: row.id,
-    label: row.label,
+    label: row.label ?? row.name ?? "Categoria",
     kind: row.kind,
     icon: row.icon,
     createdAt: row.created_at,
@@ -400,6 +404,14 @@ async function getCurrentUser(): Promise<User | null> {
   return user;
 }
 
+const hideBalancesStorageKey = "finync-hide-balances-by-default";
+
+function getStoredHideBalancesPreference() {
+  if (typeof window === "undefined") return false;
+
+  return window.localStorage.getItem(hideBalancesStorageKey) === "true";
+}
+
 export const useFinanceStore = create<FinanceState>()((set, get) => ({
   cards: [],
   dependents: [],
@@ -409,10 +421,32 @@ export const useFinanceStore = create<FinanceState>()((set, get) => ({
   isAuthReady: false,
   isLoading: true,
   isFetching: false,
+  hideBalancesByDefault: getStoredHideBalancesPreference(),
   currentMonth: getDateOnlyParts(getLocalTodayDateOnly()).month,
   currentYear: getDateOnlyParts(getLocalTodayDateOnly()).year,
   fetchedMonth: getDateOnlyParts(getLocalTodayDateOnly()).month,
   fetchedYear: getDateOnlyParts(getLocalTodayDateOnly()).year,
+
+  setHideBalancesByDefault: (hideBalances) => {
+    if (typeof window !== "undefined") {
+      window.localStorage.setItem(
+        hideBalancesStorageKey,
+        String(hideBalances),
+      );
+    }
+
+    set({ hideBalancesByDefault: hideBalances });
+  },
+
+  toggleHideBalancesByDefault: () => {
+    const nextValue = !get().hideBalancesByDefault;
+
+    if (typeof window !== "undefined") {
+      window.localStorage.setItem(hideBalancesStorageKey, String(nextValue));
+    }
+
+    set({ hideBalancesByDefault: nextValue });
+  },
 
   updateAuthUser: (user) => set({ authUser: user }),
 
@@ -540,7 +574,7 @@ export const useFinanceStore = create<FinanceState>()((set, get) => ({
 
       const { data, error } = await supabase
         .from("categories")
-        .select("id, label, kind, icon, created_at")
+        .select("id, name, label, kind, icon, created_at")
         .eq("user_id", user.id)
         .order("label", { ascending: true });
 
@@ -561,15 +595,18 @@ export const useFinanceStore = create<FinanceState>()((set, get) => ({
     const user = await getCurrentUser();
     if (!user) throw new Error("Usuário não autenticado.");
 
+    const label = category.label.trim();
+
     const { data, error } = await supabase
       .from("categories")
       .insert({
         user_id: user.id,
-        label: category.label.trim(),
+        name: label,
+        label,
         kind: category.kind,
         icon: category.icon,
       })
-      .select("id, label, kind, icon, created_at")
+      .select("id, name, label, kind, icon, created_at")
       .single();
 
     if (error) throw error;

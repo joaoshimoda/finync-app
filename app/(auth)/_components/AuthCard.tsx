@@ -361,6 +361,17 @@ export function AuthCard({ mode }: AuthCardProps) {
                 </label>
 
                 {!isSignup ? (
+                  <div className="flex justify-end">
+                    <Link
+                      href="/recuperar-senha"
+                      className="text-sm font-semibold text-zinc-700 underline-offset-4 transition hover:text-zinc-950 hover:underline"
+                    >
+                      Esqueci minha senha
+                    </Link>
+                  </div>
+                ) : null}
+
+                {!isSignup ? (
                   <div className="flex items-center gap-2.5">
                     <Checkbox
                       id="remember-connected"

@@ -15,7 +15,7 @@ import {
   TrendingUp,
   UserRound,
 } from "lucide-react";
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 
 import { AnimatedMonthSelector } from "@/components/finance/AnimatedMonthSelector";
 import { AddCardModal } from "@/components/modals/AddCardModal";
@@ -80,6 +80,12 @@ const brlFormatter = new Intl.NumberFormat("pt-BR", {
   style: "currency",
   currency: "BRL",
 });
+
+const hiddenCurrencyLabel = "R$ ••••";
+
+function formatSensitiveCurrency(value: number, hideValue: boolean) {
+  return hideValue ? hiddenCurrencyLabel : brlFormatter.format(value);
+}
 
 const typeLabel: Record<string, string> = {
   card: "Cartão",
@@ -223,6 +229,9 @@ function FlippableWalletCard({
   onPayInvoice: (cardId: string) => void;
 }) {
   const [isFlipped, setIsFlipped] = useState(false);
+  const hideBalancesByDefault = useFinanceStore(
+    (state) => state.hideBalancesByDefault,
+  );
 
   return (
     <div className="h-[176px] w-full perspective-[1000px] lg:w-[280px]">
@@ -268,7 +277,10 @@ function FlippableWalletCard({
               Fatura atual
             </p>
             <strong className="mt-1 block text-xl font-bold tracking-normal text-foreground">
-              {brlFormatter.format(cardSummary.current)}
+              {formatSensitiveCurrency(
+                cardSummary.current,
+                hideBalancesByDefault,
+              )}
             </strong>
           </div>
         </div>
@@ -284,10 +296,17 @@ function FlippableWalletCard({
               Limite disponível
             </p>
             <strong className="mt-1 block text-2xl font-bold text-foreground">
-              {brlFormatter.format(cardSummary.availableLimit)}
+              {formatSensitiveCurrency(
+                cardSummary.availableLimit,
+                hideBalancesByDefault,
+              )}
             </strong>
             <p className="mt-1 text-xs text-muted-foreground">
-              Devedor: {brlFormatter.format(cardSummary.debtTotal)}
+              Devedor:{" "}
+              {formatSensitiveCurrency(
+                cardSummary.debtTotal,
+                hideBalancesByDefault,
+              )}
             </p>
             {cardSummary.limitAmount > 0 ? (
               <div className="mt-3 h-1.5 overflow-hidden rounded-full bg-muted">
@@ -349,6 +368,11 @@ export default function DashboardPage() {
   const isFetching = useFinanceStore((state) => state.isFetching);
   const nextMonth = useFinanceStore((state) => state.nextMonth);
   const prevMonth = useFinanceStore((state) => state.prevMonth);
+  const hideBalancesByDefault = useFinanceStore(
+    (state) => state.hideBalancesByDefault,
+  );
+  const formatPrivateCurrency = (value: number) =>
+    formatSensitiveCurrency(value, hideBalancesByDefault);
 
   const displayMonth = isFetching ? fetchedMonth : currentMonth;
   const displayYear = isFetching ? fetchedYear : currentYear;
@@ -553,89 +577,111 @@ export default function DashboardPage() {
     [monthlyTransactions],
   );
 
-  const cardSpendingSummaries = cards.map((card) => ({
-    id: card.id,
-    name: card.name,
-    closingDay: card.closingDay,
-    dueDay: card.dueDay,
-    accentClassName: getCardAccentClassName(card.name),
-    availableLimit: calculateAvailableCardLimit(
-      transactions,
-      card.id,
-      card.limitAmount ?? 0,
-    ),
-    debtTotal: calculateCardDebt(transactions, card.id),
-    limitAmount: card.limitAmount ?? 0,
-    limitUsage:
-      card.limitAmount && card.limitAmount > 0
-        ? Math.min((calculateCardDebt(transactions, card.id) / card.limitAmount) * 100, 100)
-        : 0,
-    ...invoiceCycleTransactions
-      .filter((transaction) => {
-        const dbCardId =
-          (transaction as Transaction & { card_id?: string | null }).card_id ??
-          transaction.cardId;
+  const cardSpendingSummaries = useMemo(
+    () =>
+      cards.map((card) => {
+        const debtTotal = calculateCardDebt(transactions, card.id);
+        const limitAmount = card.limitAmount ?? 0;
+        const invoiceTotals = invoiceCycleTransactions
+          .filter((transaction) => {
+            const dbCardId =
+              (transaction as Transaction & { card_id?: string | null })
+                .card_id ?? transaction.cardId;
 
-        return transaction.type === "card" && dbCardId === card.id;
-      })
-      .reduce(
-        (totals, transaction) => {
-          const signedAmount = getCardSignedAmount(transaction);
+            return transaction.type === "card" && dbCardId === card.id;
+          })
+          .reduce(
+            (totals, transaction) => {
+              const signedAmount = getCardSignedAmount(transaction);
 
-          totals.projected += signedAmount;
+              totals.projected += signedAmount;
 
-          if (
-            transaction.is_recurring !== true ||
-            normalizeDateOnly(transaction.date) <= todayDate
-          ) {
-            totals.current += signedAmount;
-          }
+              if (
+                transaction.is_recurring !== true ||
+                normalizeDateOnly(transaction.date) <= todayDate
+              ) {
+                totals.current += signedAmount;
+              }
 
-          return totals;
-        },
-        { current: 0, projected: 0 },
-      ),
-  }));
+              return totals;
+            },
+            { current: 0, projected: 0 },
+          );
 
-  const fixedSpendingTotal = monthlyTransactions
-    .filter(
-      (transaction) =>
-        transaction.type === "fixed" &&
-        transaction.is_recurring === true &&
-        !hasDependent(transaction),
-    )
-    .reduce((total, transaction) => total + transaction.amount, 0);
+        return {
+          id: card.id,
+          name: card.name,
+          closingDay: card.closingDay,
+          dueDay: card.dueDay,
+          accentClassName: getCardAccentClassName(card.name),
+          availableLimit: calculateAvailableCardLimit(
+            transactions,
+            card.id,
+            limitAmount,
+          ),
+          debtTotal,
+          limitAmount,
+          limitUsage:
+            limitAmount > 0 ? Math.min((debtTotal / limitAmount) * 100, 100) : 0,
+          ...invoiceTotals,
+        };
+      }),
+    [cards, invoiceCycleTransactions, todayDate, transactions],
+  );
 
-  const debitPixSpendingTotal = monthlyTransactions
-    .filter((transaction) => {
-      const dbCardId =
-        (transaction as Transaction & { card_id?: string | null }).card_id ??
-        transaction.cardId;
+  const fixedSpendingTotal = useMemo(
+    () =>
+      monthlyTransactions
+        .filter(
+          (transaction) =>
+            transaction.type === "fixed" &&
+            transaction.is_recurring === true &&
+            !hasDependent(transaction),
+        )
+        .reduce((total, transaction) => total + transaction.amount, 0),
+    [monthlyTransactions],
+  );
 
-      return (
-        transaction.type === "fixed" &&
-        transaction.is_recurring !== true &&
-        !dbCardId &&
-        !hasDependent(transaction)
-      );
-    })
-    .reduce((total, transaction) => total + transaction.amount, 0);
-
-  const dependentSpendingSummaries = dependents
-    .map((dependent) => ({
-      ...dependent,
-      total: monthlyTransactions
+  const debitPixSpendingTotal = useMemo(
+    () =>
+      monthlyTransactions
         .filter((transaction) => {
-          const dependentId =
-            (transaction as Transaction & { dependent_id?: string | null })
-              .dependent_id ?? transaction.dependentId;
+          const dbCardId =
+            (transaction as Transaction & { card_id?: string | null }).card_id ??
+            transaction.cardId;
 
-          return transaction.type !== "income" && dependentId === dependent.id;
+          return (
+            transaction.type === "fixed" &&
+            transaction.is_recurring !== true &&
+            !dbCardId &&
+            !hasDependent(transaction)
+          );
         })
-        .reduce((sum, transaction) => sum + transaction.amount, 0),
-    }))
-    .filter((dependent) => dependent.total > 0)
-    .sort((left, right) => right.total - left.total);
+        .reduce((total, transaction) => total + transaction.amount, 0),
+    [monthlyTransactions],
+  );
+
+  const dependentSpendingSummaries = useMemo(
+    () =>
+      dependents
+        .map((dependent) => ({
+          ...dependent,
+          total: monthlyTransactions
+            .filter((transaction) => {
+              const dependentId =
+                (transaction as Transaction & { dependent_id?: string | null })
+                  .dependent_id ?? transaction.dependentId;
+
+              return (
+                transaction.type !== "income" && dependentId === dependent.id
+              );
+            })
+            .reduce((sum, transaction) => sum + transaction.amount, 0),
+        }))
+        .filter((dependent) => dependent.total > 0)
+        .sort((left, right) => right.total - left.total),
+    [dependents, monthlyTransactions],
+  );
 
   useEffect(() => {
     void fetchCards();
@@ -643,17 +689,17 @@ export default function DashboardPage() {
     void fetchTransactions();
   }, [currentMonth, currentYear, fetchCards, fetchDependents, fetchTransactions]);
 
-  function handleCloseIncomeModal() {
+  const handleCloseIncomeModal = useCallback(() => {
     setIsAddIncomeModalOpen(false);
     setEditingTransaction(null);
-  }
+  }, []);
 
-  function handleCloseTransactionModal() {
+  const handleCloseTransactionModal = useCallback(() => {
     setIsAddTransactionModalOpen(false);
     setEditingTransaction(null);
-  }
+  }, []);
 
-  async function handlePayInvoiceClick(cardId: string) {
+  const handlePayInvoiceClick = useCallback(async (cardId: string) => {
     try {
       await payCardInvoice(cardId);
       toast.success("Fatura liquidada!");
@@ -662,9 +708,9 @@ export default function DashboardPage() {
       console.error("Erro ao liquidar fatura:", error);
       toast.error("Não foi possível liquidar a fatura.");
     }
-  }
+  }, [fetchTransactions, payCardInvoice]);
 
-  async function handleConfirmVariableIncome(transaction: Transaction) {
+  const handleConfirmVariableIncome = useCallback(async (transaction: Transaction) => {
     const nextAmount = Number(
       (variableIncomeValues[transaction.id] || "")
         .replace(/\./g, "")
@@ -692,7 +738,7 @@ export default function DashboardPage() {
       console.error("Erro ao confirmar renda variável:", error);
       toast.error("Não foi possível confirmar essa renda agora.");
     }
-  }
+  }, [fetchTransactions, updateTransaction, variableIncomeValues]);
 
   return (
     <div className="flex w-full flex-col gap-6 md:gap-8">
@@ -795,7 +841,7 @@ export default function DashboardPage() {
                 Saldo Disponível Total
               </CardDescription>
               <CardTitle className="mt-3 text-base font-semibold tracking-tight sm:text-xl">
-                {brlFormatter.format(monthlyBalances.projectedBalance)}
+                {formatPrivateCurrency(monthlyBalances.projectedBalance)}
               </CardTitle>
             </CardHeader>
             <CardContent className="flex items-center gap-2 p-0 pt-3 text-xs text-zinc-500">
@@ -808,7 +854,7 @@ export default function DashboardPage() {
             <CardHeader className="p-0">
               <CardDescription>Receitas do Mês</CardDescription>
               <CardTitle className="mt-3 text-base tracking-normal text-emerald-300 sm:text-xl">
-                {brlFormatter.format(monthlyBalances.totalIncome)}
+                {formatPrivateCurrency(monthlyBalances.totalIncome)}
               </CardTitle>
             </CardHeader>
             <CardContent className="flex items-center gap-2 p-0 pt-4 text-xs text-muted-foreground">
@@ -821,7 +867,7 @@ export default function DashboardPage() {
             <CardHeader className="p-0">
               <CardDescription>Faturas em Aberto</CardDescription>
               <CardTitle className="mt-3 text-base tracking-normal text-violet-300 sm:text-xl">
-                {brlFormatter.format(monthlyBalances.creditCardUntilToday)}
+                {formatPrivateCurrency(monthlyBalances.creditCardUntilToday)}
               </CardTitle>
             </CardHeader>
             <CardContent className="p-0 pt-3 text-xs text-muted-foreground">
@@ -830,9 +876,9 @@ export default function DashboardPage() {
                 Total consolidado no dia de hoje
               </div>
               <p className="mt-2 text-[10px] leading-4 text-zinc-500 sm:text-xs">
-                Meu: {brlFormatter.format(monthlyBalances.userCreditCardUntilToday)}
+                Meu: {formatPrivateCurrency(monthlyBalances.userCreditCardUntilToday)}
                 <span className="mx-1">•</span>
-                Dependentes: {brlFormatter.format(monthlyBalances.dependentCreditCardUntilToday)}
+                Dependentes: {formatPrivateCurrency(monthlyBalances.dependentCreditCardUntilToday)}
               </p>
             </CardContent>
           </Card>
@@ -841,7 +887,7 @@ export default function DashboardPage() {
             <CardHeader className="p-0">
               <CardDescription>Projeção de Fechamento</CardDescription>
               <CardTitle className="mt-3 text-base tracking-normal text-blue-300 sm:text-xl">
-                {brlFormatter.format(monthlyBalances.creditCardProjected)}
+                {formatPrivateCurrency(monthlyBalances.creditCardProjected)}
               </CardTitle>
             </CardHeader>
             <CardContent className="flex items-center gap-2 p-0 pt-4 text-xs text-muted-foreground">
@@ -854,7 +900,7 @@ export default function DashboardPage() {
             <CardHeader className="p-0">
               <CardDescription>Gastos Pendentes</CardDescription>
               <CardTitle className="mt-3 text-base tracking-normal text-orange-300 sm:text-xl">
-                {brlFormatter.format(monthlyBalances.totalPendingObligations)}
+                {formatPrivateCurrency(monthlyBalances.totalPendingObligations)}
               </CardTitle>
             </CardHeader>
             <CardContent className="p-0 pt-3 text-xs text-muted-foreground">
@@ -863,9 +909,9 @@ export default function DashboardPage() {
                 Faturas e contas em aberto
               </div>
               <p className="mt-2 text-[10px] leading-4 text-zinc-500 sm:text-xs">
-                Meu: {brlFormatter.format(monthlyBalances.personalPendingObligations)}
+                Meu: {formatPrivateCurrency(monthlyBalances.personalPendingObligations)}
                 <span className="mx-1">•</span>
-                Dependentes: {brlFormatter.format(monthlyBalances.dependentPendingObligations)}
+                Dependentes: {formatPrivateCurrency(monthlyBalances.dependentPendingObligations)}
               </p>
             </CardContent>
           </Card>
@@ -893,7 +939,7 @@ export default function DashboardPage() {
                     {income.description}
                   </p>
                   <p className="mt-1 text-xs text-zinc-400">
-                    Valor estimado: {brlFormatter.format(income.amount)}
+                    Valor estimado: {formatPrivateCurrency(income.amount)}
                   </p>
                 </div>
                 <Input
@@ -973,7 +1019,7 @@ export default function DashboardPage() {
                           Total do mês
                         </p>
                         <strong className="mt-1 block text-xl font-bold tracking-normal text-foreground">
-                          {brlFormatter.format(fixedSpendingTotal)}
+                          {formatPrivateCurrency(fixedSpendingTotal)}
                         </strong>
                       </div>
                     </div>
@@ -997,7 +1043,7 @@ export default function DashboardPage() {
                           Total do mês
                         </p>
                         <strong className="mt-1 block text-xl font-bold tracking-normal text-foreground">
-                          {brlFormatter.format(debitPixSpendingTotal)}
+                          {formatPrivateCurrency(debitPixSpendingTotal)}
                         </strong>
                       </div>
                     </div>
@@ -1036,7 +1082,7 @@ export default function DashboardPage() {
                       </div>
                       <div className="flex shrink-0 items-center gap-2">
                         <strong className="text-sm font-semibold text-foreground">
-                          {brlFormatter.format(dependent.total)}
+                          {formatPrivateCurrency(dependent.total)}
                         </strong>
                         <ChevronRight className="size-4 text-muted-foreground" />
                       </div>
@@ -1096,7 +1142,7 @@ export default function DashboardPage() {
                     title={<TransactionDescription transaction={transaction} />}
                     category={categoryLabel}
                     date={formatDateOnlyBR(transaction.date)}
-                    amount={`${isPositive ? "+" : "-"}${brlFormatter.format(transaction.amount)}`}
+                    amount={`${isPositive ? "+" : "-"}${formatPrivateCurrency(transaction.amount)}`}
                     positive={isPositive}
                   />
                 );
@@ -1174,7 +1220,7 @@ export default function DashboardPage() {
                         isCardCreditAdjustment(transaction)
                           ? "+"
                           : "-"}
-                        {brlFormatter.format(transaction.amount)}
+                        {formatPrivateCurrency(transaction.amount)}
                       </TableCell>
                     </TableRow>
                   );
@@ -1235,7 +1281,7 @@ export default function DashboardPage() {
                 <ArrowDown className="size-4 text-red-300" />
                 <p className="mt-2 text-xs text-muted-foreground">Saídas</p>
                 <strong className="text-sm text-foreground">
-                  {brlFormatter.format(personalSpendingDistribution.total)}
+                  {formatPrivateCurrency(personalSpendingDistribution.total)}
                 </strong>
               </div>
               <div>
@@ -1273,3 +1319,4 @@ export default function DashboardPage() {
     </div>
   );
 }
+

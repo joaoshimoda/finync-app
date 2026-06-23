@@ -1,6 +1,6 @@
 "use client";
 
-import { KeyboardEvent, useEffect, useMemo, useState } from "react";
+import { KeyboardEvent, useCallback, useEffect, useMemo, useState } from "react";
 import {
   CreditCard,
   Edit3,
@@ -76,6 +76,12 @@ const brlFormatter = new Intl.NumberFormat("pt-BR", {
   currency: "BRL",
 });
 
+const hiddenCurrencyLabel = "R$ ••••";
+
+function formatSensitiveCurrency(value: number, hideValue: boolean) {
+  return hideValue ? hiddenCurrencyLabel : brlFormatter.format(value);
+}
+
 interface InvoiceBreakdown {
   personal: number;
   dependents: Array<{
@@ -121,6 +127,11 @@ function getInvoiceBreakdown(
 }
 
 function TopCategories({ transactions }: { transactions: Transaction[] }) {
+  const hideBalancesByDefault = useFinanceStore(
+    (state) => state.hideBalancesByDefault,
+  );
+  const formatPrivateCurrency = (value: number) =>
+    formatSensitiveCurrency(value, hideBalancesByDefault);
   const categories = useMemo(() => {
     const totals = new Map<string, number>();
 
@@ -160,7 +171,7 @@ function TopCategories({ transactions }: { transactions: Transaction[] }) {
             >
               <span className="text-zinc-400">{category.name}</span>
               <strong className="font-medium text-zinc-100">
-                {brlFormatter.format(category.total)}
+                {formatPrivateCurrency(category.total)}
               </strong>
             </div>
           ))}
@@ -200,6 +211,9 @@ function FlippableManagedCard({
   onPayInvoice: (cardId: string) => void;
 }) {
   const [isFlipped, setIsFlipped] = useState(false);
+  const hideBalancesByDefault = useFinanceStore(
+    (state) => state.hideBalancesByDefault,
+  );
 
   return (
     <div className="h-[190px] w-full max-w-[340px] perspective-[1000px] sm:w-[304px]">
@@ -258,7 +272,7 @@ function FlippableManagedCard({
                 Limite disponível
               </p>
               <strong className="mt-1 block text-lg font-bold tracking-normal">
-                {brlFormatter.format(availableLimit)}
+                {formatSensitiveCurrency(availableLimit, hideBalancesByDefault)}
               </strong>
               {card.limitAmount ? (
                 <p className="mt-1 text-[11px] text-white/55">
@@ -282,7 +296,7 @@ function FlippableManagedCard({
                 Fatura atual
               </p>
               <strong className="mt-1 block text-xl font-bold text-white">
-                {brlFormatter.format(invoiceTotal)}
+                {formatSensitiveCurrency(invoiceTotal, hideBalancesByDefault)}
               </strong>
             </div>
             <Button
@@ -301,7 +315,10 @@ function FlippableManagedCard({
             <div className="flex items-center justify-between gap-3 rounded-md bg-black/15 px-2 py-1">
               <span className="text-white/65">Meus Gastos</span>
               <strong className="font-semibold text-white">
-                {brlFormatter.format(invoiceBreakdown.personal)}
+                {formatSensitiveCurrency(
+                  invoiceBreakdown.personal,
+                  hideBalancesByDefault,
+                )}
               </strong>
             </div>
             {invoiceBreakdown.dependents.map((dependent) => (
@@ -311,7 +328,10 @@ function FlippableManagedCard({
               >
                 <span className="truncate text-white/65">{dependent.name}</span>
                 <strong className="shrink-0 font-semibold text-white">
-                  {brlFormatter.format(dependent.total)}
+                  {formatSensitiveCurrency(
+                    dependent.total,
+                    hideBalancesByDefault,
+                  )}
                 </strong>
               </div>
             ))}
@@ -372,6 +392,11 @@ export default function CardsPage() {
   const payCardInvoice = useFinanceStore((state) => state.payCardInvoice);
   const currentMonth = useFinanceStore((state) => state.currentMonth);
   const currentYear = useFinanceStore((state) => state.currentYear);
+  const hideBalancesByDefault = useFinanceStore(
+    (state) => state.hideBalancesByDefault,
+  );
+  const formatPrivateCurrency = (value: number) =>
+    formatSensitiveCurrency(value, hideBalancesByDefault);
 
   useEffect(() => {
     void fetchCards();
@@ -397,8 +422,10 @@ export default function CardsPage() {
     [currentMonth, currentYear, transactions],
   );
 
-  const selectedCard =
-    cards.find((card) => card.id === selectedCardId) ?? cards[0] ?? null;
+  const selectedCard = useMemo(
+    () => cards.find((card) => card.id === selectedCardId) ?? cards[0] ?? null,
+    [cards, selectedCardId],
+  );
 
   const selectedCardTransactions = useMemo(
     () =>
@@ -410,48 +437,99 @@ export default function CardsPage() {
     [monthlyTransactions, selectedCard],
   );
 
-  const selectedInvoiceTotal = selectedCardTransactions.reduce(
-    (total, transaction) => total + getCardSignedAmount(transaction),
-    0,
+  const selectedInvoiceTotal = useMemo(
+    () =>
+      selectedCardTransactions.reduce(
+        (total, transaction) => total + getCardSignedAmount(transaction),
+        0,
+      ),
+    [selectedCardTransactions],
   );
   const selectedLimit = selectedCard?.limitAmount ?? 0;
-  const selectedDebtTotal = selectedCard
-    ? calculateCardDebt(transactions, selectedCard.id)
-    : 0;
-  const selectedAvailableLimit = selectedCard
-    ? calculateAvailableCardLimit(transactions, selectedCard.id, selectedLimit)
-    : 0;
-  const selectedUsage =
-    selectedLimit > 0
-      ? Math.min((selectedDebtTotal / selectedLimit) * 100, 100)
-      : 0;
+  const selectedDebtTotal = useMemo(
+    () => (selectedCard ? calculateCardDebt(transactions, selectedCard.id) : 0),
+    [selectedCard, transactions],
+  );
+  const selectedAvailableLimit = useMemo(
+    () =>
+      selectedCard
+        ? calculateAvailableCardLimit(transactions, selectedCard.id, selectedLimit)
+        : 0,
+    [selectedCard, selectedLimit, transactions],
+  );
+  const selectedUsage = useMemo(
+    () =>
+      selectedLimit > 0
+        ? Math.min((selectedDebtTotal / selectedLimit) * 100, 100)
+        : 0,
+    [selectedDebtTotal, selectedLimit],
+  );
 
-  function openCreateModal() {
+  const cardInvoiceSummaries = useMemo(() => {
+    const today = getLocalTodayDateOnly();
+
+    return new Map(
+      cards.map((card) => {
+        const cardTransactions = monthlyTransactions.filter(
+          (transaction) => transaction.cardId === card.id,
+        );
+        const currentInvoiceTransactions = cardTransactions.filter(
+          (transaction) =>
+            transaction.is_recurring !== true ||
+            normalizeDateOnly(transaction.date) <= today,
+        );
+        const invoiceTotal = currentInvoiceTransactions.reduce(
+          (total, transaction) => total + getCardSignedAmount(transaction),
+          0,
+        );
+        const debtTotal = calculateCardDebt(transactions, card.id);
+        const limitAmount = card.limitAmount ?? 0;
+
+        return [
+          card.id,
+          {
+            debtTotal,
+            invoiceBreakdown: getInvoiceBreakdown(
+              currentInvoiceTransactions,
+              dependents,
+            ),
+            invoiceTotal,
+            limitUsage:
+              limitAmount > 0
+                ? Math.min((debtTotal / limitAmount) * 100, 100)
+                : 0,
+          },
+        ] as const;
+      }),
+    );
+  }, [cards, dependents, monthlyTransactions, transactions]);
+
+  const openCreateModal = useCallback(() => {
     setEditingCard(null);
     setIsAddCardModalOpen(true);
-  }
+  }, []);
 
-  function openEditModal(card: FinanceCard) {
+  const openEditModal = useCallback((card: FinanceCard) => {
     setEditingCard(card);
     setIsAddCardModalOpen(true);
-  }
+  }, []);
 
-  function closeCardModal() {
+  const closeCardModal = useCallback(() => {
     setIsAddCardModalOpen(false);
     setEditingCard(null);
-  }
+  }, []);
 
-  function handleCardKeyDown(
+  const handleCardKeyDown = useCallback((
     event: KeyboardEvent<HTMLDivElement>,
     cardId: string,
-  ) {
+  ) => {
     if (event.key === "Enter" || event.key === " ") {
       event.preventDefault();
       setSelectedCardId(cardId);
     }
-  }
+  }, []);
 
-  async function handleDeleteCard() {
+  const handleDeleteCard = useCallback(async () => {
     if (!deleteTargetCard || isDeletingCard) return;
 
     setIsDeletingCard(true);
@@ -471,9 +549,9 @@ export default function CardsPage() {
     } finally {
       setIsDeletingCard(false);
     }
-  }
+  }, [deleteCard, deleteTargetCard, isDeletingCard, selectedCardId]);
 
-  async function handlePayInvoiceClick(cardId: string) {
+  const handlePayInvoiceClick = useCallback(async (cardId: string) => {
     try {
       await payCardInvoice(cardId);
       toast.success("Fatura liquidada!");
@@ -482,7 +560,7 @@ export default function CardsPage() {
       console.error("Erro ao liquidar fatura:", error);
       toast.error("Não foi possível liquidar a fatura.");
     }
-  }
+  }, [fetchTransactions, payCardInvoice]);
 
   return (
     <div className="flex w-full flex-col gap-6 md:gap-8">
@@ -513,29 +591,13 @@ export default function CardsPage() {
         <Carousel opts={{ align: "start", dragFree: true }} className="min-w-0 w-full">
           <CarouselContent className="!ml-0 px-3 py-5 sm:px-4">
             {cards.map((card) => {
-              const cardTransactions = monthlyTransactions.filter(
-                (transaction) => transaction.cardId === card.id,
-              );
-              const currentInvoiceTransactions = cardTransactions.filter(
-                (transaction) =>
-                  transaction.is_recurring !== true ||
-                  normalizeDateOnly(transaction.date) <=
-                    getLocalTodayDateOnly(),
-              );
-              const invoiceTotal = currentInvoiceTransactions.reduce(
-                (total, transaction) => total + getCardSignedAmount(transaction),
-                0,
-              );
-              const invoiceBreakdown = getInvoiceBreakdown(
-                currentInvoiceTransactions,
-                dependents,
-              );
-              const debtTotal = calculateCardDebt(transactions, card.id);
               const limitAmount = card.limitAmount ?? 0;
-              const limitUsage =
-                limitAmount > 0
-                  ? Math.min((debtTotal / limitAmount) * 100, 100)
-                  : 0;
+              const cardSummary = cardInvoiceSummaries.get(card.id) ?? {
+                debtTotal: 0,
+                invoiceBreakdown: { personal: 0, dependents: [] },
+                invoiceTotal: 0,
+                limitUsage: 0,
+              };
               const isSelected = selectedCard?.id === card.id;
 
               return (
@@ -545,14 +607,10 @@ export default function CardsPage() {
                 >
                   <FlippableManagedCard
                     card={card}
-                    availableLimit={calculateAvailableCardLimit(
-                      transactions,
-                      card.id,
-                      limitAmount,
-                    )}
-                    invoiceTotal={invoiceTotal}
-                    invoiceBreakdown={invoiceBreakdown}
-                    limitUsage={limitUsage}
+                    availableLimit={Math.max(limitAmount - cardSummary.debtTotal, 0)}
+                    invoiceTotal={cardSummary.invoiceTotal}
+                    invoiceBreakdown={cardSummary.invoiceBreakdown}
+                    limitUsage={cardSummary.limitUsage}
                     isSelected={isSelected}
                     onSelect={setSelectedCardId}
                     onKeyDown={handleCardKeyDown}
@@ -589,10 +647,10 @@ export default function CardsPage() {
             <div className="text-left lg:text-right">
               <p className="text-sm text-muted-foreground">Total do mês</p>
               <p className="mt-1 text-2xl font-bold text-foreground lg:text-3xl">
-                {brlFormatter.format(selectedInvoiceTotal)}
+                {formatPrivateCurrency(selectedInvoiceTotal)}
               </p>
               <p className="mt-1 text-xs text-muted-foreground">
-                Disponível: {brlFormatter.format(selectedAvailableLimit)}
+                Disponível: {formatPrivateCurrency(selectedAvailableLimit)}
               </p>
             </div>
           </div>
@@ -602,7 +660,7 @@ export default function CardsPage() {
               <span>Limite consumido</span>
               <span>
                 {selectedLimit > 0
-                  ? `${selectedUsage.toFixed(0)}% de ${brlFormatter.format(selectedLimit)}`
+                  ? `${selectedUsage.toFixed(0)}% de ${formatPrivateCurrency(selectedLimit)}`
                   : "Sem limite definido"}
               </span>
             </div>
@@ -624,7 +682,7 @@ export default function CardsPage() {
                     title={<TransactionDescription transaction={transaction} />}
                     category={transaction.category || "Sem categoria"}
                     date={formatDateOnlyBR(transaction.date)}
-                    amount={`${isPositive ? "+" : "-"}${brlFormatter.format(transaction.amount)}`}
+                    amount={`${isPositive ? "+" : "-"}${formatPrivateCurrency(transaction.amount)}`}
                     positive={isPositive}
                   />
                 );
@@ -712,7 +770,7 @@ export default function CardsPage() {
                       )}
                     >
                       {isCardCreditAdjustment(transaction) ? "+" : "-"}
-                      {brlFormatter.format(transaction.amount)}
+                      {formatPrivateCurrency(transaction.amount)}
                     </TableCell>
                   </TableRow>
                   );
@@ -778,3 +836,4 @@ export default function CardsPage() {
     </div>
   );
 }
+
