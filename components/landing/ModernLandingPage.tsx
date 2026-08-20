@@ -1,82 +1,72 @@
 "use client";
 
-import { motion, useMotionValue, useSpring, useTransform } from "framer-motion";
+import {
+  motion,
+  useMotionValue,
+  useReducedMotion,
+  useSpring,
+  useTransform,
+} from "framer-motion";
 import {
   ArrowRight,
-  BarChart3,
   Check,
   ChevronRight,
   CircleUserRound,
   FileSpreadsheet,
   Landmark,
   LockKeyhole,
+  MoveDownRight,
   ShieldCheck,
-  Sparkles,
   Upload,
 } from "lucide-react";
 import Link from "next/link";
-import type { MouseEvent } from "react";
+import type { MouseEvent, ReactNode } from "react";
 
-const importRows = [
-  ["Mercado São Luiz", "Alimentação", "R$ 284,90"],
-  ["Uber", "Transporte", "R$ 42,60"],
-  ["Spotify", "Assinatura", "R$ 21,90"],
-];
+const transactions = [
+  ["Mercado São Luiz", "Alimentação", "− R$ 284,90"],
+  ["Uber", "Transporte", "− R$ 42,60"],
+  ["Spotify", "Assinaturas", "− R$ 21,90"],
+] as const;
+const bars = [36, 54, 43, 72, 58, 81, 66, 92, 74, 61, 48, 57];
 
-const steps = [
-  {
-    number: "01",
-    title: "Baixe o CSV",
-    description: "Exporte a fatura diretamente do aplicativo do seu banco.",
-  },
-  {
-    number: "02",
-    title: "Importe no Finync",
-    description: "Revise categorias, parcelas e responsáveis antes de confirmar.",
-  },
-  {
-    number: "03",
-    title: "Decida com clareza",
-    description: "Veja saldo, faturas, dependentes e gráficos sem planilhas.",
-  },
-];
-
-const floatingCards = [
-  { label: "Fatura aberta", value: "R$ 1.842,30", className: "left-[7%] top-[17%]" },
-  { label: "CSV importado", value: "41 itens", className: "right-[8%] top-[26%]" },
-  { label: "Dependentes", value: "R$ 177,11", className: "bottom-[22%] left-[10%]" },
-];
-
-function AnimatedBackground() {
+function Reveal({
+  children,
+  className = "",
+  delay = 0,
+}: {
+  children: ReactNode;
+  className?: string;
+  delay?: number;
+}) {
   return (
-    <div className="pointer-events-none absolute inset-0 overflow-hidden">
-      <div className="absolute inset-0 bg-[linear-gradient(rgba(255,255,255,0.032)_1px,transparent_1px),linear-gradient(90deg,rgba(255,255,255,0.032)_1px,transparent_1px)] bg-[size:72px_72px] opacity-40" />
-      <motion.div
-        className="absolute -left-32 top-12 size-96 rounded-full bg-emerald-500/18 blur-3xl"
-        animate={{ x: [0, 80, 20, 0], y: [0, 40, -20, 0], scale: [1, 1.12, 0.96, 1] }}
-        transition={{ duration: 18, repeat: Infinity, ease: "easeInOut" }}
-      />
-      <motion.div
-        className="absolute right-0 top-36 size-[28rem] rounded-full bg-cyan-500/10 blur-3xl"
-        animate={{ x: [0, -70, 10, 0], y: [0, -30, 40, 0], scale: [1, 0.94, 1.1, 1] }}
-        transition={{ duration: 22, repeat: Infinity, ease: "easeInOut" }}
-      />
-      <motion.div
-        className="absolute bottom-0 left-1/3 h-52 w-[34rem] rounded-full bg-white/8 blur-3xl"
-        animate={{ opacity: [0.25, 0.45, 0.25], x: [0, 40, 0] }}
-        transition={{ duration: 14, repeat: Infinity, ease: "easeInOut" }}
-      />
-    </div>
+    <motion.div
+      initial={{ opacity: 0, y: 24 }}
+      whileInView={{ opacity: 1, y: 0 }}
+      viewport={{ once: true, margin: "-80px" }}
+      transition={{ duration: 0.7, delay, ease: [0.22, 1, 0.36, 1] }}
+      className={className}
+    >
+      {children}
+    </motion.div>
   );
 }
 
-function DashboardMock() {
+function ProductPreview() {
+  const reduceMotion = useReducedMotion();
   const mouseX = useMotionValue(0);
   const mouseY = useMotionValue(0);
-  const smoothX = useSpring(mouseX, { stiffness: 90, damping: 18 });
-  const smoothY = useSpring(mouseY, { stiffness: 90, damping: 18 });
-  const rotateX = useTransform(smoothY, [-0.5, 0.5], [5, -5]);
-  const rotateY = useTransform(smoothX, [-0.5, 0.5], [-6, 6]);
+  const smoothX = useSpring(mouseX, { stiffness: 100, damping: 24 });
+  const smoothY = useSpring(mouseY, { stiffness: 100, damping: 24 });
+  const rotateX = useTransform(
+    smoothY,
+    [-0.5, 0.5],
+    reduceMotion ? [0, 0] : [2.5, -2.5],
+  );
+  const rotateY = useTransform(
+    smoothX,
+    [-0.5, 0.5],
+    reduceMotion ? [0, 0] : [-3, 3],
+  );
 
   function handleMouseMove(event: MouseEvent<HTMLDivElement>) {
     const rect = event.currentTarget.getBoundingClientRect();
@@ -84,416 +74,398 @@ function DashboardMock() {
     mouseY.set((event.clientY - rect.top) / rect.height - 0.5);
   }
 
-  function handleMouseLeave() {
-    mouseX.set(0);
-    mouseY.set(0);
-  }
-
   return (
     <motion.div
       onMouseMove={handleMouseMove}
-      onMouseLeave={handleMouseLeave}
-      style={{ rotateX, rotateY, transformPerspective: 1200 }}
-      initial={{ opacity: 0, y: 36, scale: 0.96 }}
-      whileInView={{ opacity: 1, y: 0, scale: 1 }}
-      viewport={{ once: true, margin: "-120px" }}
-      transition={{ duration: 0.8, ease: [0.22, 1, 0.36, 1] }}
-      className="relative mx-auto mt-14 w-full max-w-6xl"
+      onMouseLeave={() => {
+        mouseX.set(0);
+        mouseY.set(0);
+      }}
+      style={{ rotateX, rotateY, transformPerspective: 1600 }}
+      initial={{ opacity: 0, x: 36 }}
+      animate={{ opacity: 1, x: 0 }}
+      transition={{ duration: 0.9, delay: 0.2, ease: [0.22, 1, 0.36, 1] }}
+      className="relative lg:ml-8"
     >
-      {floatingCards.map((card, index) => (
-        <motion.div
-          key={card.label}
-          className={`absolute z-20 hidden rounded-xl border border-white/10 bg-zinc-950/80 px-4 py-3 shadow-2xl shadow-black/30 backdrop-blur-xl lg:block ${card.className}`}
-          animate={{ y: [0, index % 2 ? 12 : -12, 0] }}
-          transition={{ duration: 5 + index, repeat: Infinity, ease: "easeInOut" }}
-        >
-          <p className="text-xs text-zinc-500">{card.label}</p>
-          <p className="mt-1 text-sm font-semibold text-zinc-100">{card.value}</p>
-        </motion.div>
-      ))}
-
-      <div className="overflow-hidden rounded-2xl border border-white/10 bg-zinc-950/90 text-left shadow-2xl shadow-black/40 backdrop-blur-xl">
-        <div className="flex h-12 items-center justify-between border-b border-white/[0.08] px-4 sm:px-5">
-          <div className="flex items-center gap-2">
+      <div className="absolute -inset-px rounded-[25px] bg-white/[0.08]" />
+      <div className="relative overflow-hidden rounded-3xl border border-white/10 bg-[#0d0e0e] shadow-[0_40px_100px_rgba(0,0,0,0.55)]">
+        <div className="flex h-14 items-center justify-between border-b border-white/[0.07] px-5">
+          <div className="flex items-center gap-2.5">
             <span className="size-2 rounded-full bg-emerald-400" />
-            <span className="text-xs font-medium text-zinc-400">Setembro de 2026</span>
+            <span className="text-[11px] font-medium uppercase tracking-[0.18em] text-zinc-500">
+              Visão mensal
+            </span>
           </div>
-          <div className="hidden items-center gap-2 text-xs text-zinc-500 sm:flex">
-            <ShieldCheck className="size-3.5" />
-            Dados sincronizados
+          <span className="text-xs text-zinc-500">Setembro 2026</span>
+        </div>
+        <div className="border-b border-white/[0.07] px-5 py-7 sm:px-7">
+          <div className="flex items-start justify-between gap-6">
+            <div>
+              <p className="text-xs text-zinc-500">Saldo livre</p>
+              <p className="mt-2 text-3xl font-medium tracking-[-0.04em] text-white sm:text-4xl">
+                R$ 4.380,20
+              </p>
+            </div>
+            <span className="rounded-full border border-emerald-400/20 bg-emerald-400/[0.07] px-2.5 py-1 text-xs text-emerald-300">
+              +8,4%
+            </span>
+          </div>
+          <div className="mt-8 flex h-32 items-end gap-2">
+            {bars.map((height, index) => (
+              <motion.div
+                key={index}
+                className="group flex h-full flex-1 items-end"
+                initial={{ scaleY: 0 }}
+                animate={{ scaleY: 1 }}
+                transition={{ duration: 0.55, delay: 0.45 + index * 0.035 }}
+                style={{ transformOrigin: "bottom" }}
+              >
+                <div
+                  className={`w-full rounded-t-[2px] transition-colors ${index === bars.length - 1 ? "bg-emerald-400" : "bg-zinc-700 group-hover:bg-zinc-600"}`}
+                  style={{ height: `${height}%` }}
+                />
+              </motion.div>
+            ))}
+          </div>
+          <div className="mt-3 flex justify-between text-[10px] uppercase tracking-widest text-zinc-700">
+            <span>Jan</span>
+            <span>Jun</span>
+            <span>Dez</span>
           </div>
         </div>
-
-        <div className="grid grid-cols-2 gap-px bg-white/[0.08] sm:grid-cols-4">
+        <div className="grid divide-y divide-white/[0.07] sm:grid-cols-3 sm:divide-x sm:divide-y-0">
           {[
-            ["Saldo disponível", "R$ 4.380,20", "text-white"],
-            ["Receitas", "R$ 6.750,00", "text-emerald-300"],
-            ["Faturas abertas", "R$ 1.842,30", "text-zinc-100"],
-            ["Pendentes", "R$ 684,00", "text-amber-300"],
-          ].map(([label, value, tone]) => (
-            <div key={label} className="bg-zinc-900 p-4 sm:p-6">
-              <p className="text-xs text-zinc-500">{label}</p>
-              <p className={`mt-2 text-xl font-semibold sm:text-2xl ${tone}`}>{value}</p>
+            ["Receitas", "R$ 6.750,00"],
+            ["Despesas", "R$ 2.369,80"],
+            ["Fatura", "R$ 1.842,30"],
+          ].map(([label, value]) => (
+            <div key={label} className="px-5 py-5">
+              <p className="text-[11px] text-zinc-600">{label}</p>
+              <p className="mt-1.5 text-sm font-medium text-zinc-200">
+                {value}
+              </p>
             </div>
           ))}
         </div>
-
-        <div className="grid gap-px bg-white/[0.08] lg:grid-cols-[1.2fr_0.8fr]">
-          <div className="bg-zinc-950 p-5 sm:p-6">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-sm font-medium text-white">Fluxo do mês</p>
-                <p className="mt-1 text-xs text-zinc-500">Receitas e despesas pessoais</p>
-              </div>
-              <BarChart3 className="size-5 text-emerald-400" />
-            </div>
-            <div className="mt-8 flex h-32 items-end gap-3 sm:gap-5">
-              {[42, 58, 46, 72, 63, 84, 69, 91].map((height, index) => (
-                <motion.div
-                  key={index}
-                  className="flex h-full flex-1 items-end"
-                  initial={{ scaleY: 0 }}
-                  whileInView={{ scaleY: 1 }}
-                  viewport={{ once: true }}
-                  transition={{ duration: 0.55, delay: index * 0.05 }}
-                  style={{ transformOrigin: "bottom" }}
-                >
-                  <div className="w-full rounded-t-sm bg-zinc-700" style={{ height: `${height}%` }}>
-                    <div className="h-1.5 w-full rounded-t-sm bg-emerald-400" />
-                  </div>
-                </motion.div>
-              ))}
-            </div>
-          </div>
-
-          <div className="bg-zinc-950 p-5 sm:p-6">
-            <p className="text-sm font-medium text-white">Últimos lançamentos</p>
-            <div className="mt-5 space-y-4">
-              {importRows.map(([name, category, amount]) => (
-                <div key={name} className="flex items-center justify-between gap-4">
-                  <div className="min-w-0">
-                    <p className="truncate text-sm text-zinc-200">{name}</p>
-                    <p className="mt-1 text-xs text-zinc-600">{category}</p>
-                  </div>
-                  <span className="shrink-0 text-sm font-medium text-zinc-300">{amount}</span>
-                </div>
-              ))}
-            </div>
-          </div>
-        </div>
       </div>
+      <motion.div
+        animate={reduceMotion ? undefined : { y: [0, -6, 0] }}
+        transition={{ duration: 4, repeat: Infinity, ease: "easeInOut" }}
+        className="absolute -bottom-8 -left-4 hidden w-56 rounded-2xl border border-white/10 bg-[#141515] p-4 shadow-2xl md:block lg:-left-12"
+      >
+        <div className="flex items-center justify-between">
+          <span className="text-[11px] text-zinc-500">Limite disponível</span>
+          <MoveDownRight className="size-3.5 text-emerald-400" />
+        </div>
+        <p className="mt-3 text-xl font-medium tracking-tight">R$ 7.157,70</p>
+        <div className="mt-4 h-1 overflow-hidden rounded-full bg-zinc-800">
+          <motion.div
+            initial={{ width: 0 }}
+            animate={{ width: "72%" }}
+            transition={{ duration: 1, delay: 0.8 }}
+            className="h-full bg-emerald-400"
+          />
+        </div>
+      </motion.div>
     </motion.div>
   );
 }
 
 export function ModernLandingPage() {
   return (
-    <main className="min-h-screen overflow-x-hidden bg-zinc-950 text-zinc-50">
-      <header className="fixed inset-x-0 top-0 z-50 border-b border-white/[0.08] bg-zinc-950/75 backdrop-blur-xl">
-        <div className="mx-auto flex h-16 w-full max-w-7xl items-center justify-between px-4 sm:px-8 lg:px-10">
-          <Link href="/" className="flex items-center gap-3" aria-label="Finync">
-            <span className="flex size-9 items-center justify-center rounded-lg bg-emerald-400 text-zinc-950">
-              <Landmark className="size-5" strokeWidth={2.2} />
+    <main className="min-h-screen overflow-x-hidden bg-[#090a0a] text-zinc-50 selection:bg-emerald-300 selection:text-zinc-950">
+      <header className="fixed inset-x-0 top-0 z-50 border-b border-white/[0.07] bg-[#090a0a]/90 backdrop-blur-xl">
+        <div className="mx-auto flex h-[68px] w-full max-w-[1440px] items-center justify-between px-5 sm:px-8 lg:px-12">
+          <Link
+            href="/"
+            className="flex items-center gap-3"
+            aria-label="Finync"
+          >
+            <span className="flex size-9 items-center justify-center rounded-lg border border-white/10 bg-zinc-100 text-zinc-950">
+              <Landmark className="size-[18px]" strokeWidth={2.2} />
             </span>
-            <span className="text-lg font-semibold tracking-tight">Finync</span>
+            <span className="text-base font-semibold tracking-[-0.02em]">
+              Finync
+            </span>
           </Link>
-
-          <nav className="hidden items-center gap-7 text-sm text-zinc-400 md:flex">
-            <a href="#recursos" className="transition-colors hover:text-white">
+          <nav className="hidden items-center gap-8 text-[13px] text-zinc-500 md:flex">
+            <a
+              href="#produto"
+              className="transition-colors hover:text-zinc-100"
+            >
+              Produto
+            </a>
+            <a
+              href="#recursos"
+              className="transition-colors hover:text-zinc-100"
+            >
               Recursos
             </a>
-            <a href="#como-funciona" className="transition-colors hover:text-white">
-              Como funciona
-            </a>
-            <a href="#seguranca" className="transition-colors hover:text-white">
+            <a
+              href="#seguranca"
+              className="transition-colors hover:text-zinc-100"
+            >
               Segurança
             </a>
           </nav>
-
           <div className="flex items-center gap-2">
             <Link
               href="/login"
-              className="hidden h-10 items-center justify-center rounded-lg px-4 text-sm font-medium text-zinc-300 transition-colors hover:bg-white/[0.06] hover:text-white sm:inline-flex"
+              className="hidden h-10 items-center px-4 text-sm text-zinc-400 transition-colors hover:text-white sm:inline-flex"
             >
               Entrar
             </Link>
             <Link
               href="/signup"
-              className="inline-flex h-10 items-center justify-center rounded-lg bg-white px-4 text-sm font-semibold text-zinc-950 transition-colors hover:bg-zinc-200"
+              className="inline-flex h-10 items-center gap-2 rounded-lg bg-zinc-100 px-4 text-sm font-semibold text-zinc-950 transition hover:bg-white"
             >
-              Começar grátis
+              Criar conta <ArrowRight className="size-3.5" />
             </Link>
           </div>
         </div>
       </header>
 
-      <section className="relative isolate min-h-screen border-b border-white/[0.08] pt-16">
-        <AnimatedBackground />
-        <div className="relative z-10 mx-auto flex w-full max-w-7xl flex-col items-center px-4 pb-14 pt-14 text-center sm:px-8 sm:pt-24 lg:px-10">
-          <motion.div
-            initial={{ opacity: 0, y: 14 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.55 }}
-            className="inline-flex items-center gap-2 rounded-full border border-white/10 bg-white/[0.05] px-3 py-1.5 text-xs font-medium text-zinc-300 backdrop-blur"
-          >
-            <Sparkles className="size-3.5 text-emerald-400" />
-            Controle financeiro sem ruído operacional
-          </motion.div>
-
-          <motion.h1
-            initial={{ opacity: 0, y: 18 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.65, delay: 0.08 }}
-            className="mt-6 max-w-5xl text-4xl font-semibold leading-[1.04] tracking-tight sm:mt-7 sm:text-7xl lg:text-[88px]"
-          >
-            Assuma o controle financeiro sem planilhas.
-          </motion.h1>
-
-          <motion.p
-            initial={{ opacity: 0, y: 18 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.65, delay: 0.16 }}
-            className="mt-5 max-w-2xl text-[15px] leading-7 text-zinc-400 sm:mt-7 sm:text-lg sm:leading-8"
-          >
-            Importe faturas, separe dependentes, acompanhe ciclos de cartão e
-            entenda quanto sobra de verdade no mês, sem fórmulas manuais.
-          </motion.p>
-
-          <motion.div
-            initial={{ opacity: 0, y: 18 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.65, delay: 0.24 }}
-            className="mt-8 flex w-full max-w-xs flex-col justify-center gap-3 sm:max-w-none sm:flex-row"
-          >
-            <Link
-              href="/signup"
-              className="inline-flex h-12 w-full items-center justify-center gap-2 rounded-xl bg-emerald-400 px-6 text-sm font-semibold text-zinc-950 transition-colors hover:bg-emerald-300 sm:w-auto"
+      <section className="relative border-b border-white/[0.07] pt-[68px]">
+        <div className="pointer-events-none absolute inset-0 bg-[linear-gradient(rgba(255,255,255,0.025)_1px,transparent_1px)] bg-[size:100%_72px]" />
+        <div className="relative mx-auto grid min-h-[calc(100svh-68px)] w-full max-w-[1440px] items-center gap-16 px-5 py-16 sm:px-8 sm:py-24 lg:grid-cols-[0.86fr_1.14fr] lg:px-12 lg:py-20">
+          <div className="max-w-2xl">
+            <motion.div
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              transition={{ duration: 0.6 }}
+              className="flex items-center gap-3 text-[11px] font-medium uppercase tracking-[0.22em] text-zinc-500"
             >
-              Começar grátis
-              <ArrowRight className="size-4" />
-            </Link>
-            <Link
-              href="/demo"
-              className="inline-flex h-12 w-full items-center justify-center gap-2 rounded-xl border border-white/12 bg-zinc-950/80 px-6 text-sm font-semibold text-white transition-colors hover:bg-white/[0.06] sm:w-auto"
+              <span className="h-px w-8 bg-emerald-400" />
+              Clareza para o seu dinheiro
+            </motion.div>
+            <motion.h1
+              initial={{ opacity: 0, y: 24 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{
+                duration: 0.8,
+                delay: 0.06,
+                ease: [0.22, 1, 0.36, 1],
+              }}
+              className="mt-8 text-[clamp(3.25rem,6vw,6.6rem)] font-medium leading-[0.92] tracking-[-0.065em]"
             >
-              Ver painel demo
-              <ChevronRight className="size-4 text-zinc-500" />
-            </Link>
-          </motion.div>
-
-          <DashboardMock />
+              Seu dinheiro,
+              <span className="block text-zinc-500">sem pontos cegos.</span>
+            </motion.h1>
+            <motion.p
+              initial={{ opacity: 0, y: 18 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ duration: 0.7, delay: 0.16 }}
+              className="mt-8 max-w-xl text-base leading-7 text-zinc-400 sm:text-lg sm:leading-8"
+            >
+              Faturas, despesas, dependentes e receitas em uma leitura única. O
+              Finync transforma a rotina financeira em decisões claras.
+            </motion.p>
+            <motion.div
+              initial={{ opacity: 0, y: 16 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ duration: 0.7, delay: 0.24 }}
+              className="mt-9 flex flex-col gap-3 sm:flex-row"
+            >
+              <Link
+                href="/signup"
+                className="inline-flex h-12 items-center justify-center gap-2 rounded-lg bg-emerald-400 px-6 text-sm font-semibold text-zinc-950 transition hover:bg-emerald-300"
+              >
+                Começar gratuitamente <ArrowRight className="size-4" />
+              </Link>
+              <Link
+                href="/demo"
+                className="inline-flex h-12 items-center justify-center gap-2 rounded-lg border border-white/12 px-6 text-sm font-medium text-zinc-200 transition hover:border-white/25 hover:bg-white/[0.03]"
+              >
+                Explorar demonstração{" "}
+                <ChevronRight className="size-4 text-zinc-600" />
+              </Link>
+            </motion.div>
+            <motion.div
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              transition={{ duration: 0.8, delay: 0.4 }}
+              className="mt-12 flex items-center gap-7 border-t border-white/[0.08] pt-6 text-xs text-zinc-600"
+            >
+              <span>Sem planilhas</span>
+              <span>Sem cartão</span>
+              <span>Dados privados</span>
+            </motion.div>
+          </div>
+          <ProductPreview />
         </div>
       </section>
 
-      <section id="recursos" className="border-b border-white/[0.08] py-16 sm:py-28">
-        <div className="mx-auto w-full max-w-7xl px-4 sm:px-8 lg:px-10">
-          <motion.div
-            initial={{ opacity: 0, y: 20 }}
-            whileInView={{ opacity: 1, y: 0 }}
-            viewport={{ once: true, margin: "-120px" }}
-            transition={{ duration: 0.6 }}
-            className="max-w-3xl"
-          >
-            <p className="text-sm font-semibold text-emerald-400">O que muda na prática</p>
-            <h2 className="mt-4 text-3xl font-semibold leading-tight tracking-tight sm:text-5xl">
-              Menos trabalho operacional. Mais contexto para decidir.
-            </h2>
-            <p className="mt-5 max-w-2xl text-base leading-7 text-zinc-400">
-              Recursos pensados para limpar a bagunça real: CSV, parcelas,
-              dependentes, faturas e análise pessoal.
+      <section className="border-b border-white/[0.07]">
+        <div className="mx-auto grid max-w-[1440px] grid-cols-1 divide-y divide-white/[0.07] px-5 sm:grid-cols-3 sm:divide-x sm:divide-y-0 sm:px-8 lg:px-12">
+          {[
+            ["01", "Uma visão", "Tudo o que entra, sai e fica comprometido."],
+            ["02", "Seu contexto", "Dependentes separados do seu saldo real."],
+            [
+              "03",
+              "Menos esforço",
+              "CSV reconhecido antes de chegar à fatura.",
+            ],
+          ].map(([number, title, description]) => (
+            <div key={number} className="py-8 sm:px-7 first:pl-0 last:pr-0">
+              <span className="text-xs text-emerald-400">{number}</span>
+              <p className="mt-5 text-lg font-medium">{title}</p>
+              <p className="mt-2 max-w-xs text-sm leading-6 text-zinc-500">
+                {description}
+              </p>
+            </div>
+          ))}
+        </div>
+      </section>
+
+      <section
+        id="produto"
+        className="border-b border-white/[0.07] py-20 sm:py-32"
+      >
+        <div className="mx-auto w-full max-w-[1440px] px-5 sm:px-8 lg:px-12">
+          <Reveal className="grid gap-8 lg:grid-cols-[0.8fr_1.2fr] lg:items-end">
+            <div>
+              <p className="text-xs font-medium uppercase tracking-[0.2em] text-emerald-400">
+                Feito para a vida real
+              </p>
+              <h2 className="mt-5 max-w-2xl text-4xl font-medium leading-[1.04] tracking-[-0.045em] sm:text-6xl">
+                Controle sem transformar sua vida em contabilidade.
+              </h2>
+            </div>
+            <p className="max-w-xl text-base leading-7 text-zinc-500 lg:justify-self-end">
+              O produto cuida da complexidade de ciclos, parcelas e
+              responsáveis. Você fica com uma visão limpa do que realmente
+              importa.
             </p>
-          </motion.div>
-
-          <div className="mt-10 grid gap-5 lg:grid-cols-12">
-            <motion.article
-              initial={{ opacity: 0, y: 24 }}
-              whileInView={{ opacity: 1, y: 0 }}
-              viewport={{ once: true, margin: "-100px" }}
-              transition={{ duration: 0.55 }}
-              className="overflow-hidden rounded-2xl border border-white/10 bg-white/[0.04] p-5 lg:col-span-7 lg:p-8"
+          </Reveal>
+          <div id="recursos" className="mt-16 grid gap-4 lg:grid-cols-12">
+            <Reveal
+              className="overflow-hidden rounded-2xl border border-white/[0.08] bg-[#0d0e0e] lg:col-span-7"
+              delay={0.05}
             >
-              <div className="flex size-11 items-center justify-center rounded-lg bg-emerald-400 text-zinc-950">
-                <FileSpreadsheet className="size-5" />
-              </div>
-              <h3 className="mt-7 text-2xl font-semibold tracking-tight">Importação inteligente de CSV</h3>
-              <p className="mt-3 max-w-xl text-sm leading-6 text-zinc-400">
-                Reconheça descrições, parcelas, duplicidades e responsáveis
-                antes de gravar os dados no mês correto.
-              </p>
-
-              <div className="mt-8 overflow-hidden rounded-lg border border-white/[0.08] bg-zinc-950">
-                <div className="flex items-center justify-between border-b border-white/[0.08] px-4 py-3">
-                  <div className="flex items-center gap-2 text-xs text-zinc-400">
-                    <Upload className="size-3.5" />
-                    fatura-setembro.csv
-                  </div>
-                  <span className="text-xs text-emerald-400">18 itens reconhecidos</span>
+              <div className="p-6 sm:p-8">
+                <div className="flex items-center justify-between">
+                  <span className="flex size-10 items-center justify-center rounded-lg border border-white/10">
+                    <FileSpreadsheet className="size-4 text-emerald-400" />
+                  </span>
+                  <span className="text-[10px] uppercase tracking-[0.18em] text-zinc-600">
+                    Importação
+                  </span>
                 </div>
-                <div className="divide-y divide-white/[0.06]">
-                  {importRows.map(([name, category, amount]) => (
-                    <div
-                      key={name}
-                      className="grid grid-cols-[1fr_auto] items-center gap-4 px-4 py-3 sm:grid-cols-[1fr_160px_auto]"
-                    >
-                      <div className="flex min-w-0 items-center gap-3">
-                        <Check className="size-4 shrink-0 text-emerald-400" />
-                        <span className="truncate text-sm text-zinc-200">{name}</span>
-                      </div>
-                      <span className="hidden rounded-md bg-white/[0.06] px-2 py-1 text-xs text-zinc-400 sm:block">
-                        {category}
-                      </span>
-                      <span className="text-sm font-medium text-zinc-300">{amount}</span>
-                    </div>
-                  ))}
+                <h3 className="mt-10 text-2xl font-medium tracking-tight sm:text-3xl">
+                  Sua fatura entra organizada.
+                </h3>
+                <p className="mt-3 max-w-lg text-sm leading-6 text-zinc-500">
+                  Revise categorias, parcelas, duplicidades e responsáveis antes
+                  de salvar.
+                </p>
+              </div>
+              <div className="border-t border-white/[0.07]">
+                <div className="flex items-center justify-between border-b border-white/[0.07] px-5 py-3 text-xs text-zinc-500">
+                  <span className="flex items-center gap-2">
+                    <Upload className="size-3.5" /> fatura-setembro.csv
+                  </span>
+                  <span className="text-emerald-400">18 reconhecidos</span>
                 </div>
-              </div>
-            </motion.article>
-
-            <motion.article
-              initial={{ opacity: 0, y: 24 }}
-              whileInView={{ opacity: 1, y: 0 }}
-              viewport={{ once: true, margin: "-100px" }}
-              transition={{ duration: 0.55, delay: 0.08 }}
-              className="rounded-2xl border border-white/10 bg-white/[0.04] p-5 lg:col-span-5 lg:p-8"
-            >
-              <div className="flex size-11 items-center justify-center rounded-lg bg-white/[0.08] text-emerald-400">
-                <CircleUserRound className="size-5" />
-              </div>
-              <h3 className="mt-7 text-2xl font-semibold tracking-tight">Dependentes sem contaminar seu saldo</h3>
-              <p className="mt-3 text-sm leading-6 text-zinc-400">
-                Gastos de terceiros continuam na fatura, mas saem da análise do
-                seu fluxo pessoal.
-              </p>
-
-              <div className="mt-8 grid gap-3">
-                {[
-                  ["Seu fluxo pessoal", "R$ 3.286,40", "text-zinc-100"],
-                  ["Duda deve", "R$ 177,11", "text-emerald-300"],
-                ].map(([label, value, tone]) => (
-                  <div key={label} className="rounded-lg border border-white/[0.08] bg-zinc-950 p-4">
-                    <p className="text-xs text-zinc-500">{label}</p>
-                    <p className={`mt-2 text-xl font-semibold ${tone}`}>{value}</p>
+                {transactions.map(([name, category, amount]) => (
+                  <div
+                    key={name}
+                    className="grid grid-cols-[1fr_auto] items-center border-b border-white/[0.05] px-5 py-4 last:border-0 sm:grid-cols-[1fr_150px_auto]"
+                  >
+                    <span className="flex items-center gap-3 text-sm text-zinc-200">
+                      <Check className="size-3.5 text-emerald-400" />
+                      {name}
+                    </span>
+                    <span className="hidden text-xs text-zinc-600 sm:block">
+                      {category}
+                    </span>
+                    <span className="text-sm text-zinc-400">{amount}</span>
                   </div>
                 ))}
               </div>
-            </motion.article>
-
-            <motion.article
-              initial={{ opacity: 0, y: 24 }}
-              whileInView={{ opacity: 1, y: 0 }}
-              viewport={{ once: true, margin: "-100px" }}
-              transition={{ duration: 0.55, delay: 0.12 }}
-              className="rounded-2xl border border-white/10 bg-white/[0.04] p-5 lg:col-span-12 lg:p-8"
+            </Reveal>
+            <Reveal
+              className="rounded-2xl border border-white/[0.08] bg-[#0d0e0e] p-6 sm:p-8 lg:col-span-5"
+              delay={0.12}
             >
-              <div className="grid gap-10 lg:grid-cols-[0.7fr_1.3fr] lg:items-center">
-                <div>
-                  <div className="flex size-11 items-center justify-center rounded-lg bg-white/[0.08] text-emerald-400">
-                    <BarChart3 className="size-5" />
-                  </div>
-                  <h3 className="mt-7 text-2xl font-semibold tracking-tight">Analytics cirúrgico</h3>
-                  <p className="mt-3 max-w-lg text-sm leading-6 text-zinc-400">
-                    KPIs e gráficos isolam dependentes para mostrar sua saúde
-                    financeira real.
-                  </p>
-                </div>
-
-                <div className="rounded-lg border border-white/[0.08] bg-zinc-950 p-5">
-                  <div className="flex items-end justify-between gap-5">
-                    <div>
-                      <p className="text-xs text-zinc-500">Despesa pessoal</p>
-                      <p className="mt-2 text-2xl font-semibold">R$ 3.286,40</p>
-                    </div>
-                    <p className="text-xs text-emerald-400">12% abaixo de maio</p>
-                  </div>
-                  <div className="mt-8 flex h-36 items-end gap-2 sm:gap-4">
-                    {[54, 69, 61, 82, 74, 64, 48, 57, 43, 38].map((height, index) => (
-                      <motion.div
-                        key={index}
-                        className={index === 9 ? "w-full rounded-t-sm bg-emerald-400" : "w-full rounded-t-sm bg-zinc-700"}
-                        style={{ height: `${height}%` }}
-                        initial={{ scaleY: 0 }}
-                        whileInView={{ scaleY: 1 }}
-                        viewport={{ once: true }}
-                        transition={{ duration: 0.5, delay: index * 0.035 }}
-                      />
-                    ))}
-                  </div>
-                </div>
+              <div className="flex items-center justify-between">
+                <span className="flex size-10 items-center justify-center rounded-lg border border-white/10">
+                  <CircleUserRound className="size-4 text-emerald-400" />
+                </span>
+                <span className="text-[10px] uppercase tracking-[0.18em] text-zinc-600">
+                  Dependentes
+                </span>
               </div>
-            </motion.article>
-          </div>
-        </div>
-      </section>
-
-      <section id="como-funciona" className="border-b border-white/[0.08] py-16 sm:py-28">
-        <div className="mx-auto w-full max-w-7xl px-4 sm:px-8 lg:px-10">
-          <div className="max-w-2xl">
-            <p className="text-sm font-semibold text-emerald-400">Como funciona</p>
-            <h2 className="mt-4 text-3xl font-semibold leading-tight tracking-tight sm:text-5xl">
-              Da fatura ao resumo em três passos.
-            </h2>
-          </div>
-
-          <div className="mt-10 grid border-y border-white/10 md:grid-cols-3">
-            {steps.map((step, index) => (
-              <motion.article
-                key={step.number}
-                initial={{ opacity: 0, y: 18 }}
-                whileInView={{ opacity: 1, y: 0 }}
-                viewport={{ once: true }}
-                transition={{ duration: 0.45, delay: index * 0.08 }}
-                className={`py-8 md:px-8 ${index > 0 ? "border-t border-white/10 md:border-l md:border-t-0" : ""}`}
-              >
-                <span className="text-sm font-semibold text-emerald-400">{step.number}</span>
-                <h3 className="mt-8 text-xl font-semibold">{step.title}</h3>
-                <p className="mt-3 text-sm leading-6 text-zinc-400">{step.description}</p>
-              </motion.article>
-            ))}
-          </div>
-        </div>
-      </section>
-
-      <section id="seguranca" className="py-16 sm:py-28">
-        <div className="mx-auto w-full max-w-7xl px-4 sm:px-8 lg:px-10">
-          <motion.div
-            initial={{ opacity: 0, y: 24 }}
-            whileInView={{ opacity: 1, y: 0 }}
-            viewport={{ once: true, margin: "-120px" }}
-            transition={{ duration: 0.6 }}
-            className="grid gap-8 rounded-2xl border border-white/10 bg-white/[0.04] p-6 lg:grid-cols-[1fr_auto] lg:items-center lg:p-14"
-          >
-            <div className="max-w-3xl">
-              <div className="flex items-center gap-2 text-sm font-medium text-emerald-400">
-                <LockKeyhole className="size-4" />
-                Privacidade por padrão
-              </div>
-              <h2 className="mt-5 text-3xl font-semibold leading-tight tracking-tight sm:text-5xl">
-                Seu dinheiro merece uma visão melhor.
-              </h2>
-              <p className="mt-5 max-w-2xl text-base leading-7 text-zinc-400">
-                Comece gratuitamente e transforme sua próxima fatura em decisões
-                claras, sem fórmulas ou abas infinitas.
+              <h3 className="mt-10 text-2xl font-medium tracking-tight sm:text-3xl">
+                A fatura é uma. O saldo é seu.
+              </h3>
+              <p className="mt-3 text-sm leading-6 text-zinc-500">
+                Separe compras de terceiros sem perder a visão completa do
+                cartão.
               </p>
-            </div>
-
-            <Link
-              href="/signup"
-              className="inline-flex h-14 w-full max-w-xs items-center justify-center gap-2 rounded-xl bg-emerald-400 px-7 text-base font-semibold text-zinc-950 transition-colors hover:bg-emerald-300 lg:w-auto"
-            >
-              Criar minha conta
-              <ArrowRight className="size-5" />
-            </Link>
-          </motion.div>
+              <div className="mt-10 border-y border-white/[0.07]">
+                {[
+                  ["Seu consumo", "R$ 3.286,40"],
+                  ["Duda deve", "R$ 177,11"],
+                ].map(([label, value], index) => (
+                  <div
+                    key={label}
+                    className="flex items-center justify-between border-b border-white/[0.07] py-5 last:border-0"
+                  >
+                    <span className="text-sm text-zinc-500">{label}</span>
+                    <span
+                      className={index ? "text-emerald-300" : "text-zinc-100"}
+                    >
+                      {value}
+                    </span>
+                  </div>
+                ))}
+              </div>
+            </Reveal>
+          </div>
         </div>
       </section>
 
-      <footer className="border-t border-white/[0.08]">
-        <div className="mx-auto flex w-full max-w-7xl flex-col gap-5 px-5 py-8 text-sm text-zinc-500 sm:flex-row sm:items-center sm:justify-between sm:px-8 lg:px-10">
+      <section id="seguranca" className="py-20 sm:py-32">
+        <div className="mx-auto w-full max-w-[1440px] px-5 sm:px-8 lg:px-12">
+          <Reveal className="relative overflow-hidden rounded-3xl border border-white/[0.09] bg-zinc-100 px-6 py-14 text-zinc-950 sm:px-12 sm:py-20 lg:px-20">
+            <div className="absolute right-0 top-0 hidden h-full w-1/3 border-l border-black/10 lg:block">
+              <div className="flex h-full items-center justify-center">
+                <div className="flex size-40 items-center justify-center rounded-full border border-black/10">
+                  <div className="flex size-24 items-center justify-center rounded-full border border-black/10">
+                    <ShieldCheck className="size-8" strokeWidth={1.4} />
+                  </div>
+                </div>
+              </div>
+            </div>
+            <div className="relative max-w-3xl lg:max-w-[62%]">
+              <p className="flex items-center gap-2 text-xs font-semibold uppercase tracking-[0.18em] text-zinc-500">
+                <LockKeyhole className="size-3.5" /> Privacidade por padrão
+              </p>
+              <h2 className="mt-6 text-4xl font-medium leading-[1.02] tracking-[-0.045em] sm:text-6xl">
+                Chega de adivinhar para onde seu dinheiro foi.
+              </h2>
+              <p className="mt-6 max-w-xl text-base leading-7 text-zinc-600">
+                Comece gratuitamente. Organize sua próxima fatura e enxergue o
+                mês inteiro sem fórmulas ou abas infinitas.
+              </p>
+              <Link
+                href="/signup"
+                className="mt-9 inline-flex h-12 items-center gap-2 rounded-lg bg-zinc-950 px-6 text-sm font-semibold text-white transition hover:bg-zinc-800"
+              >
+                Criar minha conta <ArrowRight className="size-4" />
+              </Link>
+            </div>
+          </Reveal>
+        </div>
+      </section>
+
+      <footer className="border-t border-white/[0.07]">
+        <div className="mx-auto flex w-full max-w-[1440px] flex-col gap-5 px-5 py-8 text-xs text-zinc-600 sm:flex-row sm:items-center sm:justify-between sm:px-8 lg:px-12">
           <div className="flex items-center gap-2.5 text-zinc-300">
             <Landmark className="size-4 text-emerald-400" />
             <span className="font-semibold">Finync</span>
           </div>
-          <p>Controle financeiro pessoal, sem planilhas.</p>
+          <p>Controle financeiro pessoal, sem ruído.</p>
           <Link href="/login" className="transition-colors hover:text-white">
             Acessar minha conta
           </Link>
