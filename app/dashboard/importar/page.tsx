@@ -66,6 +66,7 @@ type ParsedTransaction = {
   referenceMonthOffset: number;
   installmentNumber: number;
   installmentsTotal: number;
+  groupId?: string | null;
   owner: "me" | "dependent";
 };
 
@@ -528,6 +529,26 @@ export default function ImportarPage() {
       ),
     }));
   }, [effectiveReferenceMonth, parsedData]);
+  const importRowsCount = useMemo(
+    () =>
+      parsedData.reduce((total, transaction) => {
+        if (
+          transaction.type === "credit" ||
+          !transaction.projectFutureInstallments ||
+          transaction.installmentNumber >= transaction.installmentsTotal
+        ) {
+          return total + 1;
+        }
+
+        return (
+          total +
+          transaction.installmentsTotal -
+          transaction.installmentNumber +
+          1
+        );
+      }, 0),
+    [parsedData],
+  );
   const categoryOptions = useMemo(() => {
     const categoryLabels = new Set(
       categories
@@ -607,6 +628,7 @@ export default function ImportarPage() {
 
     const remainingInstallments =
       transaction.installmentsTotal - transaction.installmentNumber + 1;
+    const groupId = transaction.groupId ?? crypto.randomUUID();
     const baseDescription = transaction.description.replace(
       /\s*\(\d{1,2}\/\d{1,2}\)$/,
       "",
@@ -619,6 +641,7 @@ export default function ImportarPage() {
         ...transaction,
         date: addMonthsToDateOnly(transaction.date, index),
         description: baseDescription,
+        groupId,
         installmentNumber,
         referenceMonthOffset: index,
       };
@@ -750,6 +773,7 @@ export default function ImportarPage() {
           user_id: user.id,
           card_id: effectiveSelectedCardId,
           dependent_id: transaction.dependentId ?? null,
+          group_id: transaction.groupId ?? null,
           month_start: addMonthsToDateOnly(
             monthStart,
             transaction.referenceMonthOffset,
@@ -760,7 +784,7 @@ export default function ImportarPage() {
           category:
             transaction.type === "credit"
               ? CARD_CREDIT_ADJUSTMENT_CATEGORY
-              : transaction.category || null,
+              : normalizeImportedExpenseCategory(transaction.category ?? null),
           amount: transaction.amount,
           day: getDateOnlyParts(transaction.date).day,
           status: "CONFIRMADO",
@@ -839,7 +863,8 @@ export default function ImportarPage() {
                 Pré-visualização da fatura
               </CardTitle>
               <CardDescription>
-                {fileName} · {parsedData.length} transações encontradas.
+                {fileName} · {parsedData.length} linhas revisadas ·{" "}
+                {importRowsCount} lançamentos serão importados.
               </CardDescription>
             </div>
             <Button
@@ -858,14 +883,14 @@ export default function ImportarPage() {
             <div className="grid gap-4 border-b border-zinc-800/80 p-4 sm:grid-cols-2">
               <div className="space-y-2">
                 <p className="text-xs font-medium uppercase tracking-wide text-zinc-400">
-                  Mês de Referência
+                  Mês da fatura
                 </p>
                 <Select
                   value={effectiveReferenceMonth}
                   onValueChange={setReferenceMonth}
                 >
                   <SelectTrigger className="border-zinc-700 bg-zinc-900 text-zinc-100">
-                    <SelectValue placeholder="Selecione a competência" />
+                    <SelectValue placeholder="Selecione o mês da fatura" />
                   </SelectTrigger>
                   <SelectContent>
                     {referenceMonthOptions.map((option) => (
@@ -1147,7 +1172,7 @@ export default function ImportarPage() {
               >
                 {isSubmitting
                   ? "Importando..."
-                  : `Importar ${parsedData.length} Transações`}
+                  : `Importar ${importRowsCount} Transações`}
               </Button>
             </div>
           </CardContent>
