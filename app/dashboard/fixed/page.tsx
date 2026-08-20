@@ -35,6 +35,10 @@ import {
   getLocalTodayDateOnly,
   normalizeDateOnly,
 } from "@/lib/dateUtils";
+import {
+  getTransactionStatusPresentation,
+  isFutureCardSubscription,
+} from "@/lib/transactionStatus";
 import { isTransactionInSelectedPeriod } from "@/lib/transactionPeriod";
 import { useFinanceStore, type Transaction } from "@/store/useFinanceStore";
 
@@ -50,15 +54,6 @@ function getDayDifference(dateOnly: string) {
   return Math.round((target.getTime() - today.getTime()) / 86_400_000);
 }
 
-function isFutureCardSubscription(transaction: Transaction) {
-  return (
-    transaction.type === "card" &&
-    transaction.is_recurring === true &&
-    transaction.status !== "paid" &&
-    normalizeDateOnly(transaction.date) > getLocalTodayDateOnly()
-  );
-}
-
 function getSubscriptionChargeLabel(transaction: Transaction) {
   if (transaction.status === "paid") return "Fatura liquidada";
 
@@ -71,32 +66,6 @@ function getSubscriptionChargeLabel(transaction: Transaction) {
   if (dayDifference === 0) return "Cai hoje";
 
   return "JÃ¡ caiu na fatura";
-}
-
-function getRecurringStatusPresentation(transaction: Transaction) {
-  if (transaction.status === "paid") {
-    return {
-      className: "border-emerald-800 bg-emerald-950 text-emerald-300",
-      label: "Pago",
-    };
-  }
-
-  if (transaction.type === "card") {
-    return isFutureCardSubscription(transaction)
-      ? {
-          className: "border-zinc-700 bg-zinc-900 text-zinc-400",
-          label: "Agendada",
-        }
-      : {
-          className: "border-sky-800 bg-sky-950 text-sky-300",
-          label: "Na fatura",
-        };
-  }
-
-  return {
-    className: "border-amber-800 bg-amber-950 text-amber-300",
-    label: "Pendente",
-  };
 }
 
 type RecurringTab = "fixed" | "subscriptions";
@@ -412,7 +381,7 @@ export default function FixedExpensesPage() {
             items.map((transaction) => {
               const isPaid = transaction.status === "paid";
               const statusPresentation =
-                getRecurringStatusPresentation(transaction);
+                getTransactionStatusPresentation(transaction);
 
               return (
                 <div
@@ -520,7 +489,7 @@ export default function FixedExpensesPage() {
               items.map((transaction) => {
                 const isPaid = transaction.status === "paid";
                 const statusPresentation =
-                  getRecurringStatusPresentation(transaction);
+                  getTransactionStatusPresentation(transaction);
 
                 return (
                   <TableRow
@@ -627,10 +596,10 @@ export default function FixedExpensesPage() {
           {groups.length ? (
             groups.map((group) => {
               const transaction = group.representative;
-              const isPaid = transaction.status === "paid";
-              const isFutureSubscription = isFutureCardSubscription(transaction);
+              const isPaid = group.nextCharge.status === "paid";
+              const isFutureSubscription = isFutureCardSubscription(group.nextCharge);
               const statusPresentation =
-                getRecurringStatusPresentation(transaction);
+                getTransactionStatusPresentation(group.nextCharge);
 
               return (
                 <div
@@ -674,7 +643,7 @@ export default function FixedExpensesPage() {
                         {statusPresentation.label}
                       </Badge>
                       <p className="mt-1 text-xs text-zinc-500">
-                        {getSubscriptionChargeLabel(transaction)}
+                        {getSubscriptionChargeLabel(group.nextCharge)}
                       </p>
                     </div>
                     <div className="flex items-center gap-1">
@@ -749,10 +718,10 @@ export default function FixedExpensesPage() {
             {groups.length ? (
               groups.map((group) => {
                 const transaction = group.representative;
-                const isPaid = transaction.status === "paid";
-                const isFutureSubscription = isFutureCardSubscription(transaction);
+                const isPaid = group.nextCharge.status === "paid";
+                const isFutureSubscription = isFutureCardSubscription(group.nextCharge);
                 const statusPresentation =
-                  getRecurringStatusPresentation(transaction);
+                  getTransactionStatusPresentation(group.nextCharge);
 
                 return (
                   <TableRow

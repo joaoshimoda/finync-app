@@ -67,6 +67,7 @@ import {
 } from "@/lib/cardCredits";
 import { cn } from "@/lib/utils";
 import { isTransactionInSelectedPeriod } from "@/lib/transactionPeriod";
+import { getTransactionStatusPresentation } from "@/lib/transactionStatus";
 import {
   useFinanceStore,
   type Card as FinanceCard,
@@ -812,6 +813,8 @@ export default function CardsPage() {
             <TableBody>
               {selectedCardTransactions.length ? (
                 selectedCardTransactions.map((transaction) => {
+                  const statusPresentation =
+                    getTransactionStatusPresentation(transaction);
                   const installmentNumber =
                     transaction.installmentNumber ??
                     transaction.current_installment ??
@@ -857,6 +860,17 @@ export default function CardsPage() {
                             className="border-zinc-700 bg-zinc-900 text-zinc-300"
                           >
                             {dependent.name}
+                          </Badge>
+                        ) : null}
+                        {transaction.is_recurring ? (
+                          <Badge
+                            variant="outline"
+                            className={cn(
+                              "rounded-lg",
+                              statusPresentation.className,
+                            )}
+                          >
+                            {statusPresentation.label}
                           </Badge>
                         ) : null}
                       </div>

@@ -53,6 +53,7 @@ import { getCardSignedAmount, isCardCreditAdjustment } from "@/lib/cardCredits";
 import { supabase } from "@/lib/supabaseClient";
 import { cn } from "@/lib/utils";
 import { isTransactionInSelectedPeriod } from "@/lib/transactionPeriod";
+import { getTransactionStatusPresentation } from "@/lib/transactionStatus";
 import { useFinanceStore, type Transaction } from "@/store/useFinanceStore";
 
 type TypeFilter = "all" | "income" | "expense" | "fixed";
@@ -699,6 +700,8 @@ export default function TransactionsPage() {
                   ? dependents.find((dependent) => dependent.id === dependentId)
                       ?.name
                   : null;
+                const statusPresentation =
+                  getTransactionStatusPresentation(transaction);
 
                 return (
                   <TableRow
@@ -723,6 +726,18 @@ export default function TransactionsPage() {
                         {dependentName ? (
                           <Badge className="rounded-md bg-zinc-100 px-2 py-0.5 text-xs font-medium text-zinc-600 hover:bg-zinc-100 dark:bg-zinc-800 dark:text-zinc-300 dark:hover:bg-zinc-800">
                             {dependentName}
+                          </Badge>
+                        ) : null}
+                        {transaction.is_recurring &&
+                        transaction.type === "card" ? (
+                          <Badge
+                            variant="outline"
+                            className={cn(
+                              "rounded-lg",
+                              statusPresentation.className,
+                            )}
+                          >
+                            {statusPresentation.label}
                           </Badge>
                         ) : null}
                       </div>

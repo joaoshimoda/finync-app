@@ -1,4 +1,4 @@
-"use client";
+﻿"use client";
 
 import Link from "next/link";
 import {
@@ -71,6 +71,7 @@ import { cn } from "@/lib/utils";
 import { isTransactionInSelectedPeriod } from "@/lib/transactionPeriod";
 import { aggregatePeriodExpenses } from "@/lib/financeAggregation";
 import { getCardInvoiceCycle } from "@/lib/cardBilling";
+import { getTransactionStatusPresentation } from "@/lib/transactionStatus";
 import {
   useFinanceStore,
   type Transaction,
@@ -82,15 +83,15 @@ const brlFormatter = new Intl.NumberFormat("pt-BR", {
   currency: "BRL",
 });
 
-const hiddenCurrencyLabel = "R$ ••••";
+const hiddenCurrencyLabel = "R$ â€¢â€¢â€¢â€¢";
 
 function formatSensitiveCurrency(value: number, hideValue: boolean) {
   return hideValue ? hiddenCurrencyLabel : brlFormatter.format(value);
 }
 
 const typeLabel: Record<string, string> = {
-  card: "Cartão",
-  fixed: "Débito/PIX",
+  card: "CartÃ£o",
+  fixed: "DÃ©bito/PIX",
   income: "Receita",
 };
 
@@ -198,7 +199,7 @@ function getCardAccentClassName(cardName: string) {
   const normalizedName = cardName.toLowerCase();
 
   if (normalizedName.includes("nubank")) return "border-l-purple-500";
-  if (normalizedName.includes("itaú") || normalizedName.includes("itau")) {
+  if (normalizedName.includes("itaÃº") || normalizedName.includes("itau")) {
     return "border-l-orange-500";
   }
   if (normalizedName.includes("c6") || normalizedName.includes("black")) {
@@ -262,14 +263,14 @@ function FlippableWalletCard({
               type="button"
               className="inline-flex size-7 items-center justify-center rounded-full bg-muted text-muted-foreground transition hover:bg-accent hover:text-foreground"
               onClick={() => setIsFlipped(true)}
-              aria-label={`Virar cartão ${cardSummary.name}`}
+              aria-label={`Virar cartÃ£o ${cardSummary.name}`}
             >
               <RotateCcw className="size-4" />
             </button>
           </div>
           <p className="relative mt-2 text-xs text-muted-foreground">
             Ciclo: {cycleLabel}
-            {" • "}
+            {" â€¢ "}
             {cardSummary.dueDay
               ? `Vence dia ${cardSummary.dueDay}`
               : "Sem vencimento"}
@@ -295,7 +296,7 @@ function FlippableWalletCard({
         >
           <div className="relative">
             <p className="text-xs font-medium uppercase text-muted-foreground">
-              Limite disponível
+              Limite disponÃ­vel
             </p>
             <strong className="mt-1 block text-2xl font-bold text-foreground">
               {formatSensitiveCurrency(
@@ -747,7 +748,7 @@ export default function DashboardPage() {
       await fetchTransactions();
     } catch (error) {
       console.error("Erro ao liquidar fatura:", error);
-      toast.error("Não foi possível liquidar a fatura.");
+      toast.error("NÃ£o foi possÃ­vel liquidar a fatura.");
     }
   }, [fetchTransactions, payCardInvoice]);
 
@@ -759,7 +760,7 @@ export default function DashboardPage() {
     );
 
     if (!Number.isFinite(nextAmount) || nextAmount <= 0) {
-      toast.error("Informe um valor válido para confirmar a renda.");
+      toast.error("Informe um valor vÃ¡lido para confirmar a renda.");
       return;
     }
 
@@ -774,10 +775,10 @@ export default function DashboardPage() {
         return nextValues;
       });
       await fetchTransactions();
-      toast.success("Renda variável confirmada!");
+      toast.success("Renda variÃ¡vel confirmada!");
     } catch (error) {
-      console.error("Erro ao confirmar renda variável:", error);
-      toast.error("Não foi possível confirmar essa renda agora.");
+      console.error("Erro ao confirmar renda variÃ¡vel:", error);
+      toast.error("NÃ£o foi possÃ­vel confirmar essa renda agora.");
     }
   }, [fetchTransactions, updateTransaction, variableIncomeValues]);
 
@@ -786,10 +787,10 @@ export default function DashboardPage() {
       <div className="flex items-start justify-between gap-4">
         <div>
           <h1 className="text-2xl font-bold tracking-tight md:text-3xl">
-            Visão geral
+            VisÃ£o geral
           </h1>
           <p className="mt-2 text-sm text-muted-foreground">
-            Acompanhe saldos, faturas e movimentações do período.
+            Acompanhe saldos, faturas e movimentaÃ§Ãµes do perÃ­odo.
           </p>
         </div>
 
@@ -832,7 +833,7 @@ export default function DashboardPage() {
                 <div className="flex flex-col">
                   <span className="text-base font-medium">Nova Receita</span>
                   <span className="text-xs text-muted-foreground">
-                    Adicione seu salário ou entrada
+                    Adicione seu salÃ¡rio ou entrada
                   </span>
                 </div>
               </DropdownMenuItem>
@@ -844,9 +845,9 @@ export default function DashboardPage() {
                   <CreditCard className="size-4" />
                 </div>
                 <div className="flex flex-col">
-                  <span className="text-base font-medium">Novo Cartão</span>
+                  <span className="text-base font-medium">Novo CartÃ£o</span>
                   <span className="text-xs text-muted-foreground">
-                    Cadastre um cartão de crédito
+                    Cadastre um cartÃ£o de crÃ©dito
                   </span>
                 </div>
               </DropdownMenuItem>
@@ -868,7 +869,7 @@ export default function DashboardPage() {
       <section>
         <div className="mb-4">
           <p className="text-xs font-medium uppercase text-muted-foreground">
-            Resumo do mês
+            Resumo do mÃªs
           </p>
           <h2 className="mt-1 text-xl font-semibold text-foreground">
             Seu dinheiro em um olhar
@@ -879,7 +880,7 @@ export default function DashboardPage() {
           <Card className="col-span-2 min-h-28 rounded-2xl border border-border/50 bg-zinc-950 p-4 text-zinc-50 shadow-none xl:col-span-1">
             <CardHeader className="p-0">
               <CardDescription className="text-zinc-400">
-                Saldo Disponível Total
+                Saldo DisponÃ­vel Total
               </CardDescription>
               <CardTitle className="mt-3 text-base font-semibold tracking-tight sm:text-xl">
                 {formatPrivateCurrency(monthlyBalances.projectedBalance)}
@@ -887,13 +888,13 @@ export default function DashboardPage() {
             </CardHeader>
             <CardContent className="flex items-center gap-2 p-0 pt-3 text-xs text-zinc-500">
               <ReceiptText className="size-4 text-emerald-400" />
-              Após compromissos do mês, ignorando gastos de dependentes.
+              ApÃ³s compromissos do mÃªs, ignorando gastos de dependentes.
             </CardContent>
           </Card>
 
           <Card className="min-h-32 rounded-2xl border border-border/50 bg-card p-3.5 shadow-none transition-colors hover:bg-accent/10 sm:p-4">
             <CardHeader className="p-0">
-              <CardDescription>Receitas do Mês</CardDescription>
+              <CardDescription>Receitas do MÃªs</CardDescription>
               <CardTitle className="mt-3 text-base tracking-normal text-emerald-300 sm:text-xl">
                 {formatPrivateCurrency(monthlyBalances.totalIncome)}
               </CardTitle>
@@ -918,7 +919,7 @@ export default function DashboardPage() {
               </div>
               <p className="mt-2 text-[10px] leading-4 text-zinc-500 sm:text-xs">
                 Meu: {formatPrivateCurrency(monthlyBalances.userCreditCardUntilToday)}
-                <span className="mx-1">•</span>
+                <span className="mx-1">â€¢</span>
                 Dependentes: {formatPrivateCurrency(monthlyBalances.dependentCreditCardUntilToday)}
               </p>
             </CardContent>
@@ -926,14 +927,14 @@ export default function DashboardPage() {
 
           <Card className="min-h-32 rounded-2xl border border-border/50 bg-card p-3.5 shadow-none transition-colors hover:bg-accent/10 sm:p-4">
             <CardHeader className="p-0">
-              <CardDescription>Projeção de Fechamento</CardDescription>
+              <CardDescription>ProjeÃ§Ã£o de Fechamento</CardDescription>
               <CardTitle className="mt-3 text-base tracking-normal text-blue-300 sm:text-xl">
                 {formatPrivateCurrency(monthlyBalances.creditCardProjected)}
               </CardTitle>
             </CardHeader>
             <CardContent className="flex items-center gap-2 p-0 pt-4 text-xs text-muted-foreground">
               <CreditCard className="size-4 text-blue-300" />
-              Faturas atuais + lançamentos futuros
+              Faturas atuais + lanÃ§amentos futuros
             </CardContent>
           </Card>
 
@@ -951,7 +952,7 @@ export default function DashboardPage() {
               </div>
               <p className="mt-2 text-[10px] leading-4 text-zinc-500 sm:text-xs">
                 Meu: {formatPrivateCurrency(monthlyBalances.personalPendingObligations)}
-                <span className="mx-1">•</span>
+                <span className="mx-1">â€¢</span>
                 Dependentes: {formatPrivateCurrency(monthlyBalances.dependentPendingObligations)}
               </p>
             </CardContent>
@@ -961,9 +962,9 @@ export default function DashboardPage() {
 
       <Card className="rounded-2xl border border-border/50 bg-card shadow-none">
         <CardHeader className="border-b border-border/50 p-5">
-          <CardDescription>Composição do Saldo</CardDescription>
+          <CardDescription>ComposiÃ§Ã£o do Saldo</CardDescription>
           <CardTitle className="text-xl tracking-normal">
-            Como o saldo disponível foi calculado
+            Como o saldo disponÃ­vel foi calculado
           </CardTitle>
         </CardHeader>
         <CardContent className="grid gap-4 p-4 lg:grid-cols-[minmax(0,1fr)_280px]">
@@ -982,19 +983,19 @@ export default function DashboardPage() {
                 prefix: "-",
               },
               {
-                label: "Débito / Pix pessoais",
+                label: "DÃ©bito / Pix pessoais",
                 value: balanceComposition.debitPix,
                 tone: "text-zinc-100",
                 prefix: "-",
               },
               {
-                label: "Cartão pessoal projetado",
+                label: "CartÃ£o pessoal projetado",
                 value: balanceComposition.cardGross,
                 tone: "text-zinc-100",
                 prefix: "-",
               },
               {
-                label: "Créditos e estornos no cartão",
+                label: "CrÃ©ditos e estornos no cartÃ£o",
                 value: balanceComposition.cardCredits,
                 tone: "text-emerald-300",
                 prefix: "+",
@@ -1022,7 +1023,7 @@ export default function DashboardPage() {
                 {formatPrivateCurrency(balanceComposition.projectedBalance)}
               </strong>
               <p className="mt-2 text-xs leading-5 text-zinc-500">
-                Dependentes excluídos do saldo pessoal:{" "}
+                Dependentes excluÃ­dos do saldo pessoal:{" "}
                 {formatPrivateCurrency(balanceComposition.dependentTotal)}
               </p>
             </div>
@@ -1045,10 +1046,10 @@ export default function DashboardPage() {
         <Card className="rounded-xl border border-emerald-500/30 bg-emerald-500/10 shadow-none">
           <CardHeader className="border-b border-emerald-500/20 p-5">
             <CardDescription className="text-emerald-200/80">
-              Confirmação rápida
+              ConfirmaÃ§Ã£o rÃ¡pida
             </CardDescription>
             <CardTitle className="text-xl tracking-normal text-emerald-50">
-              Rendas variáveis pendentes neste mês
+              Rendas variÃ¡veis pendentes neste mÃªs
             </CardTitle>
           </CardHeader>
           <CardContent className="grid gap-3 p-4">
@@ -1097,7 +1098,7 @@ export default function DashboardPage() {
               <div>
                 <CardTitle className="text-xl tracking-normal">Minha Carteira</CardTitle>
                 <CardDescription className="mt-1">
-                  Cartões, fixos e pagamentos à vista do período.
+                  CartÃµes, fixos e pagamentos Ã  vista do perÃ­odo.
                 </CardDescription>
               </div>
               <Button
@@ -1106,7 +1107,7 @@ export default function DashboardPage() {
                 className="h-10 gap-2 bg-emerald-600 px-4 font-semibold text-white hover:bg-emerald-700"
               >
                 <PlusCircle className="size-4" />
-                Adicionar Cartão
+                Adicionar CartÃ£o
               </Button>
             </CardHeader>
             <CardContent className="p-4">
@@ -1139,7 +1140,7 @@ export default function DashboardPage() {
                       </div>
                       <div className="relative mt-6 text-right">
                         <p className="text-xs font-medium uppercase text-muted-foreground">
-                          Total do mês
+                          Total do mÃªs
                         </p>
                         <strong className="mt-1 block text-xl font-bold tracking-normal text-foreground">
                           {formatPrivateCurrency(fixedSpendingTotal)}
@@ -1156,14 +1157,14 @@ export default function DashboardPage() {
                             <QrCode className="size-4 text-emerald-300" />
                           </div>
                           <p className="text-xs font-medium text-foreground">
-                            Débito / Pix
+                            DÃ©bito / Pix
                           </p>
                         </div>
                         <QrCode className="size-4 text-emerald-300" />
                       </div>
                       <div className="relative mt-6 text-right">
                         <p className="text-xs font-medium uppercase text-muted-foreground">
-                          Total do mês
+                          Total do mÃªs
                         </p>
                         <strong className="mt-1 block text-xl font-bold tracking-normal text-foreground">
                           {formatPrivateCurrency(debitPixSpendingTotal)}
@@ -1215,7 +1216,7 @@ export default function DashboardPage() {
               ) : (
                 <div className="flex flex-col items-center justify-center rounded-xl border border-dashed border-border/70 px-4 py-4 text-center text-sm text-muted-foreground">
                   <UserRound className="mb-3 size-8 text-muted-foreground/50" />
-                  Nenhum gasto vinculado a dependentes neste período.
+                  Nenhum gasto vinculado a dependentes neste perÃ­odo.
                 </div>
               )}
             </CardContent>
@@ -1227,15 +1228,15 @@ export default function DashboardPage() {
           <CardHeader className="flex flex-row items-center justify-between gap-4 border-b border-border/50 p-5">
             <div>
               <CardTitle className="text-lg font-medium tracking-normal text-foreground">
-                Movimentações recentes
+                MovimentaÃ§Ãµes recentes
               </CardTitle>
               <CardDescription className="mt-1">
-                Últimos dez lançamentos do período selecionado.
+                Ãšltimos dez lanÃ§amentos do perÃ­odo selecionado.
               </CardDescription>
             </div>
             <div className="flex items-center gap-2">
               <Badge variant="outline" className="hidden rounded-lg lg:inline-flex">
-                {monthlyTransactions.length} no mês
+                {monthlyTransactions.length} no mÃªs
               </Badge>
               <Button
                 variant="ghost"
@@ -1273,7 +1274,7 @@ export default function DashboardPage() {
             ) : (
               <div className="flex min-h-36 flex-col items-center justify-center gap-2 text-sm text-muted-foreground">
                 <Inbox className="size-7" />
-                Nenhuma movimentação neste período.
+                Nenhuma movimentaÃ§Ã£o neste perÃ­odo.
               </div>
             )}
           </div>
@@ -1288,7 +1289,7 @@ export default function DashboardPage() {
             <TableHeader className="bg-muted/30">
               <TableRow className="hover:bg-transparent">
                 <TableHead>Data</TableHead>
-                <TableHead>Descrição</TableHead>
+                <TableHead>DescriÃ§Ã£o</TableHead>
                 <TableHead className="hidden lg:table-cell">Categoria</TableHead>
                 <TableHead className="hidden lg:table-cell">Origem</TableHead>
                 <TableHead className="text-right">Valor</TableHead>
@@ -1303,8 +1304,10 @@ export default function DashboardPage() {
                       ? "Assinatura"
                       : transaction.type === "card"
                         ? cards.find((card) => card.id === transaction.cardId)
-                            ?.name ?? "Crédito"
+                            ?.name ?? "CrÃ©dito"
                         : getTransactionFallbackLabel(transaction);
+                  const statusPresentation =
+                    getTransactionStatusPresentation(transaction);
 
                   return (
                     <TableRow
@@ -1315,8 +1318,20 @@ export default function DashboardPage() {
                         {formatDateOnlyBR(transaction.date)}
                       </TableCell>
                       <TableCell>
-                        <div className="font-medium text-foreground">
+                        <div className="flex flex-wrap items-center gap-2 font-medium text-foreground">
                           <TransactionDescription transaction={transaction} />
+                          {transaction.is_recurring &&
+                          transaction.type === "card" ? (
+                            <Badge
+                              variant="outline"
+                              className={cn(
+                                "rounded-lg",
+                                statusPresentation.className,
+                              )}
+                            >
+                              {statusPresentation.label}
+                            </Badge>
+                          ) : null}
                         </div>
                         <div className="mt-1 text-xs text-muted-foreground lg:hidden">
                           {transaction.category || getTransactionFallbackLabel(transaction)}
@@ -1356,7 +1371,7 @@ export default function DashboardPage() {
                   >
                     <div className="flex flex-col items-center justify-center gap-2 py-6">
                       <Inbox className="size-7 text-muted-foreground/60" />
-                      <span>Nenhuma movimentação neste período.</span>
+                      <span>Nenhuma movimentaÃ§Ã£o neste perÃ­odo.</span>
                     </div>
                   </TableCell>
                 </TableRow>
@@ -1368,7 +1383,7 @@ export default function DashboardPage() {
 
         <Card className="rounded-xl border border-border/50 bg-card shadow-none">
           <CardHeader className="p-5 pb-2">
-            <CardDescription>Distribuição pessoal</CardDescription>
+            <CardDescription>DistribuiÃ§Ã£o pessoal</CardDescription>
             <CardTitle className="text-lg tracking-normal text-foreground">
               Para onde foi seu dinheiro
             </CardTitle>
@@ -1395,14 +1410,14 @@ export default function DashboardPage() {
               ))
             ) : (
               <div className="flex min-h-36 items-center justify-center rounded-lg border border-dashed border-border text-center text-sm text-muted-foreground">
-                Sem despesas pessoais neste período.
+                Sem despesas pessoais neste perÃ­odo.
               </div>
             )}
 
             <div className="grid grid-cols-2 gap-3 border-t border-border/50 pt-4">
               <div>
                 <ArrowDown className="size-4 text-red-300" />
-                <p className="mt-2 text-xs text-muted-foreground">Saídas</p>
+                <p className="mt-2 text-xs text-muted-foreground">SaÃ­das</p>
                 <strong className="text-sm text-foreground">
                   {formatPrivateCurrency(personalSpendingDistribution.total)}
                 </strong>

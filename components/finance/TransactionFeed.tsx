@@ -3,9 +3,8 @@
 import { formatCurrency } from "@/lib/financeUtils";
 import {
   getDateOnlyParts,
-  getLocalTodayDateOnly,
-  normalizeDateOnly,
 } from "@/lib/dateUtils";
+import { getTransactionStatusPresentation } from "@/lib/transactionStatus";
 import { ConfirmDialog } from "@/components/ui/ConfirmDialog";
 import { RecurringDeleteDialog } from "@/components/finance/RecurringDeleteDialog";
 import {
@@ -15,7 +14,6 @@ import {
   useFinanceStore,
   type Card,
   type Transaction,
-  type TransactionStatus,
 } from "@/store/useFinanceStore";
 import {
   BookOpen,
@@ -48,44 +46,6 @@ const categoryMeta: Record<string, { color: string; icon: LucideIcon }> = {
   Receita: { color: "#34d399", icon: Wallet },
   Outros: { color: "#94a3b8", icon: CircleHelp },
 };
-
-const statusStyles: Record<
-  TransactionStatus,
-  { label: string; className: string }
-> = {
-  paid: {
-    label: "Pago",
-    className: "border-emerald-300/20 bg-emerald-300/10 text-emerald-200",
-  },
-  confirmed: {
-    label: "Na fatura",
-    className: "border-sky-300/20 bg-sky-300/10 text-sky-200",
-  },
-  pending: {
-    label: "Pendente",
-    className: "border-amber-300/20 bg-amber-300/10 text-amber-200",
-  },
-};
-
-function isFutureCardSubscription(transaction: Transaction) {
-  return (
-    transaction.type === "card" &&
-    transaction.is_recurring === true &&
-    transaction.status !== "paid" &&
-    normalizeDateOnly(transaction.date) > getLocalTodayDateOnly()
-  );
-}
-
-function getTransactionStatusPresentation(transaction: Transaction) {
-  if (isFutureCardSubscription(transaction)) {
-    return {
-      label: "Agendada",
-      className: "border-zinc-300/15 bg-zinc-300/10 text-zinc-300",
-    };
-  }
-
-  return statusStyles[transaction.status || "confirmed"];
-}
 
 export function TransactionFeed({
   transactions = [],
