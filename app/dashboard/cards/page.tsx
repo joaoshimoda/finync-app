@@ -66,7 +66,7 @@ import {
   shouldCountCardCharge,
 } from "@/lib/cardCredits";
 import { cn } from "@/lib/utils";
-import { isTransactionInSelectedPeriod } from "@/lib/transactionPeriod";
+import { isTransactionInSelectedCompetence } from "@/lib/transactionPeriod";
 import { getTransactionStatusPresentation } from "@/lib/transactionStatus";
 import {
   useFinanceStore,
@@ -415,7 +415,7 @@ export default function CardsPage() {
   const monthlyTransactions = useMemo(
     () =>
       transactions.filter((transaction) =>
-        isTransactionInSelectedPeriod(
+        isTransactionInSelectedCompetence(
           transaction,
           currentMonth,
           currentYear,

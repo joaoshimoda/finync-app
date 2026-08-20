@@ -52,7 +52,7 @@ import { formatDateOnlyBR } from "@/lib/dateUtils";
 import { getCardSignedAmount, isCardCreditAdjustment } from "@/lib/cardCredits";
 import { supabase } from "@/lib/supabaseClient";
 import { cn } from "@/lib/utils";
-import { isTransactionInSelectedPeriod } from "@/lib/transactionPeriod";
+import { isTransactionInSelectedCompetence } from "@/lib/transactionPeriod";
 import { getTransactionStatusPresentation } from "@/lib/transactionStatus";
 import { useFinanceStore, type Transaction } from "@/store/useFinanceStore";
 
@@ -100,7 +100,7 @@ function isSameSelectedMonth(
   currentMonth: number,
   currentYear: number,
 ) {
-  return isTransactionInSelectedPeriod(
+  return isTransactionInSelectedCompetence(
     transaction,
     currentMonth,
     currentYear,

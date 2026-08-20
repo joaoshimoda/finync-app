@@ -57,23 +57,37 @@ function addMonthsToMonthStart(monthStart: string, offset: number) {
   return toDateOnly(nextYear, nextMonth, 1);
 }
 
+function getLastDayOfMonth(year: number, month: number) {
+  return new Date(year, month, 0).getDate();
+}
+
+function toClampedDateOnly(year: number, month: number, day: number) {
+  return toDateOnly(year, month, Math.min(day, getLastDayOfMonth(year, month)));
+}
+
 export function getCardInvoiceCycle(
   invoiceMonthStart: string,
   closingDay?: number | null,
 ) {
   const normalizedInvoiceMonth = normalizeDateOnly(invoiceMonthStart);
-  const safeClosingDay = closingDay && closingDay > 1 ? closingDay : 1;
+  const safeClosingDay = Math.max(closingDay ?? 1, 1);
   const previousMonthStart = addMonthsToMonthStart(normalizedInvoiceMonth, -1);
   const invoiceParts = getDateOnlyParts(normalizedInvoiceMonth);
   const previousParts = getDateOnlyParts(previousMonthStart);
+  const endParts =
+    safeClosingDay === 1 ? previousParts : invoiceParts;
+  const endDay =
+    safeClosingDay === 1
+      ? getLastDayOfMonth(previousParts.year, previousParts.month)
+      : safeClosingDay - 1;
 
   return {
-    endDate: toDateOnly(
-      invoiceParts.year,
-      invoiceParts.month,
-      safeClosingDay - 1 || 1,
+    endDate: toClampedDateOnly(
+      endParts.year,
+      endParts.month,
+      endDay,
     ),
-    startDate: toDateOnly(
+    startDate: toClampedDateOnly(
       previousParts.year,
       previousParts.month,
       safeClosingDay,

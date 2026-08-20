@@ -56,7 +56,6 @@ import {
 } from "@/components/ui/table";
 import {
   formatDateOnlyBR,
-  getDateOnlyParts,
   toDateOnly,
 } from "@/lib/dateUtils";
 import {
@@ -68,7 +67,10 @@ import {
 } from "@/lib/cardCredits";
 import { isPendingVariableIncome } from "@/lib/incomeRecurrence";
 import { cn } from "@/lib/utils";
-import { isTransactionInSelectedPeriod } from "@/lib/transactionPeriod";
+import {
+  isCardTransactionInSelectedInvoiceMonth,
+  isTransactionInSelectedCompetence,
+} from "@/lib/transactionPeriod";
 import { aggregatePeriodExpenses } from "@/lib/financeAggregation";
 import { getCardInvoiceCycle } from "@/lib/cardBilling";
 import { getTransactionStatusPresentation } from "@/lib/transactionStatus";
@@ -113,7 +115,7 @@ function isSameSelectedMonth(
   currentMonth: number,
   currentYear: number,
 ) {
-  return isTransactionInSelectedPeriod(
+  return isTransactionInSelectedCompetence(
     transaction,
     currentMonth,
     currentYear,
@@ -125,14 +127,10 @@ function isSameSelectedInvoiceCycle(
   currentMonth: number,
   currentYear: number,
 ) {
-  const billingDate = getDateOnlyParts(
-    transaction.billingMonthStart ?? transaction.date,
-  );
-
-  return (
-    transaction.type === "card" &&
-    billingDate.month === currentMonth &&
-    billingDate.year === currentYear
+  return isCardTransactionInSelectedInvoiceMonth(
+    transaction,
+    currentMonth,
+    currentYear,
   );
 }
 

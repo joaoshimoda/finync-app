@@ -13,7 +13,7 @@ import {
 } from "@/lib/dateUtils";
 import type { User } from "@supabase/supabase-js";
 import { create } from "zustand";
-import { isTransactionInSelectedPeriod } from "@/lib/transactionPeriod";
+import { isTransactionInSelectedCompetence } from "@/lib/transactionPeriod";
 import {
   DEFAULT_CATEGORIES,
   isEssentialCategory,
@@ -384,7 +384,7 @@ function toTransactionInsertPayload(
 }
 
 function isTransactionInSelectedRange(transaction: Transaction, month: number, year: number) {
-  return isTransactionInSelectedPeriod(transaction, month, year);
+  return isTransactionInSelectedCompetence(transaction, month, year);
 }
 
 function getDefaultCategories(): Category[] {

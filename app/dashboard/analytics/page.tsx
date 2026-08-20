@@ -72,6 +72,7 @@ type TransactionRow = {
   card_id: string | null;
   dependent_id: string | null;
   month_start: string;
+  transaction_date: string | null;
   type: "income" | "fixed" | "card" | string;
   description: string;
   category: string | null;
@@ -165,7 +166,7 @@ function buildAnalyticsData(
     return {
       id: row.id,
       type: row.type,
-      date: toDateOnly(period.year, period.month, row.day || 1),
+      date: row.transaction_date ?? toDateOnly(period.year, period.month, row.day || 1),
       billingMonthStart: row.type === "card" ? row.month_start : undefined,
       amount: toAmount(row.amount),
       description: row.description,
@@ -327,7 +328,7 @@ export default function AnalyticsPage() {
         );
         const { data, error } = await supabase
           .from("transactions")
-          .select("id, card_id, dependent_id, month_start, type, description, category, amount, day, notes")
+          .select("id, card_id, dependent_id, month_start, transaction_date, type, description, category, amount, day, notes")
           .eq("user_id", user.id)
           .is("dependent_id", null)
           .gte("month_start", startDate)

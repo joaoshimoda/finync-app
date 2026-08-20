@@ -39,7 +39,7 @@ import {
   getTransactionStatusPresentation,
   isFutureCardSubscription,
 } from "@/lib/transactionStatus";
-import { isTransactionInSelectedPeriod } from "@/lib/transactionPeriod";
+import { isTransactionInSelectedCompetence } from "@/lib/transactionPeriod";
 import { useFinanceStore, type Transaction } from "@/store/useFinanceStore";
 
 const brlFormatter = new Intl.NumberFormat("pt-BR", {
@@ -85,7 +85,7 @@ function isInSelectedMonth(
   month: number,
   year: number,
 ) {
-  return isTransactionInSelectedPeriod(transaction, month, year);
+  return isTransactionInSelectedCompetence(transaction, month, year);
 }
 
 export default function FixedExpensesPage() {

@@ -1,5 +1,5 @@
 import { getCardSignedAmount } from "@/lib/cardCredits";
-import { isTransactionInSelectedPeriod } from "@/lib/transactionPeriod";
+import { isTransactionInSelectedCompetence } from "@/lib/transactionPeriod";
 
 export type ExpenseAggregationEntry = {
   id: string;
@@ -37,7 +37,7 @@ export function aggregatePeriodExpenses(
       if (
         entry.type === "income" ||
         (options.excludeDependents && entry.dependentId) ||
-        !isTransactionInSelectedPeriod(entry, month, year)
+        !isTransactionInSelectedCompetence(entry, month, year)
       ) {
         return result;
       }
