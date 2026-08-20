@@ -55,7 +55,6 @@ import { getCardInvoiceCycle } from "@/lib/cardBilling";
 import {
   formatDateOnlyBR,
   getLocalTodayDateOnly,
-  normalizeDateOnly,
   toDateOnly,
 } from "@/lib/dateUtils";
 import {
@@ -393,6 +392,7 @@ export default function CardsPage() {
   const dependents = useFinanceStore((state) => state.dependents);
   const transactions = useFinanceStore((state) => state.transactions);
   const fetchTransactions = useFinanceStore((state) => state.fetchTransactions);
+  const fetchDependents = useFinanceStore((state) => state.fetchDependents);
   const deleteCard = useFinanceStore((state) => state.deleteCard);
   const payCardInvoice = useFinanceStore((state) => state.payCardInvoice);
   const currentMonth = useFinanceStore((state) => state.currentMonth);
@@ -405,11 +405,8 @@ export default function CardsPage() {
 
   useEffect(() => {
     void fetchTransactions();
-  }, [
-    currentMonth,
-    currentYear,
-    fetchTransactions,
-  ]);
+    void fetchDependents();
+  }, [currentMonth, currentYear, fetchDependents, fetchTransactions]);
 
   const monthlyTransactions = useMemo(
     () =>
@@ -468,11 +465,11 @@ export default function CardsPage() {
       (sum, transaction) => sum + getCardSignedAmount(transaction),
       0,
     );
-    const postedTransactions = selectedCardTransactions.filter(
-      (transaction) => normalizeDateOnly(transaction.date) <= today,
+    const postedTransactions = selectedCardTransactions.filter((transaction) =>
+      shouldCountCardCharge(transaction, today),
     );
     const scheduledTransactions = selectedCardTransactions.filter(
-      (transaction) => normalizeDateOnly(transaction.date) > today,
+      (transaction) => !shouldCountCardCharge(transaction, today),
     );
     const posted = postedTransactions.reduce(
       (sum, transaction) => sum + getCardSignedAmount(transaction),
@@ -489,13 +486,30 @@ export default function CardsPage() {
     const dependentsTotal = selectedCardTransactions
       .filter((transaction) => transaction.dependentId)
       .reduce((sum, transaction) => sum + getCardSignedAmount(transaction), 0);
+    const personalTotal = selectedCardTransactions
+      .filter((transaction) => !transaction.dependentId)
+      .reduce((sum, transaction) => sum + getCardSignedAmount(transaction), 0);
+    const subscriptionsTotal = selectedCardTransactions
+      .filter((transaction) => transaction.is_recurring === true)
+      .reduce((sum, transaction) => sum + getCardSignedAmount(transaction), 0);
+    const installmentsTotal = selectedCardTransactions
+      .filter((transaction) => {
+        const installments =
+          transaction.installmentsTotal ?? transaction.installments ?? 1;
+
+        return installments > 1;
+      })
+      .reduce((sum, transaction) => sum + getCardSignedAmount(transaction), 0);
 
     return {
       dependentsTotal,
+      installmentsTotal,
       open,
       paid,
+      personalTotal,
       posted,
       scheduled,
+      subscriptionsTotal,
       total,
     };
   }, [selectedCardTransactions]);
@@ -734,7 +748,7 @@ export default function CardsPage() {
                 tone: "text-zinc-50",
               },
               {
-                label: "Já caiu",
+                label: "Fatura atual",
                 value: selectedInvoiceSummary.posted,
                 tone: "text-violet-300",
               },
@@ -744,14 +758,14 @@ export default function CardsPage() {
                 tone: "text-zinc-300",
               },
               {
-                label: "Pago",
-                value: selectedInvoiceSummary.paid,
-                tone: "text-emerald-300",
-              },
-              {
                 label: "Em aberto",
                 value: selectedInvoiceSummary.open,
                 tone: "text-amber-300",
+              },
+              {
+                label: "Meus gastos",
+                value: selectedInvoiceSummary.personalTotal,
+                tone: "text-zinc-100",
               },
               {
                 label: "Dependentes",
@@ -767,6 +781,39 @@ export default function CardsPage() {
                   {item.label}
                 </p>
                 <strong className={cn("mt-2 block text-sm font-semibold", item.tone)}>
+                  {formatPrivateCurrency(item.value)}
+                </strong>
+              </div>
+            ))}
+          </div>
+
+          <div className="mt-3 grid grid-cols-2 gap-3 md:grid-cols-4">
+            {[
+              {
+                label: "Assinaturas",
+                value: selectedInvoiceSummary.subscriptionsTotal,
+              },
+              {
+                label: "Parcelas",
+                value: selectedInvoiceSummary.installmentsTotal,
+              },
+              {
+                label: "Pago",
+                value: selectedInvoiceSummary.paid,
+              },
+              {
+                label: "Sem dependente",
+                value: selectedInvoiceSummary.personalTotal,
+              },
+            ].map((item) => (
+              <div
+                key={item.label}
+                className="flex items-center justify-between gap-3 rounded-xl border border-zinc-800/80 bg-zinc-950/30 px-3 py-2"
+              >
+                <span className="truncate text-xs text-zinc-500">
+                  {item.label}
+                </span>
+                <strong className="shrink-0 text-xs font-medium text-zinc-200">
                   {formatPrivateCurrency(item.value)}
                 </strong>
               </div>
@@ -826,6 +873,11 @@ export default function CardsPage() {
                   const isLastInstallment =
                     installmentsTotal > 1 &&
                     installmentNumber === installmentsTotal;
+                  const isInstallment = installmentsTotal > 1;
+                  const isScheduledCharge = !shouldCountCardCharge(
+                    transaction,
+                    getLocalTodayDateOnly(),
+                  );
                   const dependent = transaction.dependentId
                     ? dependents.find(
                         (item) => item.id === transaction.dependentId,
@@ -833,65 +885,84 @@ export default function CardsPage() {
                     : null;
 
                   return (
-                  <TableRow
-                    key={transaction.id}
-                    className={cn(
-                      "hover:bg-muted/35",
-                      isLastInstallment &&
-                        "bg-emerald-950/20 hover:bg-emerald-950/30",
-                    )}
-                  >
-                    <TableCell className="text-muted-foreground">
-                      {formatDateOnlyBR(transaction.date)}
-                    </TableCell>
-                    <TableCell>
-                      <div className="flex flex-wrap items-center gap-2 font-medium text-foreground">
-                        <span>
-                          <TransactionDescription transaction={transaction} />
-                        </span>
-                        {isLastInstallment ? (
-                          <Badge className="border border-emerald-800 bg-emerald-950 text-emerald-300 hover:bg-emerald-950">
-                            Última!
-                          </Badge>
-                        ) : null}
-                        {dependent ? (
-                          <Badge
-                            variant="outline"
-                            className="border-zinc-700 bg-zinc-900 text-zinc-300"
-                          >
-                            {dependent.name}
-                          </Badge>
-                        ) : null}
-                        {transaction.is_recurring ? (
-                          <Badge
-                            variant="outline"
-                            className={cn(
-                              "rounded-lg",
-                              statusPresentation.className,
-                            )}
-                          >
-                            {statusPresentation.label}
-                          </Badge>
-                        ) : null}
-                      </div>
-                    </TableCell>
-                    <TableCell className="hidden lg:table-cell">
-                      <Badge variant="outline" className="rounded-lg">
-                        {transaction.category || "Sem categoria"}
-                      </Badge>
-                    </TableCell>
-                    <TableCell
+                    <TableRow
+                      key={transaction.id}
                       className={cn(
-                        "text-right font-medium",
-                        isCardCreditAdjustment(transaction)
-                          ? "text-emerald-400"
-                          : "text-red-300",
+                        "hover:bg-muted/35",
+                        (transaction.status === "paid" ||
+                          isScheduledCharge) &&
+                          "opacity-70",
+                        isLastInstallment &&
+                          "bg-emerald-950/20 hover:bg-emerald-950/30",
                       )}
                     >
-                      {isCardCreditAdjustment(transaction) ? "+" : "-"}
-                      {formatPrivateCurrency(transaction.amount)}
-                    </TableCell>
-                  </TableRow>
+                      <TableCell className="text-muted-foreground">
+                        {formatDateOnlyBR(transaction.date)}
+                      </TableCell>
+                      <TableCell>
+                        <div className="flex flex-wrap items-center gap-2 font-medium text-foreground">
+                          <span>
+                            <TransactionDescription transaction={transaction} />
+                          </span>
+                          {transaction.is_recurring ? (
+                            <Badge
+                              variant="outline"
+                              className="rounded-lg border-violet-300/20 bg-violet-300/10 text-violet-200"
+                            >
+                              Assinatura
+                            </Badge>
+                          ) : null}
+                          {isInstallment ? (
+                            <Badge
+                              variant="outline"
+                              className="rounded-lg border-zinc-700 bg-zinc-900 text-zinc-300"
+                            >
+                              Parcela {installmentNumber}/{installmentsTotal}
+                            </Badge>
+                          ) : null}
+                          {isLastInstallment ? (
+                            <Badge className="border border-emerald-800 bg-emerald-950 text-emerald-300 hover:bg-emerald-950">
+                              Última!
+                            </Badge>
+                          ) : null}
+                          {dependent ? (
+                            <Badge
+                              variant="outline"
+                              className="border-zinc-700 bg-zinc-900 text-zinc-300"
+                            >
+                              {dependent.name}
+                            </Badge>
+                          ) : null}
+                          {transaction.is_recurring ? (
+                            <Badge
+                              variant="outline"
+                              className={cn(
+                                "rounded-lg",
+                                statusPresentation.className,
+                              )}
+                            >
+                              {statusPresentation.label}
+                            </Badge>
+                          ) : null}
+                        </div>
+                      </TableCell>
+                      <TableCell className="hidden lg:table-cell">
+                        <Badge variant="outline" className="rounded-lg">
+                          {transaction.category || "Sem categoria"}
+                        </Badge>
+                      </TableCell>
+                      <TableCell
+                        className={cn(
+                          "text-right font-medium",
+                          isCardCreditAdjustment(transaction)
+                            ? "text-emerald-400"
+                            : "text-red-300",
+                        )}
+                      >
+                        {isCardCreditAdjustment(transaction) ? "+" : "-"}
+                        {formatPrivateCurrency(transaction.amount)}
+                      </TableCell>
+                    </TableRow>
                   );
                 })
               ) : (
