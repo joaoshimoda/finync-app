@@ -172,7 +172,10 @@ export default function FixedExpensesPage() {
   );
   const totalAmount = fixedSummary.totalAmount;
   const paidAmount = fixedSummary.paidAmount;
-  const pendingAmount = totalAmount - paidAmount;
+  const pendingAmount = pendingTransactions.reduce(
+    (total, transaction) => total + transaction.amount,
+    0,
+  );
   const allPendingSelected = useMemo(
     () =>
       pendingTransactions.length > 0 &&

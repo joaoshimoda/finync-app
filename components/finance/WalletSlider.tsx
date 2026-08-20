@@ -165,7 +165,7 @@ export function WalletSlider({ cards = [], transactions = [] }: WalletSliderProp
                         </p>
                       </div>
                       <div className="rounded-2xl border border-white/[0.08] bg-black/15 p-3">
-                        <p className="text-xs text-zinc-400">Pendente</p>
+                        <p className="text-xs text-zinc-400">Em aberto</p>
                         <p className="mt-1 text-sm font-semibold text-amber-300">
                           {formatPrivateCurrency(pending)}
                         </p>

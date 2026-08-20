@@ -680,6 +680,44 @@ export default function DashboardPage() {
     [dependents, monthlyTransactions],
   );
 
+  const balanceComposition = useMemo(() => {
+    const personalCardGross = invoiceCycleTransactions
+      .filter((transaction) => transaction.type === "card" && !hasDependent(transaction))
+      .filter((transaction) => !isCardCreditAdjustment(transaction))
+      .reduce((total, transaction) => total + transaction.amount, 0);
+    const personalCardCredits = invoiceCycleTransactions
+      .filter((transaction) => transaction.type === "card" && !hasDependent(transaction))
+      .filter((transaction) => isCardCreditAdjustment(transaction))
+      .reduce((total, transaction) => total + transaction.amount, 0);
+    const dependentTotal = monthlyTransactions
+      .filter((transaction) => transaction.type !== "income" && hasDependent(transaction))
+      .reduce(
+        (total, transaction) =>
+          total +
+          (transaction.type === "card"
+            ? getCardSignedAmount(transaction)
+            : transaction.amount),
+        0,
+      );
+
+    return {
+      cardCredits: personalCardCredits,
+      cardGross: personalCardGross,
+      debitPix: debitPixSpendingTotal,
+      dependentTotal,
+      fixed: fixedSpendingTotal,
+      income: monthlyBalances.totalIncome,
+      projectedBalance: monthlyBalances.projectedBalance,
+    };
+  }, [
+    debitPixSpendingTotal,
+    fixedSpendingTotal,
+    invoiceCycleTransactions,
+    monthlyBalances.projectedBalance,
+    monthlyBalances.totalIncome,
+    monthlyTransactions,
+  ]);
+
   useEffect(() => {
     void fetchTransactions();
   }, [currentMonth, currentYear, fetchTransactions]);
@@ -912,6 +950,88 @@ export default function DashboardPage() {
           </Card>
         </div>
       </section>
+
+      <Card className="rounded-2xl border border-border/50 bg-card shadow-none">
+        <CardHeader className="border-b border-border/50 p-5">
+          <CardDescription>Composição do Saldo</CardDescription>
+          <CardTitle className="text-xl tracking-normal">
+            Como o saldo disponível foi calculado
+          </CardTitle>
+        </CardHeader>
+        <CardContent className="grid gap-4 p-4 lg:grid-cols-[minmax(0,1fr)_280px]">
+          <div className="grid gap-2">
+            {[
+              {
+                label: "Receitas consideradas",
+                value: balanceComposition.income,
+                tone: "text-emerald-300",
+                prefix: "+",
+              },
+              {
+                label: "Contas fixas pessoais",
+                value: balanceComposition.fixed,
+                tone: "text-zinc-100",
+                prefix: "-",
+              },
+              {
+                label: "Débito / Pix pessoais",
+                value: balanceComposition.debitPix,
+                tone: "text-zinc-100",
+                prefix: "-",
+              },
+              {
+                label: "Cartão pessoal projetado",
+                value: balanceComposition.cardGross,
+                tone: "text-zinc-100",
+                prefix: "-",
+              },
+              {
+                label: "Créditos e estornos no cartão",
+                value: balanceComposition.cardCredits,
+                tone: "text-emerald-300",
+                prefix: "+",
+              },
+            ].map((item) => (
+              <div
+                key={item.label}
+                className="flex items-center justify-between gap-4 rounded-xl border border-zinc-800 bg-zinc-950/50 px-4 py-3"
+              >
+                <span className="text-sm text-zinc-400">{item.label}</span>
+                <strong className={cn("text-sm font-semibold", item.tone)}>
+                  {item.prefix}
+                  {formatPrivateCurrency(item.value)}
+                </strong>
+              </div>
+            ))}
+          </div>
+
+          <div className="flex flex-col justify-between rounded-xl border border-zinc-800 bg-zinc-950 p-4">
+            <div>
+              <p className="text-xs font-medium uppercase tracking-wide text-zinc-500">
+                Resultado
+              </p>
+              <strong className="mt-3 block text-2xl font-semibold tracking-tight text-zinc-50">
+                {formatPrivateCurrency(balanceComposition.projectedBalance)}
+              </strong>
+              <p className="mt-2 text-xs leading-5 text-zinc-500">
+                Dependentes excluídos do saldo pessoal:{" "}
+                {formatPrivateCurrency(balanceComposition.dependentTotal)}
+              </p>
+            </div>
+            <div className="mt-5 h-1.5 overflow-hidden rounded-full bg-zinc-800">
+              <div
+                className={cn(
+                  "h-full rounded-full",
+                  balanceComposition.projectedBalance >= 0
+                    ? "bg-emerald-500"
+                    : "bg-red-500",
+                )}
+                style={{ width: "100%" }}
+              />
+            </div>
+          </div>
+        </CardContent>
+      </Card>
 
       {pendingVariableIncomes.length ? (
         <Card className="rounded-xl border border-emerald-500/30 bg-emerald-500/10 shadow-none">

@@ -1,7 +1,11 @@
 "use client";
 
 import { formatCurrency } from "@/lib/financeUtils";
-import { getDateOnlyParts } from "@/lib/dateUtils";
+import {
+  getDateOnlyParts,
+  getLocalTodayDateOnly,
+  normalizeDateOnly,
+} from "@/lib/dateUtils";
 import { ConfirmDialog } from "@/components/ui/ConfirmDialog";
 import { RecurringDeleteDialog } from "@/components/finance/RecurringDeleteDialog";
 import {
@@ -62,6 +66,26 @@ const statusStyles: Record<
     className: "border-amber-300/20 bg-amber-300/10 text-amber-200",
   },
 };
+
+function isFutureCardSubscription(transaction: Transaction) {
+  return (
+    transaction.type === "card" &&
+    transaction.is_recurring === true &&
+    transaction.status !== "paid" &&
+    normalizeDateOnly(transaction.date) > getLocalTodayDateOnly()
+  );
+}
+
+function getTransactionStatusPresentation(transaction: Transaction) {
+  if (isFutureCardSubscription(transaction)) {
+    return {
+      label: "Agendada",
+      className: "border-zinc-300/15 bg-zinc-300/10 text-zinc-300",
+    };
+  }
+
+  return statusStyles[transaction.status || "confirmed"];
+}
 
 export function TransactionFeed({
   transactions = [],
@@ -128,7 +152,7 @@ export function TransactionFeed({
                     label: "Débito/PIX",
                     className: "border-brand-300/20 bg-brand-300/10 text-brand-100",
                   }
-                : statusStyles[transaction.status || "confirmed"];
+                : getTransactionStatusPresentation(transaction);
             const categoryLabel = isIncome
               ? "Receita"
               : transaction.category || "Sem categoria";

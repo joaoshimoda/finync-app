@@ -309,6 +309,12 @@ function formatPreviewDate(dateOnly: string) {
   return `${String(day).padStart(2, "0")}/${String(month).padStart(2, "0")}`;
 }
 
+function formatInvoiceMonthLabel(monthStart: string) {
+  const { month, year } = getDateOnlyParts(monthStart);
+
+  return `${monthLabels[month - 1]} / ${year}`;
+}
+
 function getReferenceMonthOptions() {
   const { month, year } = getDateOnlyParts(getLocalTodayDateOnly());
 
@@ -511,7 +517,17 @@ export default function ImportarPage() {
       onDrop,
     });
 
-  const previewRows = parsedData;
+  const previewRows = useMemo(() => {
+    const monthStart = getMonthStartFromReference(effectiveReferenceMonth);
+
+    return parsedData.map((transaction) => ({
+      ...transaction,
+      invoiceMonthStart: addMonthsToDateOnly(
+        monthStart,
+        transaction.referenceMonthOffset,
+      ),
+    }));
+  }, [effectiveReferenceMonth, parsedData]);
   const categoryOptions = useMemo(() => {
     const categoryLabels = new Set(
       categories
@@ -959,6 +975,9 @@ export default function ImportarPage() {
                       ) : null}
                       <div className="flex items-center justify-between text-xs text-zinc-400">
                         <span>{getTransactionOwnerLabel(transaction)}</span>
+                        <span>
+                          Fatura: {formatInvoiceMonthLabel(transaction.invoiceMonthStart)}
+                        </span>
                         {transaction.installmentsTotal > 1 &&
                         transaction.type !== "credit" ? (
                           <label className="flex min-h-10 items-center gap-2">
@@ -993,6 +1012,7 @@ export default function ImportarPage() {
                   <TableRow>
                     <TableHead className="w-[64px] px-3">Data</TableHead>
                     <TableHead className="w-[26%] px-3">Descrição</TableHead>
+                    <TableHead className="w-[120px] px-3">Fatura</TableHead>
                     <TableHead className="w-[150px] px-3">Categoria</TableHead>
                     <TableHead className="w-[88px] px-3">Tipo</TableHead>
                     <TableHead className="w-[104px] px-3">Dono</TableHead>
@@ -1011,6 +1031,9 @@ export default function ImportarPage() {
                         <span title={transaction.description}>
                           {transaction.description}
                         </span>
+                      </TableCell>
+                      <TableCell className="truncate px-3 text-zinc-400">
+                        {formatInvoiceMonthLabel(transaction.invoiceMonthStart)}
                       </TableCell>
                       <TableCell className="px-3">
                         {transaction.type === "credit" ? (
