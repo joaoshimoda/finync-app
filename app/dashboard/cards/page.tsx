@@ -703,8 +703,108 @@ export default function CardsPage() {
         ) : null}
       </section>
 
-      <Card className="rounded-lg border border-border/50 bg-card shadow-none">
-        <CardHeader className="border-b">
+      <section className="grid gap-4 lg:grid-cols-[360px_minmax(0,1fr)]">
+        <Card className="rounded-lg border border-border/50 bg-card shadow-none lg:sticky lg:top-24 lg:self-start">
+          <CardHeader className="border-b">
+            <CardDescription>Detalhe do cartão</CardDescription>
+            <CardTitle className="mt-1 text-xl tracking-normal">
+              {selectedCard?.name ?? "Nenhum cartão selecionado"}
+            </CardTitle>
+            <p className="mt-2 text-xs text-muted-foreground">
+              Ciclo: {formatDateOnlyBR(selectedInvoiceCycle.startDate)} -{" "}
+              {formatDateOnlyBR(selectedInvoiceCycle.endDate)}
+              {selectedCard?.dueDay ? ` • Vence dia ${selectedCard.dueDay}` : ""}
+            </p>
+          </CardHeader>
+
+          <CardContent className="space-y-5 pt-5">
+            <div>
+              <p className="text-xs font-medium uppercase tracking-wide text-zinc-500">
+                Fatura atual
+              </p>
+              <p className="mt-2 text-3xl font-bold tracking-tight text-foreground">
+                {formatPrivateCurrency(selectedInvoiceTotal)}
+              </p>
+              <p className="mt-1 text-xs text-muted-foreground">
+                Projetado: {formatPrivateCurrency(selectedProjectedInvoiceTotal)}
+              </p>
+            </div>
+
+            <div className="space-y-2">
+              <div className="flex items-center justify-between text-xs text-muted-foreground">
+                <span>Limite consumido</span>
+                <span>
+                  {selectedLimit > 0
+                    ? `${selectedUsage.toFixed(0)}%`
+                    : "Sem limite definido"}
+                </span>
+              </div>
+              <Progress value={selectedUsage} className="h-2" />
+              <p className="text-xs text-zinc-500">
+                {selectedLimit > 0
+                  ? `${formatPrivateCurrency(selectedDebtTotal)} de ${formatPrivateCurrency(selectedLimit)}`
+                  : "Defina um limite para acompanhar uso e disponibilidade."}
+              </p>
+            </div>
+
+            <div className="grid gap-2">
+              {[
+                ["Em aberto", selectedInvoiceSummary.open, "text-amber-300"],
+                ["Meu gasto", selectedInvoiceSummary.personalTotal, "text-zinc-100"],
+                ["Dependentes", selectedInvoiceSummary.dependentsTotal, "text-zinc-100"],
+                ["Agendado", selectedInvoiceSummary.scheduled, "text-zinc-100"],
+              ].map(([label, value, tone]) => (
+                <div
+                  key={label}
+                  className="flex items-center justify-between gap-3 rounded-xl border border-zinc-800 bg-zinc-950/50 px-3 py-2.5"
+                >
+                  <span className="text-sm text-zinc-500">{label}</span>
+                  <strong className={cn("text-sm font-semibold", tone)}>
+                    {formatPrivateCurrency(Number(value))}
+                  </strong>
+                </div>
+              ))}
+            </div>
+
+            <div className="grid grid-cols-2 gap-2">
+              {[
+                ["Assinaturas", selectedInvoiceSummary.subscriptionsTotal],
+                ["Parcelas", selectedInvoiceSummary.installmentsTotal],
+                ["Pago", selectedInvoiceSummary.paid],
+                ["Projetado", selectedInvoiceSummary.total],
+              ].map(([label, value]) => (
+                <div
+                  key={label}
+                  className="rounded-xl border border-zinc-800/80 bg-zinc-950/30 p-3"
+                >
+                  <p className="text-[11px] text-zinc-500">{label}</p>
+                  <strong className="mt-1 block text-sm font-semibold text-zinc-200">
+                    {formatPrivateCurrency(Number(value))}
+                  </strong>
+                </div>
+              ))}
+            </div>
+
+            <Button
+              type="button"
+              className="h-11 w-full bg-emerald-600 font-semibold text-white hover:bg-emerald-700"
+              disabled={!selectedCard}
+              onClick={() => selectedCard && void handlePayInvoiceClick(selectedCard.id)}
+            >
+              Pagar fatura
+            </Button>
+          </CardContent>
+        </Card>
+
+        <Card className="min-w-0 rounded-lg border border-border/50 bg-card shadow-none">
+          <CardHeader className="border-b">
+            <CardDescription>Movimentações do cartão</CardDescription>
+            <CardTitle className="mt-1 text-xl tracking-normal">
+              Compras da fatura
+            </CardTitle>
+          </CardHeader>
+
+        <CardHeader className="hidden">
           <div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
             <div>
               <CardDescription>Visão da fatura</CardDescription>
@@ -979,7 +1079,8 @@ export default function CardsPage() {
             </TableBody>
           </Table>
         </CardContent>
-      </Card>
+        </Card>
+      </section>
 
       <AddCardModal
         isOpen={isAddCardModalOpen}
