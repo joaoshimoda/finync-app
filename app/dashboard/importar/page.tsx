@@ -1,7 +1,17 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { FileSpreadsheet, Split, UploadCloud, X } from "lucide-react";
+import {
+  AlertTriangle,
+  CheckCircle2,
+  CreditCard,
+  FileSpreadsheet,
+  ListChecks,
+  Split,
+  Tags,
+  UploadCloud,
+  X,
+} from "lucide-react";
 import Papa from "papaparse";
 import { useDropzone } from "react-dropzone";
 import { toast } from "sonner";
@@ -731,6 +741,37 @@ export default function ImportarPage() {
       newCount,
     };
   }, [existingImportSignatures, preparedImportRows]);
+  const importPreviewSummary = useMemo(() => {
+    const duplicateSourceIndexes = importDuplicateState.duplicateSourceIndexes;
+    const newRows = previewRows.filter(
+      (_, index) => !duplicateSourceIndexes.has(index),
+    );
+    const totalAmount = newRows.reduce(
+      (sum, transaction) =>
+        sum + (transaction.type === "credit" ? -transaction.amount : transaction.amount),
+      0,
+    );
+    const creditsCount = newRows.filter(
+      (transaction) => transaction.type === "credit",
+    ).length;
+    const uncategorizedCount = newRows.filter(
+      (transaction) =>
+        transaction.type !== "credit" &&
+        normalizeImportedExpenseCategory(transaction.category ?? null) ===
+          "Outros",
+    ).length;
+    const installmentCount = newRows.filter(
+      (transaction) =>
+        transaction.type !== "credit" && transaction.installmentsTotal > 1,
+    ).length;
+
+    return {
+      creditsCount,
+      installmentCount,
+      totalAmount,
+      uncategorizedCount,
+    };
+  }, [importDuplicateState.duplicateSourceIndexes, previewRows]);
   const categoryOptions = useMemo(() => {
     const categoryLabels = new Set(
       categories
@@ -1002,6 +1043,62 @@ export default function ImportarPage() {
         </p>
       </header>
 
+      <section className="grid gap-3 md:grid-cols-4">
+        {[
+          {
+            title: "Cartão e fatura",
+            description: "Defina a competência correta",
+            active: parsedData.length > 0,
+          },
+          {
+            title: "Enviar CSV",
+            description: fileName || "Selecione o arquivo",
+            active: Boolean(fileName),
+          },
+          {
+            title: "Revisar",
+            description: parsedData.length
+              ? `${parsedData.length} linhas encontradas`
+              : "Aguardando arquivo",
+            active: parsedData.length > 0,
+          },
+          {
+            title: "Importar",
+            description: `${importDuplicateState.newCount} novos lançamentos`,
+            active: importDuplicateState.newCount > 0,
+          },
+        ].map((step, index) => (
+          <div
+            key={step.title}
+            className={cn(
+              "rounded-xl border p-3",
+              step.active
+                ? "border-emerald-500/30 bg-emerald-500/10"
+                : "border-zinc-800 bg-zinc-950",
+            )}
+          >
+            <div className="flex items-center gap-2">
+              <span
+                className={cn(
+                  "flex size-6 shrink-0 items-center justify-center rounded-full text-xs font-semibold",
+                  step.active
+                    ? "bg-emerald-500 text-zinc-950"
+                    : "bg-zinc-900 text-zinc-500",
+                )}
+              >
+                {index + 1}
+              </span>
+              <p className="truncate text-sm font-medium text-zinc-100">
+                {step.title}
+              </p>
+            </div>
+            <p className="mt-2 truncate text-xs text-zinc-500">
+              {step.description}
+            </p>
+          </div>
+        ))}
+      </section>
+
       {!parsedData.length ? (
         <Card
           {...getRootProps()}
@@ -1031,7 +1128,7 @@ export default function ImportarPage() {
           </CardContent>
         </Card>
       ) : (
-        <Card className="border-zinc-800/80 bg-zinc-900/50 shadow-none">
+        <Card className="border-zinc-800 bg-zinc-950 shadow-none">
           <CardHeader className="flex flex-col gap-4 border-b border-zinc-800/80 sm:flex-row sm:items-center sm:justify-between">
             <div>
               <CardTitle className="flex items-center gap-2">
@@ -1039,10 +1136,8 @@ export default function ImportarPage() {
                 Pré-visualização da fatura
               </CardTitle>
               <CardDescription>
-                {fileName} · {parsedData.length} linhas revisadas ·{" "}
-                {isCheckingDuplicates
-                  ? "verificando duplicadas..."
-                  : `${importDuplicateState.newCount} novos · ${importDuplicateState.duplicateCount} duplicados`}
+                {fileName} · revise categorias, dependentes e parcelas antes de
+                confirmar.
               </CardDescription>
             </div>
             <Button
@@ -1111,21 +1206,101 @@ export default function ImportarPage() {
               </div>
             </div>
 
-            <div className="flex flex-wrap gap-2 border-b border-zinc-800/80 px-4 py-3 text-xs">
-              <span className="rounded-full border border-emerald-500/20 bg-emerald-500/10 px-3 py-1 font-medium text-emerald-300">
-                Novos: {importDuplicateState.newCount}
-              </span>
-              <span className="rounded-full border border-amber-500/20 bg-amber-500/10 px-3 py-1 font-medium text-amber-300">
-                Duplicados: {importDuplicateState.duplicateCount}
-              </span>
+            <div className="border-b border-zinc-800/80 p-4">
+              <div className="grid gap-3 md:grid-cols-3 xl:grid-cols-6">
+                {[
+                  {
+                    label: "Valor líquido",
+                    value: brlFormatter.format(importPreviewSummary.totalAmount),
+                    icon: FileSpreadsheet,
+                    tone:
+                      importPreviewSummary.totalAmount < 0
+                        ? "text-emerald-300"
+                        : "text-zinc-100",
+                  },
+                  {
+                    label: "Novos",
+                    value: String(importDuplicateState.newCount),
+                    icon: CheckCircle2,
+                    tone: "text-emerald-300",
+                  },
+                  {
+                    label: "Duplicados",
+                    value: String(importDuplicateState.duplicateCount),
+                    icon: AlertTriangle,
+                    tone: "text-amber-300",
+                  },
+                  {
+                    label: "Créditos",
+                    value: String(importPreviewSummary.creditsCount),
+                    icon: CreditCard,
+                    tone: "text-sky-300",
+                  },
+                  {
+                    label: "Sem categoria",
+                    value: String(importPreviewSummary.uncategorizedCount),
+                    icon: Tags,
+                    tone: "text-zinc-300",
+                  },
+                  {
+                    label: "Parceladas",
+                    value: String(importPreviewSummary.installmentCount),
+                    icon: ListChecks,
+                    tone: "text-violet-300",
+                  },
+                ].map((item) => {
+                  const Icon = item.icon;
+
+                  return (
+                    <div
+                      key={item.label}
+                      className="rounded-xl border border-zinc-800 bg-zinc-900/40 p-3"
+                    >
+                      <div className="flex items-center justify-between gap-2">
+                        <p className="truncate text-[11px] font-medium uppercase tracking-wide text-zinc-500">
+                          {item.label}
+                        </p>
+                        <Icon className="size-3.5 text-zinc-500" />
+                      </div>
+                      <strong className={cn("mt-2 block text-sm", item.tone)}>
+                        {item.value}
+                      </strong>
+                    </div>
+                  );
+                })}
+              </div>
+
               {isCheckingDuplicates ? (
-                <span className="rounded-full border border-zinc-700 bg-zinc-900 px-3 py-1 text-zinc-400">
-                  Verificando banco...
-                </span>
+                <p className="mt-3 text-xs text-zinc-500">
+                  Verificando lançamentos já existentes no banco...
+                </p>
               ) : null}
             </div>
 
             <div className="overflow-hidden">
+              <div className="flex flex-col gap-2 border-b border-zinc-800/80 px-4 py-3 sm:flex-row sm:items-center sm:justify-between">
+                <div>
+                  <p className="text-sm font-medium text-zinc-100">
+                    Revisar lançamentos
+                  </p>
+                  <p className="mt-1 text-xs text-zinc-500">
+                    Duplicados serão ignorados. Ajuste categoria e responsável
+                    antes de importar.
+                  </p>
+                </div>
+                <div className="flex flex-wrap gap-2 text-[11px]">
+                  <span className="rounded-full border border-emerald-500/20 bg-emerald-500/10 px-2 py-1 text-emerald-300">
+                    Novo
+                  </span>
+                  <span className="rounded-full border border-amber-500/20 bg-amber-500/10 px-2 py-1 text-amber-300">
+                    Duplicado
+                  </span>
+                  <span className="rounded-full border border-sky-500/20 bg-sky-500/10 px-2 py-1 text-sky-300">
+                    Crédito/Estorno
+                  </span>
+                </div>
+              </div>
+
               <div className="space-y-3 p-3 md:hidden">
                 {previewRows.map((transaction, index) => {
                   const isDuplicate =
@@ -1166,7 +1341,7 @@ export default function ImportarPage() {
                     />
                     {isDuplicate ? (
                       <span className="mt-2 inline-flex rounded-full border border-amber-500/20 bg-amber-500/10 px-2 py-0.5 text-[11px] font-medium text-amber-300">
-                        Ja existe
+                        Já existe
                       </span>
                     ) : null}
                     <div className="mt-3 grid gap-3 border-t border-zinc-800 pt-3">
@@ -1273,7 +1448,7 @@ export default function ImportarPage() {
                           </span>
                           {isDuplicate ? (
                             <span className="shrink-0 rounded-full border border-amber-500/20 bg-amber-500/10 px-2 py-0.5 text-[10px] font-medium text-amber-300">
-                              Ja existe
+                              Já existe
                             </span>
                           ) : null}
                         </div>
