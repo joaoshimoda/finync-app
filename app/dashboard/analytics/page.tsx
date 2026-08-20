@@ -3,10 +3,13 @@
 import { useEffect, useMemo, useState } from "react";
 import {
   Activity,
+  AlertTriangle,
   BadgePercent,
   CircleDollarSign,
   Info,
   ReceiptText,
+  TrendingUp,
+  Wallet,
   type LucideIcon,
 } from "lucide-react";
 import {
@@ -432,6 +435,64 @@ export default function AnalyticsPage() {
       },
     ];
   }, [categoryDistribution, monthlyEvolution, savingsRate]);
+  const executiveAlerts = useMemo(() => {
+    const topExpense = topExpenses[0];
+    const deltaLabel =
+      previousExpense > 0
+        ? `${expenseDelta > 0 ? "+" : ""}${expenseDelta.toFixed(1)}% vs. mês anterior`
+        : "Sem base anterior";
+
+    return [
+      {
+        title: "Pressão do mês",
+        value:
+          committedIncome > 0
+            ? `${committedIncome}% da renda`
+            : "Sem receita registrada",
+        description:
+          committedIncome > 70
+            ? "Renda comprometida acima da faixa saudável."
+            : "Comprometimento dentro de uma faixa controlada.",
+        icon: AlertTriangle,
+        tone: committedIncome > 70 ? "text-amber-300" : "text-emerald-300",
+      },
+      {
+        title: "Maior despesa",
+        value: topExpense?.name ?? "Sem dados",
+        description: topExpense
+          ? brlFormatter.format(topExpense.amount)
+          : "Nenhuma despesa pessoal no período.",
+        icon: ReceiptText,
+        tone: "text-zinc-100",
+      },
+      {
+        title: "Tendência",
+        value: deltaLabel,
+        description:
+          expenseDelta > 0
+            ? "Gastos pessoais subiram no comparativo."
+            : "Gastos pessoais estáveis ou menores.",
+        icon: TrendingUp,
+        tone: expenseDelta > 0 ? "text-amber-300" : "text-emerald-300",
+      },
+      {
+        title: "Sobra projetada",
+        value: brlFormatter.format(projectedSavings),
+        description:
+          projectedSavings >= 0
+            ? "Saldo pessoal positivo ao fim do mês."
+            : "Despesa pessoal acima da receita registrada.",
+        icon: Wallet,
+        tone: projectedSavings >= 0 ? "text-emerald-300" : "text-red-300",
+      },
+    ];
+  }, [
+    committedIncome,
+    expenseDelta,
+    previousExpense,
+    projectedSavings,
+    topExpenses,
+  ]);
   const dominantCategory = categoryDistribution[0];
   const hasAnyFinancialData = totalIncome > 0 || totalExpense > 0;
   const executiveSummary = useMemo(() => {
@@ -511,6 +572,36 @@ export default function AnalyticsPage() {
             </div>
           </CardContent>
         </Card>
+      </section>
+
+      <section className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
+        {executiveAlerts.map((alert) => {
+          const Icon = alert.icon;
+
+          return (
+            <Card
+              key={alert.title}
+              className="border-zinc-800 bg-zinc-950 shadow-none"
+            >
+              <CardContent className="flex gap-3 p-4">
+                <span className="flex size-9 shrink-0 items-center justify-center rounded-xl border border-zinc-800 bg-zinc-900 text-zinc-400">
+                  <Icon className="size-4" />
+                </span>
+                <div className="min-w-0">
+                  <p className="text-xs font-medium uppercase tracking-wide text-zinc-500">
+                    {alert.title}
+                  </p>
+                  <p className={cn("mt-1 truncate text-base font-semibold", alert.tone)}>
+                    {alert.value}
+                  </p>
+                  <p className="mt-1 line-clamp-2 text-xs leading-5 text-zinc-500">
+                    {alert.description}
+                  </p>
+                </div>
+              </CardContent>
+            </Card>
+          );
+        })}
       </section>
 
       <Tabs defaultValue="desempenho" className="min-h-0 w-full">
