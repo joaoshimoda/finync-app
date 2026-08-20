@@ -1,7 +1,11 @@
 "use client";
 
 import { formatCurrency } from "@/lib/financeUtils";
-import { calculateCardDebt, getCardSignedAmount } from "@/lib/cardCredits";
+import {
+  calculateCardDebt,
+  getCardSignedAmount,
+  shouldCountCardCharge,
+} from "@/lib/cardCredits";
 import { ConfirmDialog } from "@/components/ui/ConfirmDialog";
 import { useFinanceStore, type Card, type Transaction } from "@/store/useFinanceStore";
 import { CreditCard, Trash2 } from "lucide-react";
@@ -54,12 +58,15 @@ export function WalletSlider({ cards = [], transactions = [] }: WalletSliderProp
             const cardTransactions = transactions.filter(
               (transaction) => transaction.cardId === card.id,
             );
-            const total = cardTransactions.reduce(
+            const chargeableCardTransactions = cardTransactions.filter(
+              (transaction) => shouldCountCardCharge(transaction),
+            );
+            const total = chargeableCardTransactions.reduce(
               (sum, transaction) => sum + getCardSignedAmount(transaction),
               0,
             );
             const debt = calculateCardDebt(transactions, card.id);
-            const paid = cardTransactions
+            const paid = chargeableCardTransactions
               .filter((transaction) => transaction.status === "paid")
               .reduce((sum, transaction) => sum + getCardSignedAmount(transaction), 0);
             const pending = Math.max(total - paid, 0);

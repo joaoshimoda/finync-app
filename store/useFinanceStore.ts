@@ -1,7 +1,10 @@
 "use client";
 
 import { supabase } from "@/lib/supabaseClient";
-import { getCardInvoiceMonthStart } from "@/lib/cardBilling";
+import {
+  getCardInvoiceMonthStart,
+  getCurrentFinancialMonthStart,
+} from "@/lib/cardBilling";
 import {
   getDateOnlyParts,
   getLocalTodayDateOnly,
@@ -143,6 +146,7 @@ interface FinanceState {
   isAuthReady: boolean;
   isLoading: boolean;
   isFetching: boolean;
+  hasInitializedFinancialMonth: boolean;
   hideBalancesByDefault: boolean;
   currentMonth: number;
   currentYear: number;
@@ -436,6 +440,7 @@ export const useFinanceStore = create<FinanceState>()((set, get) => ({
   isAuthReady: false,
   isLoading: true,
   isFetching: false,
+  hasInitializedFinancialMonth: false,
   hideBalancesByDefault: getStoredHideBalancesPreference(),
   currentMonth: getDateOnlyParts(getLocalTodayDateOnly()).month,
   currentYear: getDateOnlyParts(getLocalTodayDateOnly()).year,
@@ -540,6 +545,7 @@ export const useFinanceStore = create<FinanceState>()((set, get) => ({
           isAuthReady: true,
           isLoading: false,
           isFetching: false,
+          hasInitializedFinancialMonth: false,
         });
       }
     });
@@ -559,6 +565,7 @@ export const useFinanceStore = create<FinanceState>()((set, get) => ({
       isAuthReady: true,
       isLoading: false,
       isFetching: false,
+      hasInitializedFinancialMonth: false,
     });
   },
 
@@ -744,7 +751,21 @@ export const useFinanceStore = create<FinanceState>()((set, get) => ({
 
       if (error) throw error;
 
-      set({ cards: (data as CardRow[]).map(mapCard) });
+      const cards = (data as CardRow[]).map(mapCard);
+      const financialMonthStart = getCurrentFinancialMonthStart(cards);
+      const financialMonth = getDateOnlyParts(financialMonthStart);
+
+      set((state) => ({
+        cards,
+        ...(state.hasInitializedFinancialMonth
+          ? {}
+          : {
+              currentMonth: financialMonth.month,
+              currentYear: financialMonth.year,
+              isFetching: true,
+              hasInitializedFinancialMonth: true,
+            }),
+      }));
     } catch (error) {
       console.error("Erro ao buscar cartões:", error);
     }

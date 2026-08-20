@@ -1,9 +1,13 @@
+import { getLocalTodayDateOnly, normalizeDateOnly } from "@/lib/dateUtils";
+
 export const CARD_CREDIT_ADJUSTMENT_NOTE = "[card_credit_adjustment]";
 export const CARD_CREDIT_ADJUSTMENT_CATEGORY = "Crédito / Estorno";
 
 type CardCreditCandidate = {
   cardId?: string | null;
   category?: string | null;
+  date?: string | null;
+  is_recurring?: boolean | null;
   notes?: string | null;
   status?: string | null;
   type?: string | null;
@@ -33,6 +37,20 @@ export function getCardSignedAmount<T extends CardCreditCandidate & { amount: nu
     : transaction.amount;
 }
 
+export function shouldCountCardCharge(
+  transaction: CardCreditCandidate,
+  todayDate = getLocalTodayDateOnly(),
+) {
+  if (transaction.type !== "card") return true;
+  if (isCardCreditAdjustment(transaction)) return true;
+
+  return (
+    transaction.is_recurring !== true ||
+    !transaction.date ||
+    normalizeDateOnly(transaction.date) <= todayDate
+  );
+}
+
 export function calculateCardDebt<
   T extends CardCreditCandidate & { amount: number },
 >(transactions: T[], cardId: string) {
@@ -41,7 +59,8 @@ export function calculateCardDebt<
       (transaction) =>
         transaction.type === "card" &&
         transaction.cardId === cardId &&
-        transaction.status !== "paid",
+        transaction.status !== "paid" &&
+        shouldCountCardCharge(transaction),
     )
     .reduce(
       (total, transaction) => total + getCardSignedAmount(transaction),

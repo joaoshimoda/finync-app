@@ -57,7 +57,6 @@ import {
 import {
   formatDateOnlyBR,
   getDateOnlyParts,
-  normalizeDateOnly,
   toDateOnly,
 } from "@/lib/dateUtils";
 import {
@@ -65,6 +64,7 @@ import {
   calculateCardDebt,
   getCardSignedAmount,
   isCardCreditAdjustment,
+  shouldCountCardCharge,
 } from "@/lib/cardCredits";
 import { isPendingVariableIncome } from "@/lib/incomeRecurrence";
 import { cn } from "@/lib/utils";
@@ -462,13 +462,9 @@ export default function DashboardPage() {
     invoiceCycleTransactions.forEach((transaction) => {
       const signedAmount = getCardSignedAmount(transaction);
       const isDependentTransaction = hasDependent(transaction);
-      const isAlreadyInOpenInvoice =
-        transaction.is_recurring !== true ||
-        normalizeDateOnly(transaction.date) <= todayDate;
-
       totals.creditCardProjected += signedAmount;
 
-      if (isAlreadyInOpenInvoice) {
+      if (shouldCountCardCharge(transaction, todayDate)) {
         totals.creditCardUntilToday += signedAmount;
       }
 
@@ -476,7 +472,7 @@ export default function DashboardPage() {
 
       totals.userCreditCardProjected += signedAmount;
 
-      if (isAlreadyInOpenInvoice) {
+      if (shouldCountCardCharge(transaction, todayDate)) {
         totals.userCreditCardUntilToday += signedAmount;
       }
 
@@ -522,6 +518,12 @@ export default function DashboardPage() {
 
     monthlyTransactions.forEach((transaction) => {
       if (transaction.type === "income" || hasDependent(transaction)) return;
+      if (
+        transaction.type === "card" &&
+        !shouldCountCardCharge(transaction, todayDate)
+      ) {
+        return;
+      }
 
       const amount =
         transaction.type === "card"
@@ -568,7 +570,7 @@ export default function DashboardPage() {
           : 0,
       total,
     };
-  }, [monthlyBalances.totalIncome, monthlyTransactions]);
+  }, [monthlyBalances.totalIncome, monthlyTransactions, todayDate]);
 
   const pendingVariableIncomes = useMemo(
     () => monthlyTransactions.filter(isPendingVariableIncome),
@@ -594,10 +596,7 @@ export default function DashboardPage() {
 
               totals.projected += signedAmount;
 
-              if (
-                transaction.is_recurring !== true ||
-                normalizeDateOnly(transaction.date) <= todayDate
-              ) {
+              if (shouldCountCardCharge(transaction, todayDate)) {
                 totals.current += signedAmount;
               }
 

@@ -10,6 +10,7 @@ export type ExpenseAggregationEntry = {
   description?: string;
   category?: string | null;
   notes?: string | null;
+  is_recurring?: boolean | null;
   dependentId?: string | null;
 };
 

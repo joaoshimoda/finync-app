@@ -1,4 +1,9 @@
-import { getDateOnlyParts, normalizeDateOnly, toDateOnly } from "@/lib/dateUtils";
+import {
+  getDateOnlyParts,
+  getLocalTodayDateOnly,
+  normalizeDateOnly,
+  toDateOnly,
+} from "@/lib/dateUtils";
 
 export function getCardInvoiceMonthStart(date: string, closingDay?: number) {
   const normalizedDate = normalizeDateOnly(date);
@@ -26,4 +31,19 @@ export function getInstallmentInvoiceMonthStart(
   const installmentMonth = (monthIndex % 12) + 1;
 
   return toDateOnly(installmentYear, installmentMonth, 1);
+}
+
+export function getCurrentFinancialMonthStart(
+  cards: { closingDay?: number | null }[],
+  referenceDate = getLocalTodayDateOnly(),
+) {
+  const invoiceMonths = cards
+    .map((card) => getCardInvoiceMonthStart(referenceDate, card.closingDay ?? undefined))
+    .sort();
+
+  return invoiceMonths.at(-1) ?? toDateOnly(
+    getDateOnlyParts(referenceDate).year,
+    getDateOnlyParts(referenceDate).month,
+    1,
+  );
 }

@@ -54,13 +54,13 @@ import { getCardGradient } from "@/lib/cardUtils";
 import {
   formatDateOnlyBR,
   getLocalTodayDateOnly,
-  normalizeDateOnly,
 } from "@/lib/dateUtils";
 import {
   calculateAvailableCardLimit,
   calculateCardDebt,
   getCardSignedAmount,
   isCardCreditAdjustment,
+  shouldCountCardCharge,
 } from "@/lib/cardCredits";
 import { cn } from "@/lib/utils";
 import { isTransactionInSelectedPeriod } from "@/lib/transactionPeriod";
@@ -431,13 +431,21 @@ export default function CardsPage() {
     [monthlyTransactions, selectedCard],
   );
 
+  const selectedChargeableCardTransactions = useMemo(() => {
+    const today = getLocalTodayDateOnly();
+
+    return selectedCardTransactions.filter((transaction) =>
+      shouldCountCardCharge(transaction, today),
+    );
+  }, [selectedCardTransactions]);
+
   const selectedInvoiceTotal = useMemo(
     () =>
-      selectedCardTransactions.reduce(
+      selectedChargeableCardTransactions.reduce(
         (total, transaction) => total + getCardSignedAmount(transaction),
         0,
       ),
-    [selectedCardTransactions],
+    [selectedChargeableCardTransactions],
   );
   const selectedLimit = selectedCard?.limitAmount ?? 0;
   const selectedDebtTotal = useMemo(
@@ -468,9 +476,7 @@ export default function CardsPage() {
           (transaction) => transaction.cardId === card.id,
         );
         const currentInvoiceTransactions = cardTransactions.filter(
-          (transaction) =>
-            transaction.is_recurring !== true ||
-            normalizeDateOnly(transaction.date) <= today,
+          (transaction) => shouldCountCardCharge(transaction, today),
         );
         const invoiceTotal = currentInvoiceTransactions.reduce(
           (total, transaction) => total + getCardSignedAmount(transaction),
@@ -663,7 +669,7 @@ export default function CardsPage() {
         </CardHeader>
 
         <CardContent className="pt-4">
-          <TopCategories transactions={selectedCardTransactions} />
+          <TopCategories transactions={selectedChargeableCardTransactions} />
 
           <div className="space-y-2 md:hidden">
             {selectedCardTransactions.length ? (
