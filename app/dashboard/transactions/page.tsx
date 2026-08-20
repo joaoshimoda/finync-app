@@ -22,7 +22,6 @@ import { TransactionDescription } from "@/components/finance/TransactionDescript
 import { MobileTransactionItem } from "@/components/finance/MobileTransactionItem";
 import { AddIncomeModal } from "@/components/modals/AddIncomeModal";
 import { AddTransactionModal } from "@/components/modals/AddTransactionModal";
-import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Dialog, DialogContent } from "@/components/ui/dialog";
@@ -53,7 +52,6 @@ import { getCardSignedAmount, isCardCreditAdjustment } from "@/lib/cardCredits";
 import { supabase } from "@/lib/supabaseClient";
 import { cn } from "@/lib/utils";
 import { isTransactionInSelectedCompetence } from "@/lib/transactionPeriod";
-import { getTransactionStatusPresentation } from "@/lib/transactionStatus";
 import { useFinanceStore, type Transaction } from "@/store/useFinanceStore";
 
 type TypeFilter = "all" | "income" | "expense" | "fixed";
@@ -267,6 +265,17 @@ export default function TransactionsPage() {
     };
   }, [filteredTransactions]);
 
+  const hasActiveFilters =
+    searchTerm.trim().length > 0 ||
+    categoryFilter !== "all" ||
+    typeFilter !== "all";
+
+  const clearFilters = useCallback(() => {
+    setSearchTerm("");
+    setCategoryFilter("all");
+    setTypeFilter("all");
+  }, []);
+
   const handleCloseIncomeModal = useCallback(() => {
     setIsAddIncomeModalOpen(false);
     setEditingTransaction(null);
@@ -450,9 +459,9 @@ export default function TransactionsPage() {
       </div>
 
       <section className="grid grid-cols-2 gap-3 lg:grid-cols-3 lg:gap-4">
-        <div className="min-h-28 rounded-2xl border border-border/50 bg-card/80 p-4 shadow-none transition-colors hover:bg-accent/10 md:p-5">
+        <div className="min-h-24 rounded-xl border border-border/50 bg-card p-4 shadow-none md:p-5">
           <div className="flex items-center justify-between gap-4">
-            <p className="text-sm text-muted-foreground">Total de Entradas</p>
+            <p className="text-sm text-muted-foreground">Entradas</p>
             <ArrowUpRight className="size-4 text-emerald-400" />
           </div>
           <strong className="mt-3 block text-xl font-semibold tracking-normal text-emerald-400 lg:text-2xl">
@@ -460,9 +469,9 @@ export default function TransactionsPage() {
           </strong>
         </div>
 
-        <div className="min-h-28 rounded-2xl border border-border/50 bg-card/80 p-4 shadow-none transition-colors hover:bg-accent/10 md:p-5">
+        <div className="min-h-24 rounded-xl border border-border/50 bg-card p-4 shadow-none md:p-5">
           <div className="flex items-center justify-between gap-4">
-            <p className="text-sm text-muted-foreground">Total de Saídas</p>
+            <p className="text-sm text-muted-foreground">Saídas</p>
             <ArrowDownRight className="size-4 text-red-400" />
           </div>
           <strong className="mt-3 block text-xl font-semibold tracking-normal text-red-300 lg:text-2xl">
@@ -470,7 +479,7 @@ export default function TransactionsPage() {
           </strong>
         </div>
 
-        <div className="col-span-2 min-h-28 rounded-2xl border border-border/50 bg-card/80 p-4 shadow-none transition-colors hover:bg-accent/10 lg:col-span-1 md:p-5">
+        <div className="col-span-2 min-h-24 rounded-xl border border-border/50 bg-card p-4 shadow-none md:p-5 lg:col-span-1">
           <div className="flex items-center justify-between gap-4">
             <p className="text-sm text-muted-foreground">Saldo Líquido</p>
             <Wallet className="size-4 text-brand-300" />
@@ -486,7 +495,7 @@ export default function TransactionsPage() {
         </div>
       </section>
 
-      <section className="flex flex-col gap-3 rounded-2xl border border-border bg-muted/20 p-3.5 md:p-4 lg:flex-row lg:items-center lg:justify-between">
+      <section className="flex flex-col gap-3 rounded-xl border border-border bg-card p-3.5 md:p-4 lg:flex-row lg:items-center lg:justify-between">
         <div className="grid flex-1 grid-cols-2 gap-3 lg:grid-cols-4">
           <div className="relative col-span-2 lg:col-span-2">
             <Search className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
@@ -528,7 +537,19 @@ export default function TransactionsPage() {
           </Select>
         </div>
 
-        <div className="flex h-11 w-full items-center rounded-lg border border-border bg-card lg:w-auto">
+        <div className="flex flex-col gap-3 sm:flex-row lg:items-center">
+          {hasActiveFilters ? (
+            <Button
+              type="button"
+              variant="ghost"
+              onClick={clearFilters}
+              className="h-11 justify-center text-muted-foreground"
+            >
+              Limpar filtros
+            </Button>
+          ) : null}
+
+        <div className="flex h-11 w-full items-center rounded-lg border border-border bg-background lg:w-auto">
           <Button
             type="button"
             variant="ghost"
@@ -553,6 +574,7 @@ export default function TransactionsPage() {
           >
             <ChevronRight />
           </Button>
+        </div>
         </div>
       </section>
 
@@ -603,6 +625,7 @@ export default function TransactionsPage() {
             filteredTransactions.map((transaction) => {
               const categoryLabel =
                 transaction.category || getTransactionFallbackLabel(transaction);
+              const originLabel = getTransactionOrigin(transaction, cards);
               const isPositive =
                 transaction.type === "income" ||
                 isCardCreditAdjustment(transaction);
@@ -620,7 +643,7 @@ export default function TransactionsPage() {
                   <MobileTransactionItem
                     className="min-w-0 flex-1"
                     title={<TransactionDescription transaction={transaction} />}
-                    category={categoryLabel}
+                    category={`${categoryLabel} • ${originLabel}`}
                     date={formatDateOnlyBR(transaction.date)}
                     amount={`${isPositive ? "+" : "-"}${brlFormatter.format(transaction.amount)}`}
                     positive={isPositive}
@@ -700,8 +723,16 @@ export default function TransactionsPage() {
                   ? dependents.find((dependent) => dependent.id === dependentId)
                       ?.name
                   : null;
-                const statusPresentation =
-                  getTransactionStatusPresentation(transaction);
+                const details = [
+                  categoryLabel,
+                  originLabel,
+                  dependentName,
+                  transaction.is_recurring
+                    ? transaction.type === "card"
+                      ? "Assinatura"
+                      : "Recorrente"
+                    : null,
+                ].filter(Boolean);
 
                 return (
                   <TableRow
@@ -721,34 +752,22 @@ export default function TransactionsPage() {
                       {formatDateOnlyBR(transaction.date)}
                     </TableCell>
                     <TableCell className="py-4">
-                      <div className="flex flex-wrap items-center gap-2 font-medium text-foreground">
+                      <div className="font-medium text-foreground">
                         <TransactionDescription transaction={transaction} />
-                        {dependentName ? (
-                          <Badge className="rounded-md bg-zinc-100 px-2 py-0.5 text-xs font-medium text-zinc-600 hover:bg-zinc-100 dark:bg-zinc-800 dark:text-zinc-300 dark:hover:bg-zinc-800">
-                            {dependentName}
-                          </Badge>
-                        ) : null}
-                        {transaction.is_recurring &&
-                        transaction.type === "card" ? (
-                          <Badge
-                            variant="outline"
-                            className={cn(
-                              "rounded-lg",
-                              statusPresentation.className,
-                            )}
-                          >
-                            {statusPresentation.label}
-                          </Badge>
-                        ) : null}
                       </div>
-                      <div className="mt-1 text-xs text-muted-foreground lg:hidden">
-                        {categoryLabel}
+                      <div className="mt-1 flex flex-wrap gap-x-2 gap-y-1 text-xs text-muted-foreground">
+                        {details.map((detail, index) => (
+                          <span key={`${transaction.id}-${index}-${detail}`}>
+                            {index > 0 ? "• " : ""}
+                            {detail}
+                          </span>
+                        ))}
                       </div>
                     </TableCell>
                     <TableCell className="hidden py-4 lg:table-cell">
-                      <Badge variant="outline" className="rounded-lg">
+                      <span className="text-sm text-zinc-400">
                         {categoryLabel}
-                      </Badge>
+                      </span>
                     </TableCell>
                     <TableCell className="hidden py-4 text-muted-foreground lg:table-cell">
                       {originLabel}
