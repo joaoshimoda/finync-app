@@ -87,6 +87,7 @@ type SplitMode = "mine" | "dependent" | "split";
 type ExistingImportTransaction = {
   month_start: string | null;
   transaction_date: string | null;
+  day: number | null;
   description: string | null;
   amount: number | string | null;
   installment_number: number | null;
@@ -202,52 +203,71 @@ function toImportAmountCents(amount: number | string | null | undefined) {
 function getImportSignature(transaction: {
   month_start?: string | null;
   transaction_date?: string | null;
+  day?: number | null;
   description?: string | null;
   amount?: number | string | null;
   installment_number?: number | null;
   installments_total?: number | null;
-  dependent_id?: string | null;
 }) {
   const monthStart = transaction.month_start
     ? normalizeDateOnly(transaction.month_start)
     : "";
-  const transactionDate = transaction.transaction_date
-    ? normalizeDateOnly(transaction.transaction_date)
-    : "";
+  const transactionDay =
+    transaction.day ??
+    (transaction.transaction_date
+      ? getDateOnlyParts(normalizeDateOnly(transaction.transaction_date)).day
+      : "");
 
   return [
     monthStart,
-    transactionDate,
+    transactionDay,
     normalizeDescriptionForCategory(transaction.description ?? ""),
     toImportAmountCents(transaction.amount),
     transaction.installment_number ?? 1,
     transaction.installments_total ?? 1,
-    transaction.dependent_id ?? "eu",
   ].join("|");
 }
 
 function getLooseImportSignature(transaction: {
   month_start?: string | null;
   transaction_date?: string | null;
+  day?: number | null;
   description?: string | null;
   amount?: number | string | null;
-  installment_number?: number | null;
-  installments_total?: number | null;
 }) {
   const monthStart = transaction.month_start
     ? normalizeDateOnly(transaction.month_start)
     : "";
-  const transactionDate = transaction.transaction_date
-    ? normalizeDateOnly(transaction.transaction_date)
-    : "";
+  const transactionDay =
+    transaction.day ??
+    (transaction.transaction_date
+      ? getDateOnlyParts(normalizeDateOnly(transaction.transaction_date)).day
+      : "");
 
   return [
     monthStart,
-    transactionDate,
+    transactionDay,
     normalizeDescriptionForCategory(transaction.description ?? ""),
     toImportAmountCents(transaction.amount),
-    transaction.installment_number ?? 1,
-    transaction.installments_total ?? 1,
+  ].join("|");
+}
+
+function getCrossMonthImportSignature(transaction: {
+  transaction_date?: string | null;
+  day?: number | null;
+  description?: string | null;
+  amount?: number | string | null;
+}) {
+  const transactionDay =
+    transaction.day ??
+    (transaction.transaction_date
+      ? getDateOnlyParts(normalizeDateOnly(transaction.transaction_date)).day
+      : "");
+
+  return [
+    transactionDay,
+    normalizeDescriptionForCategory(transaction.description ?? ""),
+    toImportAmountCents(transaction.amount),
   ].join("|");
 }
 
@@ -517,6 +537,10 @@ export default function ImportarPage() {
   >(new Set());
   const [existingLooseImportSignatures, setExistingLooseImportSignatures] =
     useState<Set<string>>(new Set());
+  const [
+    existingCrossMonthImportSignatures,
+    setExistingCrossMonthImportSignatures,
+  ] = useState<Set<string>>(new Set());
   const [isCheckingDuplicates, setIsCheckingDuplicates] = useState(false);
   const referenceMonthOptions = useMemo(() => getReferenceMonthOptions(), []);
   const [referenceMonth, setReferenceMonth] = useState("");
@@ -702,13 +726,14 @@ export default function ImportarPage() {
     let isMounted = true;
 
     async function fetchExistingImportSignatures() {
-      if (!preparedImportRows.length || !effectiveSelectedCardId) {
-        if (isMounted) {
-          setExistingImportSignatures(new Set());
-          setExistingLooseImportSignatures(new Set());
-          setIsCheckingDuplicates(false);
-        }
-        return;
+        if (!preparedImportRows.length || !effectiveSelectedCardId) {
+          if (isMounted) {
+            setExistingImportSignatures(new Set());
+            setExistingLooseImportSignatures(new Set());
+            setExistingCrossMonthImportSignatures(new Set());
+            setIsCheckingDuplicates(false);
+          }
+          return;
       }
 
       setIsCheckingDuplicates(true);
@@ -723,6 +748,7 @@ export default function ImportarPage() {
           if (isMounted) {
             setExistingImportSignatures(new Set());
             setExistingLooseImportSignatures(new Set());
+            setExistingCrossMonthImportSignatures(new Set());
           }
           return;
         }
@@ -730,14 +756,23 @@ export default function ImportarPage() {
         const invoiceMonths = Array.from(
           new Set(preparedImportRows.map((transaction) => transaction.month_start)),
         );
+        const invoiceMonthsWithAdjacent = Array.from(
+          new Set(
+            invoiceMonths.flatMap((monthStart) => [
+              addMonthsToDateOnly(monthStart, -1),
+              monthStart,
+              addMonthsToDateOnly(monthStart, 1),
+            ]),
+          ),
+        );
         const { data, error } = await supabase
           .from("transactions")
           .select(
-            "month_start, transaction_date, description, amount, installment_number, installments_total, dependent_id",
+            "month_start, transaction_date, day, description, amount, installment_number, installments_total, dependent_id",
           )
           .eq("user_id", user.id)
           .eq("card_id", effectiveSelectedCardId)
-          .in("month_start", invoiceMonths);
+          .in("month_start", invoiceMonthsWithAdjacent);
 
         if (error) throw error;
 
@@ -748,7 +783,18 @@ export default function ImportarPage() {
             new Set(existingRows.map(getImportSignature)),
           );
           setExistingLooseImportSignatures(
-            new Set(existingRows.map(getLooseImportSignature)),
+            new Set(
+              existingRows
+                .filter(
+                  (row) =>
+                    row.month_start &&
+                    invoiceMonths.includes(normalizeDateOnly(row.month_start)),
+                )
+                .map(getLooseImportSignature),
+            ),
+          );
+          setExistingCrossMonthImportSignatures(
+            new Set(existingRows.map(getCrossMonthImportSignature)),
           );
         }
       } catch (error) {
@@ -756,6 +802,7 @@ export default function ImportarPage() {
         if (isMounted) {
           setExistingImportSignatures(new Set());
           setExistingLooseImportSignatures(new Set());
+          setExistingCrossMonthImportSignatures(new Set());
         }
       } finally {
         if (isMounted) setIsCheckingDuplicates(false);
@@ -772,52 +819,101 @@ export default function ImportarPage() {
   const importDuplicateState = useMemo(() => {
     const currentFileSignatures = new Set<string>();
     const currentLooseFileSignatures = new Set<string>();
+    const currentCrossMonthFileSignatures = new Set<string>();
+    const importableRows: PreparedImportTransaction[] = [];
     const duplicateSourceIndexes = new Set<number>();
     const newSourceIndexes = new Set<number>();
+    const partialDuplicateSourceIndexes = new Set<number>();
     const possibleDuplicateSourceIndexes = new Set<number>();
+    const sourceStats = new Map<
+      number,
+      {
+        duplicateCount: number;
+        importableCount: number;
+        possibleDuplicateCount: number;
+      }
+    >();
     let newCount = 0;
     let duplicateCount = 0;
     let possibleDuplicateCount = 0;
 
     preparedImportRows.forEach((transaction) => {
+      const sourceStat = sourceStats.get(transaction.sourceIndex) ?? {
+        duplicateCount: 0,
+        importableCount: 0,
+        possibleDuplicateCount: 0,
+      };
       const signature = getImportSignature(transaction);
       const looseSignature = getLooseImportSignature(transaction);
+      const crossMonthSignature = getCrossMonthImportSignature(transaction);
       const isDuplicate =
         existingImportSignatures.has(signature) ||
-        currentFileSignatures.has(signature);
+        currentFileSignatures.has(signature) ||
+        existingLooseImportSignatures.has(looseSignature) ||
+        currentLooseFileSignatures.has(looseSignature);
       const isPossibleDuplicate =
         !isDuplicate &&
-        (existingLooseImportSignatures.has(looseSignature) ||
-          currentLooseFileSignatures.has(looseSignature));
+        (existingCrossMonthImportSignatures.has(crossMonthSignature) ||
+          currentCrossMonthFileSignatures.has(crossMonthSignature));
 
       if (isDuplicate) {
-        duplicateSourceIndexes.add(transaction.sourceIndex);
+        sourceStat.duplicateCount += 1;
         duplicateCount += 1;
+        sourceStats.set(transaction.sourceIndex, sourceStat);
         return;
       }
 
       if (isPossibleDuplicate) {
-        possibleDuplicateSourceIndexes.add(transaction.sourceIndex);
+        sourceStat.possibleDuplicateCount += 1;
         possibleDuplicateCount += 1;
       }
 
       currentFileSignatures.add(signature);
       currentLooseFileSignatures.add(looseSignature);
-      newSourceIndexes.add(transaction.sourceIndex);
+      currentCrossMonthFileSignatures.add(crossMonthSignature);
+      sourceStat.importableCount += 1;
+      sourceStats.set(transaction.sourceIndex, sourceStat);
+      importableRows.push(transaction);
       newCount += 1;
+    });
+
+    sourceStats.forEach((sourceStat, sourceIndex) => {
+      if (sourceStat.importableCount > 0) {
+        newSourceIndexes.add(sourceIndex);
+      }
+
+      if (sourceStat.duplicateCount > 0 && sourceStat.importableCount === 0) {
+        duplicateSourceIndexes.add(sourceIndex);
+      }
+
+      if (sourceStat.duplicateCount > 0 && sourceStat.importableCount > 0) {
+        partialDuplicateSourceIndexes.add(sourceIndex);
+      }
+
+      if (sourceStat.possibleDuplicateCount > 0) {
+        possibleDuplicateSourceIndexes.add(sourceIndex);
+      }
     });
 
     return {
       duplicateCount,
       duplicateSourceCount: duplicateSourceIndexes.size,
       duplicateSourceIndexes,
+      importableRows,
       newCount,
       newSourceCount: newSourceIndexes.size,
+      partialDuplicateSourceCount: partialDuplicateSourceIndexes.size,
+      partialDuplicateSourceIndexes,
       possibleDuplicateCount,
       possibleDuplicateSourceCount: possibleDuplicateSourceIndexes.size,
       possibleDuplicateSourceIndexes,
     };
-  }, [existingImportSignatures, existingLooseImportSignatures, preparedImportRows]);
+  }, [
+    existingCrossMonthImportSignatures,
+    existingImportSignatures,
+    existingLooseImportSignatures,
+    preparedImportRows,
+  ]);
   const importPreviewSummary = useMemo(() => {
     const duplicateSourceIndexes = importDuplicateState.duplicateSourceIndexes;
     const possibleDuplicateSourceIndexes =
@@ -872,13 +968,15 @@ export default function ImportarPage() {
     if (isSubmitting) return "Importando...";
     if (isCheckingDuplicates) return "Verificando...";
 
-    const quantityLabel =
-      importDuplicateState.newSourceCount === importDuplicateState.newCount
-        ? `${importDuplicateState.newSourceCount} linhas`
-        : `${importDuplicateState.newSourceCount} linhas (${importDuplicateState.newCount} lançamentos)`;
+    const quantityLabel = `${importDuplicateState.newSourceCount} linha${
+      importDuplicateState.newSourceCount === 1 ? "" : "s"
+    }`;
     const details = [
       importDuplicateState.duplicateSourceCount > 0
         ? `${importDuplicateState.duplicateSourceCount} duplicadas ignoradas`
+        : null,
+      importDuplicateState.partialDuplicateSourceCount > 0
+        ? `${importDuplicateState.partialDuplicateSourceCount} parciais`
         : null,
       importPreviewSummary.pendingReviewCount > 0
         ? `${importPreviewSummary.pendingReviewCount} revisar`
@@ -890,8 +988,8 @@ export default function ImportarPage() {
       : `Importar ${quantityLabel}`;
   }, [
     importDuplicateState.duplicateSourceCount,
-    importDuplicateState.newCount,
     importDuplicateState.newSourceCount,
+    importDuplicateState.partialDuplicateSourceCount,
     importPreviewSummary.pendingReviewCount,
     isCheckingDuplicates,
     isSubmitting,
@@ -1128,21 +1226,7 @@ export default function ImportarPage() {
 
       if (profileError) throw profileError;
 
-      const currentFileSignatures = new Set<string>();
-      const uniqueData = preparedImportRows
-        .filter((transaction) => {
-          const signature = getImportSignature(transaction);
-
-          if (
-            existingImportSignatures.has(signature) ||
-            currentFileSignatures.has(signature)
-          ) {
-            return false;
-          }
-
-          currentFileSignatures.add(signature);
-          return true;
-        })
+      const uniqueData = importDuplicateState.importableRows
         .map(({ sourceIndex, ...transaction }) => {
           void sourceIndex;
 
@@ -1151,7 +1235,7 @@ export default function ImportarPage() {
             user_id: user.id,
           };
         });
-      const duplicateCount = preparedImportRows.length - uniqueData.length;
+      const duplicateCount = importDuplicateState.duplicateCount;
 
       if (!uniqueData.length) {
         toast.info("Todos os lançamentos dessa fatura já existem.");
@@ -1534,6 +1618,9 @@ export default function ImportarPage() {
                   <span className="rounded-full border border-amber-500/20 bg-amber-500/10 px-2 py-1 text-amber-300">
                     Duplicado
                   </span>
+                  <span className="rounded-full border border-amber-500/20 bg-amber-500/10 px-2 py-1 text-amber-300">
+                    Parcial
+                  </span>
                   <span className="rounded-full border border-orange-500/20 bg-orange-500/10 px-2 py-1 text-orange-300">
                     Possível duplicado
                   </span>
@@ -1549,6 +1636,8 @@ export default function ImportarPage() {
                     importDuplicateState.duplicateSourceIndexes.has(index);
                   const isPossibleDuplicate =
                     importDuplicateState.possibleDuplicateSourceIndexes.has(index);
+                  const isPartialDuplicate =
+                    importDuplicateState.partialDuplicateSourceIndexes.has(index);
                   const isIgnored = transaction.reviewStatus === "ignored";
                   const isApproved = transaction.reviewStatus === "approved";
                   const isReviewPending =
@@ -1565,6 +1654,7 @@ export default function ImportarPage() {
                       (isDuplicate || isIgnored) && "opacity-60",
                       isPossibleDuplicate &&
                         "border-orange-500/30 bg-orange-500/5",
+                      isPartialDuplicate && "border-amber-500/30 bg-amber-500/5",
                       isReviewPending && "border-red-500/30",
                     )}
                   >
@@ -1739,6 +1829,8 @@ export default function ImportarPage() {
                       importDuplicateState.duplicateSourceIndexes.has(index);
                     const isPossibleDuplicate =
                       importDuplicateState.possibleDuplicateSourceIndexes.has(index);
+                    const isPartialDuplicate =
+                      importDuplicateState.partialDuplicateSourceIndexes.has(index);
                     const isIgnored = transaction.reviewStatus === "ignored";
                     const isApproved = transaction.reviewStatus === "approved";
                     const isReviewPending =
@@ -1753,6 +1845,7 @@ export default function ImportarPage() {
                       className={cn(
                         (isDuplicate || isIgnored) && "opacity-60",
                         isPossibleDuplicate && "bg-orange-500/5",
+                        isPartialDuplicate && "bg-amber-500/5",
                         isReviewPending && "bg-red-500/5",
                       )}
                     >
