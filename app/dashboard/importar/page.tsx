@@ -738,6 +738,7 @@ export default function ImportarPage() {
             monthStart,
             transaction.referenceMonthOffset,
           ),
+          transaction_date: transaction.date,
           type: "card",
           description: transaction.description,
           category:

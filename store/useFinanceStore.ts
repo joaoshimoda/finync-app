@@ -106,6 +106,7 @@ interface TransactionRow {
   group_id: string | null;
   month_start: string;
   month_label: string | null;
+  transaction_date: string | null;
   type: string | null;
   description: string;
   category: string | null;
@@ -287,7 +288,7 @@ function mapTransaction(row: TransactionRow): Transaction {
     id: row.id,
     description: row.description,
     amount: toAmount(row.amount),
-    date: toDateOnly(year, month, row.day || 1),
+    date: row.transaction_date ?? toDateOnly(year, month, row.day || 1),
     category: row.category ?? "",
     type: toTransactionType(row.type),
     status: fromDbStatus(row.status),
@@ -335,6 +336,7 @@ function toTransactionInsertPayload(
     dependent_id: transaction.dependentId ?? null,
     group_id: transaction.groupId ?? null,
     month_start: monthStart,
+    transaction_date: normalizedDate,
     type: transaction.type,
     description: transaction.description,
     category: transaction.category,
@@ -1043,6 +1045,7 @@ export const useFinanceStore = create<FinanceState>()((set, get) => ({
 
       if (transaction.date !== undefined) {
         updatePayload.day = getDayFromDate(transaction.date);
+        updatePayload.transaction_date = normalizeDateOnly(transaction.date);
       }
 
       if (
