@@ -1,4 +1,4 @@
-"use client";
+﻿"use client";
 
 import { useCallback, useEffect, useMemo, useState } from "react";
 import {
@@ -16,7 +16,6 @@ import { toast } from "sonner";
 
 import { RecurringDeleteDialog } from "@/components/finance/RecurringDeleteDialog";
 import { TransactionDescription } from "@/components/finance/TransactionDescription";
-import { MobileTransactionItem } from "@/components/finance/MobileTransactionItem";
 import { AddTransactionModal } from "@/components/modals/AddTransactionModal";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -43,6 +42,13 @@ const brlFormatter = new Intl.NumberFormat("pt-BR", {
   currency: "BRL",
 });
 
+function getDayDifference(dateOnly: string) {
+  const today = new Date(`${getLocalTodayDateOnly()}T00:00:00`);
+  const target = new Date(`${normalizeDateOnly(dateOnly)}T00:00:00`);
+
+  return Math.round((target.getTime() - today.getTime()) / 86_400_000);
+}
+
 function isFutureCardSubscription(transaction: Transaction) {
   return (
     transaction.type === "card" &&
@@ -50,6 +56,20 @@ function isFutureCardSubscription(transaction: Transaction) {
     transaction.status !== "paid" &&
     normalizeDateOnly(transaction.date) > getLocalTodayDateOnly()
   );
+}
+
+function getSubscriptionChargeLabel(transaction: Transaction) {
+  if (transaction.status === "paid") return "Fatura liquidada";
+
+  const dayDifference = getDayDifference(transaction.date);
+
+  if (dayDifference > 0) {
+    return `Cai em ${dayDifference} ${dayDifference === 1 ? "dia" : "dias"}`;
+  }
+
+  if (dayDifference === 0) return "Cai hoje";
+
+  return "JÃ¡ caiu na fatura";
 }
 
 function getRecurringStatusPresentation(transaction: Transaction) {
@@ -214,12 +234,12 @@ export default function FixedExpensesPage() {
       );
 
       toast.success(
-        `${effectiveSelectedIds.length} ${effectiveSelectedIds.length === 1 ? "lançamento pago" : "lançamentos pagos"}.`,
+        `${effectiveSelectedIds.length} ${effectiveSelectedIds.length === 1 ? "lanÃ§amento pago" : "lanÃ§amentos pagos"}.`,
       );
       setSelectedIds([]);
     } catch (error) {
-      console.error("Erro ao pagar lançamentos selecionados:", error);
-      toast.error("Não foi possível concluir todos os pagamentos.");
+      console.error("Erro ao pagar lanÃ§amentos selecionados:", error);
+      toast.error("NÃ£o foi possÃ­vel concluir todos os pagamentos.");
       await fetchTransactions();
     } finally {
       setIsPayingSelected(false);
@@ -233,7 +253,7 @@ export default function FixedExpensesPage() {
 
   const togglePaymentStatus = useCallback(async (transaction: Transaction) => {
     if (isFutureCardSubscription(transaction)) {
-      toast.error("Essa assinatura ainda não caiu na fatura.");
+      toast.error("Essa assinatura ainda nÃ£o caiu na fatura.");
       return;
     }
 
@@ -251,12 +271,12 @@ export default function FixedExpensesPage() {
       );
       toast.success(
         nextStatus === "paid"
-          ? "Lançamento marcado como pago."
-          : "Lançamento marcado como pendente.",
+          ? "LanÃ§amento marcado como pago."
+          : "LanÃ§amento marcado como pendente.",
       );
     } catch (error) {
       console.error("Erro ao atualizar pagamento:", error);
-      toast.error("Não foi possível atualizar o pagamento.");
+      toast.error("NÃ£o foi possÃ­vel atualizar o pagamento.");
     }
   }, [updateTransaction]);
 
@@ -266,10 +286,10 @@ export default function FixedExpensesPage() {
       setSelectedIds((currentIds) =>
         currentIds.filter((id) => id !== transactionId),
       );
-      toast.success("Lançamento removido.");
+      toast.success("LanÃ§amento removido.");
     } catch (error) {
-      console.error("Erro ao remover lançamento:", error);
-      toast.error("Não foi possível remover agora.");
+      console.error("Erro ao remover lanÃ§amento:", error);
+      toast.error("NÃ£o foi possÃ­vel remover agora.");
     }
   }, [deleteTransaction]);
 
@@ -279,10 +299,10 @@ export default function FixedExpensesPage() {
     try {
       await deleteTransactionGroup(transaction.groupId, transaction.date);
       setSelectedIds([]);
-      toast.success("Lançamento atual e próximos removidos.");
+      toast.success("LanÃ§amento atual e prÃ³ximos removidos.");
     } catch (error) {
-      console.error("Erro ao remover recorrência:", error);
-      toast.error("Não foi possível remover a recorrência agora.");
+      console.error("Erro ao remover recorrÃªncia:", error);
+      toast.error("NÃ£o foi possÃ­vel remover a recorrÃªncia agora.");
     }
   }, [deleteTransactionGroup]);
 
@@ -302,13 +322,229 @@ export default function FixedExpensesPage() {
   }
 
   function getCardName(cardId?: string | null) {
-    return cards.find((card) => card.id === cardId)?.name ?? "Cartão";
+    return cards.find((card) => card.id === cardId)?.name ?? "CartÃ£o";
   }
 
-  function renderTransactionTable(items: Transaction[]) {
+  function renderFixedList(items: Transaction[]) {
     return (
-      <div className="overflow-hidden rounded-xl border border-zinc-800 bg-zinc-950">
-        <div className="space-y-2 p-3 md:hidden">
+      <div className="rounded-2xl border border-zinc-800 bg-zinc-950">
+        <div className="grid gap-3 p-3 md:hidden">
+          {items.length ? (
+            items.map((transaction) => {
+              const isPaid = transaction.status === "paid";
+              const statusPresentation =
+                getRecurringStatusPresentation(transaction);
+
+              return (
+                <div
+                  key={transaction.id}
+                  className="rounded-2xl border border-zinc-800 bg-zinc-900/60 p-4"
+                >
+                  <div className="flex items-start justify-between gap-3">
+                    <div className="min-w-0">
+                      <TransactionDescription transaction={transaction} />
+                      <p className="mt-1 text-xs text-zinc-500">
+                        Conta fixa â€¢ {formatDateOnlyBR(transaction.date)}
+                      </p>
+                    </div>
+                    <strong className="shrink-0 text-sm text-zinc-100">
+                      {brlFormatter.format(transaction.amount)}
+                    </strong>
+                  </div>
+
+                  <div className="mt-4 flex items-center justify-between gap-3 border-t border-zinc-800 pt-3">
+                    <div>
+                      <button
+                        type="button"
+                        onClick={() => void togglePaymentStatus(transaction)}
+                        className="cursor-pointer"
+                      >
+                        <Badge
+                          variant="outline"
+                          className={statusPresentation.className}
+                        >
+                          {statusPresentation.label}
+                        </Badge>
+                      </button>
+                      <p className="mt-1 text-xs text-zinc-500">
+                        {isPaid ? "Pago" : "Aguardando baixa"}
+                      </p>
+                    </div>
+                    <div className="flex items-center gap-1">
+                      <Checkbox
+                        aria-label={`Selecionar ${transaction.description}`}
+                        checked={effectiveSelectedIds.includes(transaction.id)}
+                        disabled={isPaid}
+                        onCheckedChange={() => toggleSelection(transaction.id)}
+                        className="mr-2 size-5 border-zinc-600"
+                      />
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="icon"
+                        className="size-11 rounded-xl text-zinc-400"
+                        onClick={() => openEditModal(transaction)}
+                        aria-label="Editar conta fixa"
+                      >
+                        <Pencil className="size-5" />
+                      </Button>
+                      <RecurringDeleteDialog
+                        transaction={transaction}
+                        onDeleteSingle={(item) => handleDeleteTransaction(item.id)}
+                        onDeleteFuture={handleDeleteFutureTransactions}
+                      >
+                        <Button
+                          type="button"
+                          variant="ghost"
+                          size="icon"
+                          className="size-11 rounded-xl text-zinc-400 hover:text-red-300"
+                          aria-label="Excluir conta fixa"
+                        >
+                          <Trash2 className="size-5" />
+                        </Button>
+                      </RecurringDeleteDialog>
+                    </div>
+                  </div>
+                </div>
+              );
+            })
+          ) : (
+            <div className="flex min-h-44 flex-col items-center justify-center gap-3 text-center text-sm text-zinc-500">
+              <CalendarX className="size-7" />
+              Nenhuma conta fixa neste perÃ­odo.
+            </div>
+          )}
+        </div>
+
+        <Table className="hidden min-w-[820px] md:table">
+          <TableHeader>
+            <TableRow className="border-zinc-800 bg-zinc-900/60 hover:bg-zinc-900/60">
+              <TableHead className="w-12 px-4">
+                <Checkbox
+                  aria-label="Selecionar todas as contas fixas pendentes"
+                  checked={allPendingSelected}
+                  disabled={!pendingTransactions.length}
+                  onCheckedChange={toggleAllPending}
+                  className="border-zinc-600"
+                />
+              </TableHead>
+              <TableHead>Conta fixa</TableHead>
+              <TableHead>Origem</TableHead>
+              <TableHead>Vencimento</TableHead>
+              <TableHead>Status</TableHead>
+              <TableHead className="text-right">Valor</TableHead>
+              <TableHead className="w-24 text-right">AÃ§Ãµes</TableHead>
+            </TableRow>
+          </TableHeader>
+          <TableBody>
+            {items.length ? (
+              items.map((transaction) => {
+                const isPaid = transaction.status === "paid";
+                const statusPresentation =
+                  getRecurringStatusPresentation(transaction);
+
+                return (
+                  <TableRow
+                    key={transaction.id}
+                    className="border-zinc-800 transition-colors hover:bg-zinc-900/50"
+                  >
+                    <TableCell className="px-4">
+                      <Checkbox
+                        aria-label={`Selecionar ${transaction.description}`}
+                        checked={effectiveSelectedIds.includes(transaction.id)}
+                        disabled={isPaid}
+                        onCheckedChange={() => toggleSelection(transaction.id)}
+                        className="border-zinc-600"
+                      />
+                    </TableCell>
+                    <TableCell>
+                      <div className="font-medium text-zinc-100">
+                        <TransactionDescription transaction={transaction} />
+                      </div>
+                      <p className="mt-1 text-xs text-zinc-500">
+                        {transaction.category || "Sem categoria"}
+                      </p>
+                    </TableCell>
+                    <TableCell className="text-zinc-400">Conta fixa</TableCell>
+                    <TableCell>
+                      <p className="text-sm text-zinc-300">
+                        {formatDateOnlyBR(transaction.date)}
+                      </p>
+                      <p className="mt-1 text-xs text-zinc-500">
+                        {isPaid ? "Pago" : "Aguardando baixa"}
+                      </p>
+                    </TableCell>
+                    <TableCell>
+                      <button
+                        type="button"
+                        onClick={() => void togglePaymentStatus(transaction)}
+                        className="cursor-pointer"
+                      >
+                        <Badge
+                          variant="outline"
+                          className={statusPresentation.className}
+                        >
+                          {statusPresentation.label}
+                        </Badge>
+                      </button>
+                    </TableCell>
+                    <TableCell className="text-right font-semibold text-zinc-100">
+                      {brlFormatter.format(transaction.amount)}
+                    </TableCell>
+                    <TableCell>
+                      <div className="flex justify-end gap-1">
+                        <Button
+                          type="button"
+                          variant="ghost"
+                          size="icon-sm"
+                          aria-label="Editar conta fixa"
+                          className="text-zinc-500 hover:bg-zinc-800 hover:text-zinc-100"
+                          onClick={() => openEditModal(transaction)}
+                        >
+                          <Pencil />
+                        </Button>
+                        <RecurringDeleteDialog
+                          transaction={transaction}
+                          onDeleteSingle={(item) =>
+                            handleDeleteTransaction(item.id)
+                          }
+                          onDeleteFuture={handleDeleteFutureTransactions}
+                        >
+                          <Button
+                            type="button"
+                            variant="ghost"
+                            size="icon-sm"
+                            aria-label="Excluir conta fixa"
+                            className="text-zinc-500 hover:bg-red-950 hover:text-red-300"
+                          >
+                            <Trash2 />
+                          </Button>
+                        </RecurringDeleteDialog>
+                      </div>
+                    </TableCell>
+                  </TableRow>
+                );
+              })
+            ) : (
+              <TableRow className="border-zinc-800 hover:bg-transparent">
+                <TableCell colSpan={7} className="h-48 text-center">
+                  <div className="flex flex-col items-center justify-center gap-3 text-zinc-500">
+                    <CalendarX className="size-7" strokeWidth={1.6} />
+                    <span>Nenhuma conta fixa neste perÃ­odo.</span>
+                  </div>
+                </TableCell>
+              </TableRow>
+            )}
+          </TableBody>
+        </Table>
+      </div>
+    );
+  }
+
+  function renderSubscriptionList(items: Transaction[]) {
+    return (
+      <div className="rounded-2xl border border-zinc-800 bg-zinc-950">
+        <div className="grid gap-3 p-3 md:hidden">
           {items.length ? (
             items.map((transaction) => {
               const isPaid = transaction.status === "paid";
@@ -319,29 +555,33 @@ export default function FixedExpensesPage() {
               return (
                 <div
                   key={transaction.id}
-                  className="rounded-2xl border border-zinc-800 bg-zinc-900/55 p-3"
+                  className="rounded-2xl border border-zinc-800 bg-zinc-900/60 p-4"
                 >
-                  <MobileTransactionItem
-                    className="min-h-16 rounded-none border-0 bg-transparent p-0"
-                    title={<TransactionDescription transaction={transaction} />}
-                    category={transaction.category || "Sem categoria"}
-                    date={formatDateOnlyBR(transaction.date)}
-                    amount={`-${brlFormatter.format(transaction.amount)}`}
-                  />
-                  <div className="mt-3 flex items-center justify-between border-t border-zinc-800 pt-3">
-                    <button
-                      type="button"
-                      onClick={() => void togglePaymentStatus(transaction)}
-                      disabled={isFutureSubscription}
-                      className="min-h-10 cursor-pointer disabled:cursor-not-allowed"
-                    >
+                  <div className="flex items-start justify-between gap-3">
+                    <div className="min-w-0">
+                      <TransactionDescription transaction={transaction} />
+                      <p className="mt-1 text-xs text-zinc-500">
+                        {getCardName(transaction.cardId)} â€¢{" "}
+                        {formatDateOnlyBR(transaction.date)}
+                      </p>
+                    </div>
+                    <strong className="shrink-0 text-sm text-zinc-100">
+                      {brlFormatter.format(transaction.amount)}
+                    </strong>
+                  </div>
+
+                  <div className="mt-4 flex items-center justify-between gap-3 border-t border-zinc-800 pt-3">
+                    <div>
                       <Badge
                         variant="outline"
                         className={statusPresentation.className}
                       >
                         {statusPresentation.label}
                       </Badge>
-                    </button>
+                      <p className="mt-1 text-xs text-zinc-500">
+                        {getSubscriptionChargeLabel(transaction)}
+                      </p>
+                    </div>
                     <div className="flex items-center gap-1">
                       <Checkbox
                         aria-label={`Selecionar ${transaction.description}`}
@@ -356,7 +596,7 @@ export default function FixedExpensesPage() {
                         size="icon"
                         className="size-11 rounded-xl text-zinc-400"
                         onClick={() => openEditModal(transaction)}
-                        aria-label="Editar lançamento"
+                        aria-label="Editar assinatura"
                       >
                         <Pencil className="size-5" />
                       </Button>
@@ -370,7 +610,7 @@ export default function FixedExpensesPage() {
                           variant="ghost"
                           size="icon"
                           className="size-11 rounded-xl text-zinc-400 hover:text-red-300"
-                          aria-label="Excluir lançamento"
+                          aria-label="Excluir assinatura"
                         >
                           <Trash2 className="size-5" />
                         </Button>
@@ -382,8 +622,8 @@ export default function FixedExpensesPage() {
             })
           ) : (
             <div className="flex min-h-44 flex-col items-center justify-center gap-3 text-center text-sm text-zinc-500">
-              <CalendarX className="size-7" />
-              Nenhum lançamento recorrente neste período.
+              <CreditCard className="size-7" />
+              Nenhuma assinatura neste perÃ­odo.
             </div>
           )}
         </div>
@@ -393,20 +633,19 @@ export default function FixedExpensesPage() {
             <TableRow className="border-zinc-800 bg-zinc-900/60 hover:bg-zinc-900/60">
               <TableHead className="w-12 px-4">
                 <Checkbox
-                  aria-label="Selecionar todos os pendentes"
+                  aria-label="Selecionar todas as assinaturas cobradas"
                   checked={allPendingSelected}
                   disabled={!pendingTransactions.length}
                   onCheckedChange={toggleAllPending}
                   className="border-zinc-600"
                 />
               </TableHead>
-              <TableHead>Data</TableHead>
-              <TableHead>Descrição</TableHead>
-              <TableHead>Categoria</TableHead>
-              <TableHead>Origem</TableHead>
+              <TableHead>Assinatura</TableHead>
+              <TableHead>CartÃ£o</TableHead>
+              <TableHead>CobranÃ§a</TableHead>
               <TableHead>Status</TableHead>
               <TableHead className="text-right">Valor</TableHead>
-              <TableHead className="w-24 text-right">Ações</TableHead>
+              <TableHead className="w-24 text-right">AÃ§Ãµes</TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
@@ -431,34 +670,32 @@ export default function FixedExpensesPage() {
                         className="border-zinc-600"
                       />
                     </TableCell>
-                    <TableCell className="whitespace-nowrap text-zinc-400">
-                      {formatDateOnlyBR(transaction.date)}
-                    </TableCell>
-                    <TableCell className="font-medium text-zinc-100">
-                      <TransactionDescription transaction={transaction} />
+                    <TableCell>
+                      <div className="font-medium text-zinc-100">
+                        <TransactionDescription transaction={transaction} />
+                      </div>
+                      <p className="mt-1 text-xs text-zinc-500">
+                        {transaction.category || "Sem categoria"}
+                      </p>
                     </TableCell>
                     <TableCell className="text-zinc-400">
-                      {transaction.category || "Sem categoria"}
-                    </TableCell>
-                    <TableCell className="text-zinc-400">
-                      {transaction.type === "card"
-                        ? getCardName(transaction.cardId)
-                        : "Conta fixa"}
+                      {getCardName(transaction.cardId)}
                     </TableCell>
                     <TableCell>
-                      <button
-                        type="button"
-                        onClick={() => void togglePaymentStatus(transaction)}
-                        disabled={isFutureSubscription}
-                        className="cursor-pointer disabled:cursor-not-allowed"
+                      <p className="text-sm text-zinc-300">
+                        {formatDateOnlyBR(transaction.date)}
+                      </p>
+                      <p className="mt-1 text-xs text-zinc-500">
+                        {getSubscriptionChargeLabel(transaction)}
+                      </p>
+                    </TableCell>
+                    <TableCell>
+                      <Badge
+                        variant="outline"
+                        className={statusPresentation.className}
                       >
-                        <Badge
-                          variant="outline"
-                          className={statusPresentation.className}
-                        >
-                          {statusPresentation.label}
-                        </Badge>
-                      </button>
+                        {statusPresentation.label}
+                      </Badge>
                     </TableCell>
                     <TableCell className="text-right font-semibold text-zinc-100">
                       {brlFormatter.format(transaction.amount)}
@@ -469,7 +706,7 @@ export default function FixedExpensesPage() {
                           type="button"
                           variant="ghost"
                           size="icon-sm"
-                          aria-label="Editar lançamento"
+                          aria-label="Editar assinatura"
                           className="text-zinc-500 hover:bg-zinc-800 hover:text-zinc-100"
                           onClick={() => openEditModal(transaction)}
                         >
@@ -486,7 +723,7 @@ export default function FixedExpensesPage() {
                             type="button"
                             variant="ghost"
                             size="icon-sm"
-                            aria-label="Excluir lançamento"
+                            aria-label="Excluir assinatura"
                             className="text-zinc-500 hover:bg-red-950 hover:text-red-300"
                           >
                             <Trash2 />
@@ -499,10 +736,10 @@ export default function FixedExpensesPage() {
               })
             ) : (
               <TableRow className="border-zinc-800 hover:bg-transparent">
-                <TableCell colSpan={8} className="h-48 text-center">
+                <TableCell colSpan={7} className="h-48 text-center">
                   <div className="flex flex-col items-center justify-center gap-3 text-zinc-500">
-                    <CalendarX className="size-7" strokeWidth={1.6} />
-                    <span>Nenhum lançamento recorrente neste período.</span>
+                    <CreditCard className="size-7" strokeWidth={1.6} />
+                    <span>Nenhuma assinatura neste perÃ­odo.</span>
                   </div>
                 </TableCell>
               </TableRow>
@@ -522,25 +759,25 @@ export default function FixedExpensesPage() {
               Contas e assinaturas
             </h1>
             <p className="mt-3 text-sm leading-6 text-zinc-400">
-              Acompanhe vencimentos recorrentes e faça baixas individuais ou em
+              Acompanhe vencimentos recorrentes e faÃ§a baixas individuais ou em
               massa.
             </p>
           </div>
 
           <Button
             type="button"
-            aria-label="Criar nova recorrência"
+            aria-label="Criar nova recorrÃªncia"
             onClick={openCreateModal}
             className="h-11 gap-2 bg-emerald-600 px-3.5 text-sm font-semibold text-white hover:bg-emerald-700 md:h-12 md:px-6 md:text-base"
           >
             <PlusCircle className="size-5" />
-            <span className="hidden min-[410px]:inline">Nova Recorrência</span>
+            <span className="hidden min-[410px]:inline">Nova RecorrÃªncia</span>
           </Button>
         </header>
 
         <section className="grid grid-cols-2 overflow-hidden rounded-2xl border border-zinc-800 sm:grid-cols-3">
           <div className="col-span-2 border-b border-zinc-800 px-4 py-5 sm:col-span-1 sm:border-b-0 sm:border-r sm:px-6">
-            <p className="text-sm text-zinc-500">Total do período</p>
+            <p className="text-sm text-zinc-500">Total do perÃ­odo</p>
             <strong className="mt-2 block text-2xl font-semibold text-zinc-100">
               {brlFormatter.format(totalAmount)}
             </strong>
@@ -592,10 +829,10 @@ export default function FixedExpensesPage() {
           </div>
 
           <TabsContent value="fixed" className="mt-5">
-            {renderTransactionTable(fixedTransactions)}
+            {renderFixedList(fixedTransactions)}
           </TabsContent>
           <TabsContent value="subscriptions" className="mt-5">
-            {renderTransactionTable(subscriptionTransactions)}
+            {renderSubscriptionList(subscriptionTransactions)}
           </TabsContent>
         </Tabs>
       </div>
