@@ -1,4 +1,3 @@
-import { Badge } from "@/components/ui/badge";
 import type { Transaction } from "@/store/useFinanceStore";
 
 interface TransactionDescriptionProps {
@@ -36,13 +35,6 @@ export function TransactionDescription({
     installmentNumber,
     installmentsTotal,
   } = getTransactionDescriptionPresentation(transaction);
-  const recurringLabel =
-    transaction.is_recurring !== true
-      ? null
-      : transaction.type === "card" || Boolean(transaction.cardId)
-        ? "Assinatura"
-        : "Fixo";
-
   return (
     <>
       <span>{description}</span>
@@ -50,11 +42,6 @@ export function TransactionDescription({
         <span className="ml-1 text-muted-foreground">
           ({installmentNumber}/{installmentsTotal})
         </span>
-      ) : null}
-      {recurringLabel ? (
-        <Badge variant="secondary" className="ml-2 h-5 py-0 text-[10px]">
-          {recurringLabel}
-        </Badge>
       ) : null}
     </>
   );

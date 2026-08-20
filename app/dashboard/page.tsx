@@ -310,19 +310,24 @@ function FlippableWalletCard({
               )}
             </p>
             {cardSummary.limitAmount > 0 ? (
-              <div className="mt-3 h-1.5 overflow-hidden rounded-full bg-muted">
-                <div
-                  className="h-full rounded-full bg-emerald-500"
-                  style={{ width: `${cardSummary.limitUsage}%` }}
-                />
+              <div className="mt-3">
+                <div className="mb-1 flex items-center justify-between text-[11px] text-muted-foreground">
+                  <span>Uso do limite</span>
+                  <span>{cardSummary.limitUsage.toFixed(0)}%</span>
+                </div>
+                <div className="h-1.5 overflow-hidden rounded-full bg-muted">
+                  <div
+                    className="h-full rounded-full bg-emerald-500"
+                    style={{ width: `${cardSummary.limitUsage}%` }}
+                  />
+                </div>
               </div>
             ) : null}
           </div>
           <div className="relative grid gap-2">
             <Button
               type="button"
-              size="sm"
-              className="h-8 bg-emerald-600 text-white hover:bg-emerald-700"
+              className="h-9 bg-emerald-600 text-white hover:bg-emerald-700"
               onClick={() => onPayInvoice(cardSummary.id)}
             >
               Pagar Fatura
@@ -330,8 +335,8 @@ function FlippableWalletCard({
             <Button
               type="button"
               size="sm"
-              variant="outline"
-              className="h-8"
+              variant="ghost"
+              className="h-8 text-muted-foreground hover:text-foreground"
               onClick={() => setIsFlipped(false)}
             >
               Voltar
@@ -696,46 +701,6 @@ export default function DashboardPage() {
     [dependents, monthlyTransactions],
   );
 
-  const balanceComposition = useMemo(() => {
-    const personalCardGross = invoiceCycleTransactions
-      .filter((transaction) => transaction.type === "card" && !hasDependent(transaction))
-      .filter((transaction) => !isCardCreditAdjustment(transaction))
-      .reduce((total, transaction) => total + transaction.amount, 0);
-    const personalCardCredits = invoiceCycleTransactions
-      .filter((transaction) => transaction.type === "card" && !hasDependent(transaction))
-      .filter((transaction) => isCardCreditAdjustment(transaction))
-      .reduce((total, transaction) => total + transaction.amount, 0);
-    const dependentCalendarTotal = monthlyTransactions
-      .filter((transaction) => transaction.type !== "income" && transaction.type !== "card" && hasDependent(transaction))
-      .reduce(
-        (total, transaction) => total + transaction.amount,
-        0,
-      );
-    const dependentCardTotal = invoiceCycleTransactions
-      .filter((transaction) => transaction.type === "card" && hasDependent(transaction))
-      .reduce(
-        (total, transaction) => total + getCardSignedAmount(transaction),
-        0,
-      );
-
-    return {
-      cardCredits: personalCardCredits,
-      cardGross: personalCardGross,
-      debitPix: debitPixSpendingTotal,
-      dependentTotal: dependentCalendarTotal + dependentCardTotal,
-      fixed: fixedSpendingTotal,
-      income: monthlyBalances.totalIncome,
-      projectedBalance: monthlyBalances.projectedBalance,
-    };
-  }, [
-    debitPixSpendingTotal,
-    fixedSpendingTotal,
-    invoiceCycleTransactions,
-    monthlyBalances.projectedBalance,
-    monthlyBalances.totalIncome,
-    monthlyTransactions,
-  ]);
-
   useEffect(() => {
     void fetchTransactions();
   }, [currentMonth, currentYear, fetchTransactions]);
@@ -876,39 +841,62 @@ export default function DashboardPage() {
       </div>
 
       <section className="space-y-3">
-        <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5">
+        <div className="grid gap-3 xl:grid-cols-2">
+          <Card className="rounded-xl border border-zinc-800 bg-zinc-950 shadow-none">
+            <CardContent className="p-5">
+              <div className="flex items-center justify-between gap-4">
+                <div>
+                  <p className="text-sm text-zinc-400">Saldo disponível</p>
+                  <strong className="mt-2 block text-2xl font-semibold tracking-tight text-zinc-50 md:text-3xl">
+                    {formatPrivateCurrency(monthlyBalances.projectedBalance)}
+                  </strong>
+                </div>
+                <ReceiptText className="size-5 text-zinc-400" />
+              </div>
+              <p className="mt-3 text-xs leading-5 text-zinc-400">
+                Projeção pessoal do mês, sem gastos de dependentes.
+              </p>
+            </CardContent>
+          </Card>
+
+          <Card className="rounded-xl border border-red-950/60 bg-card shadow-none">
+            <CardContent className="p-5">
+              <div className="flex items-center justify-between gap-4">
+                <div>
+                  <p className="text-sm text-zinc-400">
+                    Projeção de fechamento
+                  </p>
+                  <strong className="mt-2 block text-2xl font-semibold tracking-tight text-red-300 md:text-3xl">
+                    {formatPrivateCurrency(monthlyBalances.creditCardProjected)}
+                  </strong>
+                </div>
+                <CreditCard className="size-5 text-red-300" />
+              </div>
+              <p className="mt-3 line-clamp-1 text-xs leading-5 text-zinc-400">
+                Meu: {formatPrivateCurrency(monthlyBalances.userCreditCardProjected)}
+                <span className="mx-1">•</span>
+                Dependentes:{" "}
+                {formatPrivateCurrency(monthlyBalances.dependentCreditCardProjected)}
+              </p>
+            </CardContent>
+          </Card>
+        </div>
+
+        <div className="grid gap-3 md:grid-cols-3">
           {[
-            {
-              icon: ReceiptText,
-              label: "Saldo disponível",
-              tone: "text-zinc-50",
-              value: monthlyBalances.projectedBalance,
-              detail: "Projeção pessoal do mês",
-              className: "border-zinc-800 bg-zinc-950",
-            },
             {
               icon: TrendingUp,
               label: "Receitas",
               tone: "text-emerald-300",
               value: monthlyBalances.totalIncome,
               detail: "Entradas registradas",
-              className: "bg-card",
             },
             {
               icon: CreditCard,
               label: "Faturas em aberto",
-              tone: "text-violet-300",
+              tone: "text-zinc-100",
               value: monthlyBalances.creditCardUntilToday,
               detail: `Meu: ${formatPrivateCurrency(monthlyBalances.userCreditCardUntilToday)} • Dependentes: ${formatPrivateCurrency(monthlyBalances.dependentCreditCardUntilToday)}`,
-              className: "bg-card",
-            },
-            {
-              icon: CreditCard,
-              label: "Projeção de fechamento",
-              tone: "text-blue-300",
-              value: monthlyBalances.creditCardProjected,
-              detail: `Meu: ${formatPrivateCurrency(monthlyBalances.userCreditCardProjected)} • Dependentes: ${formatPrivateCurrency(monthlyBalances.dependentCreditCardProjected)}`,
-              className: "bg-card",
             },
             {
               icon: ReceiptText,
@@ -916,7 +904,6 @@ export default function DashboardPage() {
               tone: "text-orange-300",
               value: monthlyBalances.totalPendingObligations,
               detail: `Meu: ${formatPrivateCurrency(monthlyBalances.personalPendingObligations)} • Dependentes: ${formatPrivateCurrency(monthlyBalances.dependentPendingObligations)}`,
-              className: "bg-card",
             },
           ].map((item) => {
             const MetricIcon = item.icon;
@@ -924,24 +911,19 @@ export default function DashboardPage() {
             return (
               <Card
                 key={item.label}
-                className={cn(
-                  "min-h-[118px] rounded-xl border border-border/50 shadow-none",
-                  item.className,
-                )}
+                className="rounded-xl border border-border/50 bg-card shadow-none"
               >
-                <CardContent className="flex h-full flex-col justify-between p-4">
+                <CardContent className="p-4">
                   <div className="flex items-center justify-between gap-3">
-                    <span className="text-sm text-muted-foreground">
-                      {item.label}
-                    </span>
+                    <span className="text-sm text-zinc-400">{item.label}</span>
                     <MetricIcon className={cn("size-4", item.tone)} />
                   </div>
                   <strong
-                    className={cn("mt-3 block text-xl font-semibold", item.tone)}
+                    className={cn("mt-2 block text-lg font-semibold", item.tone)}
                   >
                     {formatPrivateCurrency(item.value)}
                   </strong>
-                  <p className="mt-2 line-clamp-2 text-xs leading-4 text-zinc-500">
+                  <p className="mt-2 line-clamp-1 text-xs leading-4 text-zinc-400">
                     {item.detail}
                   </p>
                 </CardContent>
@@ -949,54 +931,6 @@ export default function DashboardPage() {
             );
           })}
         </div>
-
-        <Card className="rounded-xl border border-border/50 bg-card shadow-none">
-          <CardContent className="grid gap-2 p-3 sm:grid-cols-2 lg:grid-cols-5">
-            {[
-              {
-                label: "Receitas",
-                value: balanceComposition.income,
-                tone: "text-emerald-300",
-                prefix: "+",
-              },
-              {
-                label: "Fixos",
-                value: balanceComposition.fixed,
-                tone: "text-zinc-100",
-                prefix: "-",
-              },
-              {
-                label: "Débito / Pix",
-                value: balanceComposition.debitPix,
-                tone: "text-zinc-100",
-                prefix: "-",
-              },
-              {
-                label: "Cartão pessoal",
-                value: balanceComposition.cardGross,
-                tone: "text-zinc-100",
-                prefix: "-",
-              },
-              {
-                label: "Créditos",
-                value: balanceComposition.cardCredits,
-                tone: "text-emerald-300",
-                prefix: "+",
-              },
-            ].map((item) => (
-              <div
-                key={item.label}
-                className="flex items-center justify-between gap-3 rounded-lg bg-zinc-900/40 px-3 py-2"
-              >
-                <span className="text-xs text-zinc-500">{item.label}</span>
-                <strong className={cn("text-xs font-semibold", item.tone)}>
-                  {item.prefix}
-                  {formatPrivateCurrency(item.value)}
-                </strong>
-              </div>
-            ))}
-          </CardContent>
-        </Card>
       </section>
 
       {pendingVariableIncomes.length ? (
@@ -1139,22 +1073,22 @@ export default function DashboardPage() {
 
         <div className="min-w-0">
           <Card className="w-full rounded-xl border border-border/50 bg-card shadow-none">
-            <CardHeader className="border-b border-border/50 p-5">
+            <CardHeader className="border-b border-border/50 p-4">
               <CardDescription>Valores a receber</CardDescription>
-              <CardTitle className="text-xl tracking-normal">
+              <CardTitle className="text-lg tracking-normal">
                 Gastos por Dependente
               </CardTitle>
             </CardHeader>
-            <CardContent className="p-3">
+            <CardContent className="p-2">
               {dependentSpendingSummaries.length ? (
                 <div>
                   {dependentSpendingSummaries.map((dependent) => (
                     <div
                       key={dependent.id}
-                      className="flex items-center justify-between gap-3 border-b border-zinc-100 p-3 last:border-0 dark:border-zinc-800"
+                      className="flex items-center justify-between gap-3 border-b border-zinc-100 px-3 py-2.5 last:border-0 dark:border-zinc-800"
                     >
                       <div className="flex min-w-0 flex-1 items-center gap-3">
-                        <span className="flex size-9 shrink-0 items-center justify-center rounded-lg bg-zinc-100 text-zinc-500 dark:bg-zinc-900 dark:text-zinc-400">
+                        <span className="flex size-8 shrink-0 items-center justify-center rounded-lg bg-zinc-100 text-zinc-500 dark:bg-zinc-900 dark:text-zinc-400">
                           <UserRound className="size-4" />
                         </span>
                         <span className="min-w-0 truncate text-sm font-medium text-foreground">
@@ -1171,8 +1105,8 @@ export default function DashboardPage() {
                   ))}
                 </div>
               ) : (
-                <div className="flex flex-col items-center justify-center rounded-xl border border-dashed border-border/70 px-4 py-4 text-center text-sm text-muted-foreground">
-                  <UserRound className="mb-3 size-8 text-muted-foreground/50" />
+                <div className="flex items-center gap-3 rounded-xl border border-dashed border-border/70 px-4 py-3 text-sm text-muted-foreground">
+                  <UserRound className="size-5 shrink-0 text-muted-foreground/50" />
                   Nenhum gasto vinculado a dependentes neste período.
                 </div>
               )}
@@ -1345,7 +1279,7 @@ export default function DashboardPage() {
               Para onde foi seu dinheiro
             </CardTitle>
           </CardHeader>
-          <CardContent className="space-y-5 p-5">
+          <CardContent className="max-h-[420px] space-y-4 overflow-y-auto p-5">
             {personalSpendingDistribution.categories.length ? (
               personalSpendingDistribution.categories.map((category) => (
                 <div key={category.label}>
