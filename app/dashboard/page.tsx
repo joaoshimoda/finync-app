@@ -499,6 +499,10 @@ export default function DashboardPage() {
         totals.creditCardUntilToday - totals.userCreditCardUntilToday,
         0,
       ),
+      dependentCreditCardProjected: Math.max(
+        totals.creditCardProjected - totals.userCreditCardProjected,
+        0,
+      ),
     };
   }, [
     invoiceCycleTransactions,
@@ -517,7 +521,7 @@ export default function DashboardPage() {
   const personalSpendingDistribution = useMemo(() => {
     const categoryTotals = new Map<string, number>();
 
-    monthlyTransactions.forEach((transaction) => {
+    [...monthlyTransactions, ...invoiceCycleTransactions].forEach((transaction) => {
       if (transaction.type === "income" || hasDependent(transaction)) return;
       if (
         transaction.type === "card" &&
@@ -571,7 +575,12 @@ export default function DashboardPage() {
           : 0,
       total,
     };
-  }, [monthlyBalances.totalIncome, monthlyTransactions, todayDate]);
+  }, [
+    invoiceCycleTransactions,
+    monthlyBalances.totalIncome,
+    monthlyTransactions,
+    todayDate,
+  ]);
 
   const pendingVariableIncomes = useMemo(
     () => monthlyTransactions.filter(isPendingVariableIncome),
@@ -696,14 +705,16 @@ export default function DashboardPage() {
       .filter((transaction) => transaction.type === "card" && !hasDependent(transaction))
       .filter((transaction) => isCardCreditAdjustment(transaction))
       .reduce((total, transaction) => total + transaction.amount, 0);
-    const dependentTotal = monthlyTransactions
-      .filter((transaction) => transaction.type !== "income" && hasDependent(transaction))
+    const dependentCalendarTotal = monthlyTransactions
+      .filter((transaction) => transaction.type !== "income" && transaction.type !== "card" && hasDependent(transaction))
       .reduce(
-        (total, transaction) =>
-          total +
-          (transaction.type === "card"
-            ? getCardSignedAmount(transaction)
-            : transaction.amount),
+        (total, transaction) => total + transaction.amount,
+        0,
+      );
+    const dependentCardTotal = invoiceCycleTransactions
+      .filter((transaction) => transaction.type === "card" && hasDependent(transaction))
+      .reduce(
+        (total, transaction) => total + getCardSignedAmount(transaction),
         0,
       );
 
@@ -711,7 +722,7 @@ export default function DashboardPage() {
       cardCredits: personalCardCredits,
       cardGross: personalCardGross,
       debitPix: debitPixSpendingTotal,
-      dependentTotal,
+      dependentTotal: dependentCalendarTotal + dependentCardTotal,
       fixed: fixedSpendingTotal,
       income: monthlyBalances.totalIncome,
       projectedBalance: monthlyBalances.projectedBalance,
@@ -930,9 +941,16 @@ export default function DashboardPage() {
                 {formatPrivateCurrency(monthlyBalances.creditCardProjected)}
               </CardTitle>
             </CardHeader>
-            <CardContent className="flex items-center gap-2 p-0 pt-4 text-xs text-muted-foreground">
-              <CreditCard className="size-4 text-blue-300" />
-              Faturas atuais + lançamentos futuros
+            <CardContent className="p-0 pt-3 text-xs text-muted-foreground">
+              <div className="flex items-center gap-2">
+                <CreditCard className="size-4 shrink-0 text-blue-300" />
+                Faturas atuais + lançamentos futuros
+              </div>
+              <p className="mt-2 text-[10px] leading-4 text-zinc-500 sm:text-xs">
+                Meu: {formatPrivateCurrency(monthlyBalances.userCreditCardProjected)}
+                <span className="mx-1">•</span>
+                Dependentes: {formatPrivateCurrency(monthlyBalances.dependentCreditCardProjected)}
+              </p>
             </CardContent>
           </Card>
 
