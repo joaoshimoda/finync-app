@@ -54,6 +54,7 @@ import { getCardGradient } from "@/lib/cardUtils";
 import {
   formatDateOnlyBR,
   getLocalTodayDateOnly,
+  normalizeDateOnly,
 } from "@/lib/dateUtils";
 import {
   calculateAvailableCardLimit,
@@ -447,6 +448,43 @@ export default function CardsPage() {
       ),
     [selectedChargeableCardTransactions],
   );
+  const selectedInvoiceSummary = useMemo(() => {
+    const today = getLocalTodayDateOnly();
+    const total = selectedCardTransactions.reduce(
+      (sum, transaction) => sum + getCardSignedAmount(transaction),
+      0,
+    );
+    const postedTransactions = selectedCardTransactions.filter(
+      (transaction) => normalizeDateOnly(transaction.date) <= today,
+    );
+    const scheduledTransactions = selectedCardTransactions.filter(
+      (transaction) => normalizeDateOnly(transaction.date) > today,
+    );
+    const posted = postedTransactions.reduce(
+      (sum, transaction) => sum + getCardSignedAmount(transaction),
+      0,
+    );
+    const scheduled = scheduledTransactions.reduce(
+      (sum, transaction) => sum + getCardSignedAmount(transaction),
+      0,
+    );
+    const paid = postedTransactions
+      .filter((transaction) => transaction.status === "paid")
+      .reduce((sum, transaction) => sum + getCardSignedAmount(transaction), 0);
+    const open = Math.max(posted - paid, 0);
+    const dependentsTotal = selectedCardTransactions
+      .filter((transaction) => transaction.dependentId)
+      .reduce((sum, transaction) => sum + getCardSignedAmount(transaction), 0);
+
+    return {
+      dependentsTotal,
+      open,
+      paid,
+      posted,
+      scheduled,
+      total,
+    };
+  }, [selectedCardTransactions]);
   const selectedLimit = selectedCard?.limitAmount ?? 0;
   const selectedDebtTotal = useMemo(
     () => (selectedCard ? calculateCardDebt(transactions, selectedCard.id) : 0),
@@ -665,6 +703,53 @@ export default function CardsPage() {
               </span>
             </div>
             <Progress value={selectedUsage} className="h-2" />
+          </div>
+
+          <div className="mt-5 grid grid-cols-2 gap-3 lg:grid-cols-6">
+            {[
+              {
+                label: "Total da fatura",
+                value: selectedInvoiceSummary.total,
+                tone: "text-zinc-50",
+              },
+              {
+                label: "Já caiu",
+                value: selectedInvoiceSummary.posted,
+                tone: "text-violet-300",
+              },
+              {
+                label: "Agendado",
+                value: selectedInvoiceSummary.scheduled,
+                tone: "text-zinc-300",
+              },
+              {
+                label: "Pago",
+                value: selectedInvoiceSummary.paid,
+                tone: "text-emerald-300",
+              },
+              {
+                label: "Em aberto",
+                value: selectedInvoiceSummary.open,
+                tone: "text-amber-300",
+              },
+              {
+                label: "Dependentes",
+                value: selectedInvoiceSummary.dependentsTotal,
+                tone: "text-blue-300",
+              },
+            ].map((item) => (
+              <div
+                key={item.label}
+                className="rounded-xl border border-zinc-800 bg-zinc-950/50 p-3"
+              >
+                <p className="truncate text-[11px] font-medium uppercase tracking-wide text-zinc-500">
+                  {item.label}
+                </p>
+                <strong className={cn("mt-2 block text-sm font-semibold", item.tone)}>
+                  {formatPrivateCurrency(item.value)}
+                </strong>
+              </div>
+            ))}
           </div>
         </CardHeader>
 
