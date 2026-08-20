@@ -21,6 +21,7 @@ import { AddTransactionModal } from "@/components/modals/AddTransactionModal";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
+import { Progress } from "@/components/ui/progress";
 import {
   Table,
   TableBody,
@@ -40,6 +41,7 @@ import {
   isFutureCardSubscription,
 } from "@/lib/transactionStatus";
 import { isTransactionInSelectedCompetence } from "@/lib/transactionPeriod";
+import { cn } from "@/lib/utils";
 import { useFinanceStore, type Transaction } from "@/store/useFinanceStore";
 
 const brlFormatter = new Intl.NumberFormat("pt-BR", {
@@ -66,6 +68,19 @@ function getSubscriptionChargeLabel(transaction: Transaction) {
   if (dayDifference === 0) return "Cai hoje";
 
   return "Já caiu na fatura";
+}
+
+function getDueStatusLabel(dateOnly: string) {
+  const dayDifference = getDayDifference(dateOnly);
+
+  if (dayDifference === 0) return "Vence hoje";
+  if (dayDifference < 0) {
+    return `Atrasado ${Math.abs(dayDifference)} ${
+      Math.abs(dayDifference) === 1 ? "dia" : "dias"
+    }`;
+  }
+
+  return `Vence em ${dayDifference} ${dayDifference === 1 ? "dia" : "dias"}`;
 }
 
 type RecurringTab = "fixed" | "subscriptions";
@@ -220,7 +235,7 @@ export default function FixedExpensesPage() {
   );
   const fixedSummary = useMemo(
     () =>
-      activeTransactions.reduce(
+      fixedTransactions.reduce(
         (summary, transaction) => {
           summary.totalAmount += transaction.amount;
 
@@ -232,14 +247,35 @@ export default function FixedExpensesPage() {
         },
         { paidAmount: 0, totalAmount: 0 },
       ),
-    [activeTransactions],
+    [fixedTransactions],
   );
   const totalAmount = fixedSummary.totalAmount;
   const paidAmount = fixedSummary.paidAmount;
-  const pendingAmount = pendingTransactions.reduce(
+  const fixedPendingTransactions = useMemo(
+    () =>
+      fixedTransactions
+        .filter((transaction) => transaction.status !== "paid")
+        .sort((left, right) =>
+          normalizeDateOnly(left.date).localeCompare(normalizeDateOnly(right.date)),
+        ),
+    [fixedTransactions],
+  );
+  const fixedPaidTransactions = useMemo(
+    () =>
+      fixedTransactions
+        .filter((transaction) => transaction.status === "paid")
+        .sort((left, right) =>
+          normalizeDateOnly(right.date).localeCompare(normalizeDateOnly(left.date)),
+        ),
+    [fixedTransactions],
+  );
+  const nextFixedDue = fixedPendingTransactions[0] ?? null;
+  const pendingAmount = fixedPendingTransactions.reduce(
     (total, transaction) => total + transaction.amount,
     0,
   );
+  const paidProgress =
+    totalAmount > 0 ? Math.min((paidAmount / totalAmount) * 100, 100) : 0;
   const allPendingSelected = useMemo(
     () =>
       pendingTransactions.length > 0 &&
@@ -851,24 +887,71 @@ export default function FixedExpensesPage() {
           </Button>
         </header>
 
-        <section className="grid grid-cols-2 overflow-hidden rounded-2xl border border-zinc-800 sm:grid-cols-3">
-          <div className="col-span-2 border-b border-zinc-800 px-4 py-5 sm:col-span-1 sm:border-b-0 sm:border-r sm:px-6">
-            <p className="text-sm text-zinc-500">Total do período</p>
-            <strong className="mt-2 block text-2xl font-semibold text-zinc-100">
-              {brlFormatter.format(totalAmount)}
-            </strong>
-          </div>
-          <div className="border-r border-zinc-800 px-4 py-5 sm:px-6">
-            <p className="text-sm text-zinc-500">Pago</p>
-            <strong className="mt-2 block text-2xl font-semibold text-emerald-300">
+        <section className="grid gap-4 md:grid-cols-3">
+          <div className="rounded-2xl border border-zinc-800 bg-zinc-950 p-5">
+            <div className="flex items-center justify-between gap-3">
+              <p className="text-sm text-zinc-500">Contas pagas</p>
+              <Check className="size-4 text-emerald-300" />
+            </div>
+            <strong className="mt-3 block text-2xl font-semibold text-zinc-100">
               {brlFormatter.format(paidAmount)}
+              <span className="text-sm font-medium text-zinc-500">
+                {" "}/ {brlFormatter.format(totalAmount)}
+              </span>
             </strong>
+            <Progress value={paidProgress} className="mt-3 h-2" />
           </div>
-          <div className="px-4 py-5 sm:px-6">
-            <p className="text-sm text-zinc-500">Pendente</p>
-            <strong className="mt-2 block text-2xl font-semibold text-amber-300">
+
+          <div className="rounded-2xl border border-zinc-800 bg-zinc-950 p-5">
+            <div className="flex items-center justify-between gap-3">
+              <p className="text-sm text-zinc-500">Próximo vencimento</p>
+              <CalendarDays className="size-4 text-zinc-400" />
+            </div>
+            {nextFixedDue ? (
+              <>
+                <strong className="mt-3 block truncate text-2xl font-semibold text-zinc-100">
+                  {brlFormatter.format(nextFixedDue.amount)}
+                </strong>
+                <p className="mt-1 truncate text-sm text-zinc-400">
+                  {nextFixedDue.description}
+                </p>
+                <p
+                  className={cn(
+                    "mt-2 text-xs font-medium",
+                    getDayDifference(nextFixedDue.date) < 0
+                      ? "text-red-300"
+                      : getDayDifference(nextFixedDue.date) === 0
+                        ? "text-orange-300"
+                        : "text-zinc-500",
+                  )}
+                >
+                  {getDueStatusLabel(nextFixedDue.date)}
+                </p>
+              </>
+            ) : (
+              <div className="mt-3">
+                <strong className="block text-2xl font-semibold text-emerald-300">
+                  Tudo em dia
+                </strong>
+                <p className="mt-1 text-sm text-zinc-500">
+                  Nenhuma conta fixa pendente.
+                </p>
+              </div>
+            )}
+          </div>
+
+          <div className="rounded-2xl border border-zinc-800 bg-zinc-950 p-5">
+            <div className="flex items-center justify-between gap-3">
+              <p className="text-sm text-zinc-500">Pendentes</p>
+              <ReceiptText className="size-4 text-amber-300" />
+            </div>
+            <strong className="mt-3 block text-2xl font-semibold text-amber-300">
               {brlFormatter.format(pendingAmount)}
             </strong>
+            <p className="mt-1 text-sm text-zinc-500">
+              {fixedPendingTransactions.length}{" "}
+              {fixedPendingTransactions.length === 1 ? "conta aberta" : "contas abertas"}
+            </p>
           </div>
         </section>
 
@@ -904,8 +987,40 @@ export default function FixedExpensesPage() {
             </div>
           </div>
 
-          <TabsContent value="fixed" className="mt-5">
-            {renderFixedList(fixedTransactions)}
+          <TabsContent value="fixed" className="mt-5 space-y-5">
+            <section className="space-y-3">
+              <div className="flex items-end justify-between gap-3">
+                <div>
+                  <h2 className="text-base font-semibold text-zinc-100">
+                    Pendentes
+                  </h2>
+                  <p className="mt-1 text-sm text-zinc-500">
+                    Contas que ainda exigem baixa manual neste mês.
+                  </p>
+                </div>
+                <Badge variant="outline" className="border-amber-500/30 text-amber-300">
+                  {fixedPendingTransactions.length}
+                </Badge>
+              </div>
+              {renderFixedList(fixedPendingTransactions)}
+            </section>
+
+            <section className="space-y-3">
+              <div className="flex items-end justify-between gap-3">
+                <div>
+                  <h2 className="text-base font-semibold text-zinc-100">
+                    Pagas
+                  </h2>
+                  <p className="mt-1 text-sm text-zinc-500">
+                    Histórico de contas fixas já baixadas no período.
+                  </p>
+                </div>
+                <Badge variant="outline" className="border-emerald-500/30 text-emerald-300">
+                  {fixedPaidTransactions.length}
+                </Badge>
+              </div>
+              {renderFixedList(fixedPaidTransactions)}
+            </section>
           </TabsContent>
           <TabsContent value="subscriptions" className="mt-5">
             {renderSubscriptionList(subscriptionGroups)}
@@ -927,7 +1042,7 @@ export default function FixedExpensesPage() {
             ) : (
               <Check className="size-4" />
             )}
-            Pagar {effectiveSelectedIds.length} selecionado
+            Marcar {effectiveSelectedIds.length} como pago
             {effectiveSelectedIds.length === 1 ? "" : "s"}
           </Button>
         </div>
