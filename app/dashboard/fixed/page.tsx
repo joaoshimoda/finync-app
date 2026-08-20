@@ -100,6 +100,16 @@ function getRecurringStatusPresentation(transaction: Transaction) {
 
 type RecurringTab = "fixed" | "subscriptions";
 
+interface SubscriptionGroup {
+  id: string;
+  representative: Transaction;
+  transactions: Transaction[];
+  nextCharge: Transaction;
+  projectedTotal: number;
+  paidCount: number;
+  openCount: number;
+}
+
 function isInSelectedMonth(
   transaction: Transaction,
   month: number,
@@ -152,6 +162,70 @@ export default function FixedExpensesPage() {
       ),
     [currentMonth, currentYear, transactions],
   );
+
+  const subscriptionGroups = useMemo<SubscriptionGroup[]>(() => {
+    const selectedGroupIds = new Set(
+      subscriptionTransactions.map(
+        (transaction) => transaction.groupId ?? transaction.id,
+      ),
+    );
+    const groups = new Map<string, Transaction[]>();
+
+    transactions
+      .filter(
+        (transaction) =>
+          transaction.type === "card" &&
+          transaction.is_recurring === true &&
+          selectedGroupIds.has(transaction.groupId ?? transaction.id),
+      )
+      .forEach((transaction) => {
+        const groupId = transaction.groupId ?? transaction.id;
+        const currentGroup = groups.get(groupId) ?? [];
+
+        groups.set(groupId, [...currentGroup, transaction]);
+      });
+
+    return Array.from(groups.entries())
+      .map(([groupId, groupTransactions]) => {
+        const sortedTransactions = [...groupTransactions].sort((left, right) =>
+          normalizeDateOnly(left.date).localeCompare(normalizeDateOnly(right.date)),
+        );
+        const representative =
+          sortedTransactions.find((transaction) =>
+            isInSelectedMonth(transaction, currentMonth, currentYear),
+          ) ?? sortedTransactions[0];
+        const nextCharge =
+          sortedTransactions.find(
+            (transaction) =>
+              transaction.status !== "paid" &&
+              normalizeDateOnly(transaction.date) >= getLocalTodayDateOnly(),
+          ) ??
+          sortedTransactions.find((transaction) => transaction.status !== "paid") ??
+          representative;
+
+        return {
+          id: groupId,
+          representative,
+          transactions: sortedTransactions,
+          nextCharge,
+          projectedTotal: sortedTransactions.reduce(
+            (total, transaction) => total + transaction.amount,
+            0,
+          ),
+          paidCount: sortedTransactions.filter(
+            (transaction) => transaction.status === "paid",
+          ).length,
+          openCount: sortedTransactions.filter(
+            (transaction) => transaction.status !== "paid",
+          ).length,
+        };
+      })
+      .sort((left, right) =>
+        normalizeDateOnly(left.nextCharge.date).localeCompare(
+          normalizeDateOnly(right.nextCharge.date),
+        ),
+      );
+  }, [currentMonth, currentYear, subscriptionTransactions, transactions]);
 
   const activeTransactions = useMemo(
     () => (activeTab === "fixed" ? fixedTransactions : subscriptionTransactions),
@@ -541,12 +615,13 @@ export default function FixedExpensesPage() {
     );
   }
 
-  function renderSubscriptionList(items: Transaction[]) {
+  function renderSubscriptionList(groups: SubscriptionGroup[]) {
     return (
       <div className="rounded-2xl border border-zinc-800 bg-zinc-950">
         <div className="grid gap-3 p-3 md:hidden">
-          {items.length ? (
-            items.map((transaction) => {
+          {groups.length ? (
+            groups.map((group) => {
+              const transaction = group.representative;
               const isPaid = transaction.status === "paid";
               const isFutureSubscription = isFutureCardSubscription(transaction);
               const statusPresentation =
@@ -554,20 +629,35 @@ export default function FixedExpensesPage() {
 
               return (
                 <div
-                  key={transaction.id}
+                  key={group.id}
                   className="rounded-2xl border border-zinc-800 bg-zinc-900/60 p-4"
                 >
                   <div className="flex items-start justify-between gap-3">
                     <div className="min-w-0">
                       <TransactionDescription transaction={transaction} />
                       <p className="mt-1 text-xs text-zinc-500">
-                        {getCardName(transaction.cardId)} â€¢{" "}
-                        {formatDateOnlyBR(transaction.date)}
+                        {getCardName(transaction.cardId)} • próxima:{" "}
+                        {formatDateOnlyBR(group.nextCharge.date)}
                       </p>
                     </div>
                     <strong className="shrink-0 text-sm text-zinc-100">
                       {brlFormatter.format(transaction.amount)}
                     </strong>
+                  </div>
+
+                  <div className="mt-4 grid grid-cols-2 gap-3 border-t border-zinc-800 pt-3 text-xs">
+                    <div>
+                      <p className="text-zinc-500">Projetado</p>
+                      <p className="mt-1 font-medium text-zinc-200">
+                        {brlFormatter.format(group.projectedTotal)}
+                      </p>
+                    </div>
+                    <div>
+                      <p className="text-zinc-500">Cobranças</p>
+                      <p className="mt-1 font-medium text-zinc-200">
+                        {group.openCount} abertas • {group.paidCount} pagas
+                      </p>
+                    </div>
                   </div>
 
                   <div className="mt-4 flex items-center justify-between gap-3 border-t border-zinc-800 pt-3">
@@ -641,16 +731,18 @@ export default function FixedExpensesPage() {
                 />
               </TableHead>
               <TableHead>Assinatura</TableHead>
-              <TableHead>CartÃ£o</TableHead>
-              <TableHead>CobranÃ§a</TableHead>
+              <TableHead>Cartão</TableHead>
+              <TableHead>Próxima cobrança</TableHead>
               <TableHead>Status</TableHead>
-              <TableHead className="text-right">Valor</TableHead>
-              <TableHead className="w-24 text-right">AÃ§Ãµes</TableHead>
+              <TableHead className="text-right">Mensal</TableHead>
+              <TableHead className="text-right">Projetado</TableHead>
+              <TableHead className="w-24 text-right">Ações</TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
-            {items.length ? (
-              items.map((transaction) => {
+            {groups.length ? (
+              groups.map((group) => {
+                const transaction = group.representative;
                 const isPaid = transaction.status === "paid";
                 const isFutureSubscription = isFutureCardSubscription(transaction);
                 const statusPresentation =
@@ -658,7 +750,7 @@ export default function FixedExpensesPage() {
 
                 return (
                   <TableRow
-                    key={transaction.id}
+                    key={group.id}
                     className="border-zinc-800 transition-colors hover:bg-zinc-900/50"
                   >
                     <TableCell className="px-4">
@@ -683,10 +775,10 @@ export default function FixedExpensesPage() {
                     </TableCell>
                     <TableCell>
                       <p className="text-sm text-zinc-300">
-                        {formatDateOnlyBR(transaction.date)}
+                        {formatDateOnlyBR(group.nextCharge.date)}
                       </p>
                       <p className="mt-1 text-xs text-zinc-500">
-                        {getSubscriptionChargeLabel(transaction)}
+                        {getSubscriptionChargeLabel(group.nextCharge)}
                       </p>
                     </TableCell>
                     <TableCell>
@@ -699,6 +791,14 @@ export default function FixedExpensesPage() {
                     </TableCell>
                     <TableCell className="text-right font-semibold text-zinc-100">
                       {brlFormatter.format(transaction.amount)}
+                    </TableCell>
+                    <TableCell className="text-right">
+                      <p className="font-medium text-zinc-100">
+                        {brlFormatter.format(group.projectedTotal)}
+                      </p>
+                      <p className="mt-1 text-xs text-zinc-500">
+                        {group.openCount} abertas • {group.paidCount} pagas
+                      </p>
                     </TableCell>
                     <TableCell>
                       <div className="flex justify-end gap-1">
@@ -736,10 +836,10 @@ export default function FixedExpensesPage() {
               })
             ) : (
               <TableRow className="border-zinc-800 hover:bg-transparent">
-                <TableCell colSpan={7} className="h-48 text-center">
+                <TableCell colSpan={8} className="h-48 text-center">
                   <div className="flex flex-col items-center justify-center gap-3 text-zinc-500">
                     <CreditCard className="size-7" strokeWidth={1.6} />
-                    <span>Nenhuma assinatura neste perÃ­odo.</span>
+                    <span>Nenhuma assinatura neste período.</span>
                   </div>
                 </TableCell>
               </TableRow>
@@ -817,7 +917,7 @@ export default function FixedExpensesPage() {
                 <CreditCard className="size-4" />
                 Assinaturas
                 <span className="text-xs text-zinc-500">
-                  {subscriptionTransactions.length}
+                  {subscriptionGroups.length}
                 </span>
               </TabsTrigger>
             </TabsList>
@@ -832,7 +932,7 @@ export default function FixedExpensesPage() {
             {renderFixedList(fixedTransactions)}
           </TabsContent>
           <TabsContent value="subscriptions" className="mt-5">
-            {renderSubscriptionList(subscriptionTransactions)}
+            {renderSubscriptionList(subscriptionGroups)}
           </TabsContent>
         </Tabs>
       </div>
