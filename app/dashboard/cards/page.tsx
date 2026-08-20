@@ -740,55 +740,58 @@ export default function CardsPage() {
             <Progress value={selectedUsage} className="h-2" />
           </div>
 
-          <div className="mt-5 grid grid-cols-2 gap-3 lg:grid-cols-6">
+          <div className="mt-5 grid grid-cols-1 gap-3 md:grid-cols-3">
             {[
               {
+                label: "Fatura atual",
+                help: "Já lançado no cartão",
+                value: selectedInvoiceSummary.posted,
+                tone: "text-zinc-50",
+              },
+              {
                 label: "Projeção",
+                help: "Fatura completa do ciclo",
                 value: selectedInvoiceSummary.total,
                 tone: "text-zinc-50",
               },
               {
-                label: "Fatura atual",
-                value: selectedInvoiceSummary.posted,
-                tone: "text-violet-300",
-              },
-              {
-                label: "Agendado",
-                value: selectedInvoiceSummary.scheduled,
-                tone: "text-zinc-300",
-              },
-              {
                 label: "Em aberto",
+                help: "Ainda não liquidado",
                 value: selectedInvoiceSummary.open,
                 tone: "text-amber-300",
-              },
-              {
-                label: "Meus gastos",
-                value: selectedInvoiceSummary.personalTotal,
-                tone: "text-zinc-100",
-              },
-              {
-                label: "Dependentes",
-                value: selectedInvoiceSummary.dependentsTotal,
-                tone: "text-blue-300",
               },
             ].map((item) => (
               <div
                 key={item.label}
-                className="rounded-xl border border-zinc-800 bg-zinc-950/50 p-3"
+                className="rounded-xl border border-zinc-800 bg-zinc-950/50 p-4"
               >
                 <p className="truncate text-[11px] font-medium uppercase tracking-wide text-zinc-500">
                   {item.label}
                 </p>
-                <strong className={cn("mt-2 block text-sm font-semibold", item.tone)}>
+                <strong className={cn("mt-2 block text-xl font-semibold", item.tone)}>
                   {formatPrivateCurrency(item.value)}
                 </strong>
+                <span className="mt-1 block text-xs text-zinc-500">
+                  {item.help}
+                </span>
               </div>
             ))}
           </div>
 
-          <div className="mt-3 grid grid-cols-2 gap-3 md:grid-cols-4">
+          <div className="mt-3 flex gap-2 overflow-x-auto pb-1 [&::-webkit-scrollbar]:hidden [-ms-overflow-style:none] [scrollbar-width:none]">
             {[
+              {
+                label: "Meu",
+                value: selectedInvoiceSummary.personalTotal,
+              },
+              {
+                label: "Dependentes",
+                value: selectedInvoiceSummary.dependentsTotal,
+              },
+              {
+                label: "Agendado",
+                value: selectedInvoiceSummary.scheduled,
+              },
               {
                 label: "Assinaturas",
                 value: selectedInvoiceSummary.subscriptionsTotal,
@@ -801,18 +804,12 @@ export default function CardsPage() {
                 label: "Pago",
                 value: selectedInvoiceSummary.paid,
               },
-              {
-                label: "Sem dependente",
-                value: selectedInvoiceSummary.personalTotal,
-              },
             ].map((item) => (
               <div
                 key={item.label}
-                className="flex items-center justify-between gap-3 rounded-xl border border-zinc-800/80 bg-zinc-950/30 px-3 py-2"
+                className="flex shrink-0 items-center gap-2 rounded-full border border-zinc-800/80 bg-zinc-950/40 px-3 py-1.5"
               >
-                <span className="truncate text-xs text-zinc-500">
-                  {item.label}
-                </span>
+                <span className="text-xs text-zinc-500">{item.label}</span>
                 <strong className="shrink-0 text-xs font-medium text-zinc-200">
                   {formatPrivateCurrency(item.value)}
                 </strong>
@@ -900,56 +897,57 @@ export default function CardsPage() {
                         {formatDateOnlyBR(transaction.date)}
                       </TableCell>
                       <TableCell>
-                        <div className="flex flex-wrap items-center gap-2 font-medium text-foreground">
-                          <span>
-                            <TransactionDescription transaction={transaction} />
-                          </span>
-                          {transaction.is_recurring ? (
-                            <Badge
-                              variant="outline"
-                              className="rounded-lg border-violet-300/20 bg-violet-300/10 text-violet-200"
-                            >
-                              Assinatura
-                            </Badge>
-                          ) : null}
-                          {isInstallment ? (
-                            <Badge
-                              variant="outline"
-                              className="rounded-lg border-zinc-700 bg-zinc-900 text-zinc-300"
-                            >
-                              Parcela {installmentNumber}/{installmentsTotal}
-                            </Badge>
-                          ) : null}
-                          {isLastInstallment ? (
-                            <Badge className="border border-emerald-800 bg-emerald-950 text-emerald-300 hover:bg-emerald-950">
-                              Última!
-                            </Badge>
-                          ) : null}
-                          {dependent ? (
-                            <Badge
-                              variant="outline"
-                              className="border-zinc-700 bg-zinc-900 text-zinc-300"
-                            >
-                              {dependent.name}
-                            </Badge>
-                          ) : null}
-                          {transaction.is_recurring ? (
-                            <Badge
-                              variant="outline"
-                              className={cn(
-                                "rounded-lg",
-                                statusPresentation.className,
-                              )}
-                            >
-                              {statusPresentation.label}
-                            </Badge>
-                          ) : null}
+                        <div>
+                          <div className="flex min-w-0 items-center gap-2 font-medium text-foreground">
+                            <span className="min-w-0 truncate">
+                              <TransactionDescription transaction={transaction} />
+                            </span>
+                            {isLastInstallment ? (
+                              <Badge className="shrink-0 border border-emerald-800 bg-emerald-950 px-1.5 py-0 text-[10px] text-emerald-300 hover:bg-emerald-950">
+                                Última
+                              </Badge>
+                            ) : null}
+                          </div>
+                          <div className="mt-1 flex flex-wrap items-center gap-x-2 gap-y-1 text-xs text-zinc-500">
+                            <span>
+                              {transaction.is_recurring
+                                ? "Assinatura"
+                                : "Compra"}
+                            </span>
+                            {isInstallment ? (
+                              <>
+                                <span>•</span>
+                                <span>
+                                  Parcela {installmentNumber}/{installmentsTotal}
+                                </span>
+                              </>
+                            ) : null}
+                            {dependent ? (
+                              <>
+                                <span>•</span>
+                                <span>{dependent.name}</span>
+                              </>
+                            ) : null}
+                            {transaction.is_recurring ? (
+                              <>
+                                <span>•</span>
+                                <span className={statusPresentation.className}>
+                                  {statusPresentation.label}
+                                </span>
+                              </>
+                            ) : isScheduledCharge ? (
+                              <>
+                                <span>•</span>
+                                <span>Agendada</span>
+                              </>
+                            ) : null}
+                          </div>
                         </div>
                       </TableCell>
                       <TableCell className="hidden lg:table-cell">
-                        <Badge variant="outline" className="rounded-lg">
+                        <span className="text-sm text-zinc-400">
                           {transaction.category || "Sem categoria"}
-                        </Badge>
+                        </span>
                       </TableCell>
                       <TableCell
                         className={cn(
