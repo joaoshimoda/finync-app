@@ -10,7 +10,14 @@ import {
   useState,
 } from "react";
 import Image from "next/image";
-import { Monitor, Trash2 } from "lucide-react";
+import {
+  CreditCard,
+  Monitor,
+  ReceiptText,
+  TrendingUp,
+  Trash2,
+  UserRound,
+} from "lucide-react";
 import { toast } from "sonner";
 
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
@@ -45,7 +52,14 @@ import {
 import { Switch } from "@/components/ui/switch";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { supabase } from "@/lib/supabaseClient";
+import { getCardSignedAmount, isCardCreditAdjustment } from "@/lib/cardCredits";
+import { isTransactionInSelectedCompetence } from "@/lib/transactionPeriod";
 import { useFinanceStore } from "@/store/useFinanceStore";
+
+const brlFormatter = new Intl.NumberFormat("pt-BR", {
+  style: "currency",
+  currency: "BRL",
+});
 
 const AVATAR_CROP_SIZE = 280;
 const AVATAR_OUTPUT_SIZE = 512;
@@ -130,6 +144,11 @@ export default function ConfiguracoesPage() {
   const hideBalancesByDefault = useFinanceStore(
     (state) => state.hideBalancesByDefault,
   );
+  const dependents = useFinanceStore((state) => state.dependents);
+  const transactions = useFinanceStore((state) => state.transactions);
+  const currentMonth = useFinanceStore((state) => state.currentMonth);
+  const currentYear = useFinanceStore((state) => state.currentYear);
+  const fetchTransactions = useFinanceStore((state) => state.fetchTransactions);
   const setHideBalancesByDefault = useFinanceStore(
     (state) => state.setHideBalancesByDefault,
   );
@@ -175,6 +194,57 @@ export default function ConfiguracoesPage() {
     () => getCoverImageLayout(cropImageSize, cropPosition, cropZoom),
     [cropImageSize, cropPosition, cropZoom],
   );
+  const dependentSummaries = useMemo(
+    () =>
+      dependents
+        .map((dependent) => {
+          const dependentTransactions = transactions.filter(
+            (transaction) =>
+              transaction.dependentId === dependent.id &&
+              transaction.type !== "income" &&
+              isTransactionInSelectedCompetence(
+                transaction,
+                currentMonth,
+                currentYear,
+              ),
+          );
+          const total = dependentTransactions.reduce(
+            (sum, transaction) =>
+              sum +
+              (transaction.type === "card"
+                ? getCardSignedAmount(transaction)
+                : transaction.amount),
+            0,
+          );
+          const cardTotal = dependentTransactions
+            .filter((transaction) => transaction.type === "card")
+            .reduce(
+              (sum, transaction) => sum + getCardSignedAmount(transaction),
+              0,
+            );
+          const fixedTotal = dependentTransactions
+            .filter((transaction) => transaction.type !== "card")
+            .reduce((sum, transaction) => sum + transaction.amount, 0);
+          const biggestExpense = dependentTransactions
+            .filter((transaction) => !isCardCreditAdjustment(transaction))
+            .sort((left, right) => right.amount - left.amount)[0];
+
+          return {
+            ...dependent,
+            cardTotal,
+            fixedTotal,
+            biggestExpense,
+            total,
+            transactionsCount: dependentTransactions.length,
+          };
+        })
+        .sort((left, right) => right.total - left.total),
+    [currentMonth, currentYear, dependents, transactions],
+  );
+
+  useEffect(() => {
+    void fetchTransactions();
+  }, [currentMonth, currentYear, fetchTransactions]);
 
   useEffect(() => {
     return () => {
@@ -651,20 +721,77 @@ export default function ConfiguracoesPage() {
 
             <Card className="h-fit border-zinc-800/80 bg-zinc-900/50 shadow-none lg:col-span-4">
               <CardHeader className="border-b border-zinc-800/80 px-6 py-6">
-                <CardTitle>Uso no sistema</CardTitle>
+                <CardTitle>Raio-X do mês</CardTitle>
                 <CardDescription>
-                  Dependentes alimentam o split de gastos e a leitura de faturas.
+                  Valores vinculados aos dependentes no período atual.
                 </CardDescription>
               </CardHeader>
-              <CardContent className="space-y-3 px-6 py-6 text-sm leading-6 text-zinc-400">
-                <p>
-                  Cadastre pessoas que podem aparecer em compras importadas,
-                  divisões de despesas e relatórios de valores a receber.
-                </p>
-                <p>
-                  Ao vincular uma transação a um dependente, ela continua na
-                  fatura do cartão, mas não reduz o seu saldo disponível pessoal.
-                </p>
+              <CardContent className="space-y-4 px-6 py-6">
+                {dependentSummaries.length ? (
+                  dependentSummaries.map((dependent) => (
+                    <div
+                      key={dependent.id}
+                      className="rounded-xl border border-zinc-800 bg-zinc-950/50 p-4"
+                    >
+                      <div className="flex items-start justify-between gap-4">
+                        <div className="flex min-w-0 items-center gap-3">
+                          <span className="flex size-9 shrink-0 items-center justify-center rounded-lg bg-zinc-900 text-zinc-300">
+                            <UserRound className="size-4" />
+                          </span>
+                          <div className="min-w-0">
+                            <p className="truncate text-sm font-semibold text-zinc-100">
+                              {dependent.name}
+                            </p>
+                            <p className="mt-1 text-xs text-zinc-500">
+                              {dependent.transactionsCount} lançamento
+                              {dependent.transactionsCount === 1 ? "" : "s"}
+                            </p>
+                          </div>
+                        </div>
+                        <strong className="shrink-0 text-sm text-zinc-50">
+                          {brlFormatter.format(dependent.total)}
+                        </strong>
+                      </div>
+
+                      <div className="mt-4 grid grid-cols-2 gap-2">
+                        <div className="rounded-lg border border-zinc-800 bg-zinc-900/60 p-3">
+                          <div className="flex items-center gap-2 text-xs text-zinc-500">
+                            <CreditCard className="size-3.5" />
+                            Cartão
+                          </div>
+                          <p className="mt-2 text-sm font-medium text-zinc-100">
+                            {brlFormatter.format(dependent.cardTotal)}
+                          </p>
+                        </div>
+                        <div className="rounded-lg border border-zinc-800 bg-zinc-900/60 p-3">
+                          <div className="flex items-center gap-2 text-xs text-zinc-500">
+                            <ReceiptText className="size-3.5" />
+                            Débito/PIX
+                          </div>
+                          <p className="mt-2 text-sm font-medium text-zinc-100">
+                            {brlFormatter.format(dependent.fixedTotal)}
+                          </p>
+                        </div>
+                      </div>
+
+                      {dependent.biggestExpense ? (
+                        <div className="mt-3 flex items-center gap-2 rounded-lg bg-zinc-900/50 px-3 py-2 text-xs text-zinc-400">
+                          <TrendingUp className="size-3.5 text-zinc-500" />
+                          <span className="min-w-0 flex-1 truncate">
+                            Maior gasto: {dependent.biggestExpense.description}
+                          </span>
+                          <span className="shrink-0 text-zinc-300">
+                            {brlFormatter.format(dependent.biggestExpense.amount)}
+                          </span>
+                        </div>
+                      ) : null}
+                    </div>
+                  ))
+                ) : (
+                  <div className="rounded-xl border border-dashed border-zinc-800 p-5 text-sm leading-6 text-zinc-500">
+                    Nenhum gasto de dependente encontrado no mês atual.
+                  </div>
+                )}
               </CardContent>
             </Card>
           </div>
