@@ -186,13 +186,13 @@ function TransactionModalContent({
       await fetchTransactions();
       toast.success(
         scope === "future"
-          ? "RecorrÃªncia atualizada deste mÃªs em diante."
-          : "LanÃ§amento deste mÃªs atualizado.",
+          ? "Recorrência atualizada deste mês em diante."
+          : "Lançamento deste mês atualizado.",
       );
       onClose();
     } catch (error) {
-      console.error("Erro ao atualizar recorrÃªncia:", error);
-      toast.error("Erro ao atualizar recorrÃªncia.");
+      console.error("Erro ao atualizar recorrência:", error);
+      toast.error("Erro ao atualizar recorrência.");
     } finally {
       setIsSubmitting(false);
     }
@@ -204,12 +204,12 @@ function TransactionModalContent({
     if (isSubmitting) return;
 
     if (!authUser?.id) {
-      toast.error("FaÃ§a login novamente para salvar a transaÃ§Ã£o.");
+      toast.error("Faça login novamente para salvar a transação.");
       return;
     }
 
     if (transactionType === "card" && !transactionCardId) {
-      toast.error("Selecione um cartÃ£o para lanÃ§ar no crÃ©dito.");
+      toast.error("Selecione um cartão para lançar no crédito.");
       return;
     }
 
@@ -245,10 +245,10 @@ function TransactionModalContent({
       is_recurring:
         shouldCreateRecurringProjection || shouldCreateCreditCardSubscription,
       notes: selectedCard
-        ? `CartÃ£o: ${selectedCard.name}`
+        ? `Cartão: ${selectedCard.name}`
         : isFixedMode
           ? "Gasto fixo"
-          : "DÃ©bito/PIX",
+          : "Débito/PIX",
     };
 
     setIsSubmitting(true);
@@ -342,15 +342,15 @@ function TransactionModalContent({
         editingTransaction
           ? isFixedMode
             ? "Conta atualizada!"
-            : "TransaÃ§Ã£o atualizada com sucesso!"
+            : "Transação atualizada com sucesso!"
           : isFixedMode
             ? "Conta adicionada com sucesso!"
-            : "TransaÃ§Ã£o adicionada com sucesso!",
+            : "Transação adicionada com sucesso!",
       );
       onClose();
     } catch (error) {
-      console.error("Erro ao salvar transaÃ§Ã£o:", error);
-      toast.error("Erro ao salvar transaÃ§Ã£o.");
+      console.error("Erro ao salvar transação:", error);
+      toast.error("Erro ao salvar transação.");
     } finally {
       setIsSubmitting(false);
     }
@@ -361,19 +361,19 @@ function TransactionModalContent({
       <DialogHeader>
         <div className="flex items-center gap-2 text-sm font-medium text-brand-300">
           <ReceiptText className="size-4" />
-          LanÃ§amento
+          Lançamento
         </div>
         <DialogTitle>
           {editingTransaction
-            ? "Editar transaÃ§Ã£o"
+            ? "Editar transação"
             : isFixedMode
-              ? "Nova recorrÃªncia"
-              : "Nova transaÃ§Ã£o"}
+              ? "Nova recorrência"
+              : "Nova transação"}
         </DialogTitle>
         <DialogDescription>
           {isFixedMode
-            ? "Projete uma despesa recorrente para os prÃ³ximos 12 meses."
-            : "Registre saÃ­das por dÃ©bito, PIX ou cartÃ£o de crÃ©dito."}
+            ? "Projete uma despesa recorrente para os próximos 12 meses."
+            : "Registre saídas por débito, PIX ou cartão de crédito."}
         </DialogDescription>
       </DialogHeader>
 
@@ -404,7 +404,7 @@ function TransactionModalContent({
             value={description}
             onChange={(event) => setDescription(event.target.value)}
             type="text"
-            placeholder="DescriÃ§Ã£o da transaÃ§Ã£o"
+            placeholder="Descrição da transação"
             className="mx-auto h-10 max-w-md rounded-lg border border-zinc-800/80 bg-zinc-900/30 text-center text-lg text-zinc-100 shadow-none ring-0 placeholder:text-zinc-400 focus:outline-none focus:ring-0 focus-visible:ring-0 focus-visible:ring-offset-0"
             required
           />
@@ -430,7 +430,7 @@ function TransactionModalContent({
             <div className="space-y-2">
               <div className="flex items-center gap-2 text-xs font-medium uppercase tracking-wide text-zinc-400">
                 <CreditCard className="size-3.5" />
-                {isFixedMode ? "MÃ©todo" : "Tipo"}
+                {isFixedMode ? "Método" : "Tipo"}
               </div>
               <Select
                 value={transactionType}
@@ -448,8 +448,8 @@ function TransactionModalContent({
                   <SelectValue placeholder="Tipo" />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="fixed">DÃ©bito/PIX</SelectItem>
-                  <SelectItem value="card">CartÃ£o de CrÃ©dito</SelectItem>
+                  <SelectItem value="fixed">Débito/PIX</SelectItem>
+                  <SelectItem value="card">Cartão de Crédito</SelectItem>
                 </SelectContent>
               </Select>
             </div>
@@ -458,7 +458,7 @@ function TransactionModalContent({
               <div className="space-y-2">
                 <div className="flex items-center gap-2 text-xs font-medium uppercase tracking-wide text-zinc-400">
                   <CreditCard className="size-3.5" />
-                  CartÃ£o
+                  Cartão
                 </div>
                 <Select
                   value={selectedCardId}
@@ -466,7 +466,7 @@ function TransactionModalContent({
                   disabled={!cards.length}
                 >
                   <SelectTrigger className="flex h-10 items-center border border-zinc-700 bg-zinc-900 text-sm text-zinc-200 shadow-none transition-colors hover:border-zinc-600 focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500 focus:ring-offset-0">
-                    <SelectValue placeholder="Selecionar cartÃ£o" />
+                    <SelectValue placeholder="Selecionar cartão" />
                   </SelectTrigger>
                   <SelectContent>
                     {cards.map((card) => (
@@ -538,7 +538,7 @@ function TransactionModalContent({
                   : "Gasto fixo recorrente"}
               </p>
               <p className="mt-1 text-xs text-zinc-500">
-                Repete automaticamente nos prÃ³ximos meses.
+                Repete automaticamente nos próximos meses.
               </p>
             </div>
             <Switch
@@ -561,7 +561,7 @@ function TransactionModalContent({
                 Compra parcelada?
               </p>
               <p className="mt-1 text-xs text-zinc-500">
-                Divida o lanÃ§amento em parcelas mensais.
+                Divida o lançamento em parcelas mensais.
               </p>
             </div>
             <Switch
@@ -593,11 +593,11 @@ function TransactionModalContent({
         {pendingRecurringUpdate ? (
           <section className="rounded-xl border border-zinc-800 bg-zinc-900/60 p-4">
             <p className="text-sm font-semibold text-zinc-100">
-              Como deseja aplicar esta ediÃ§Ã£o?
+              Como deseja aplicar esta edição?
             </p>
             <p className="mt-1 text-xs leading-5 text-zinc-500">
-              Preserve o histÃ³rico editando apenas este mÃªs ou atualize a
-              recorrÃªncia deste lanÃ§amento em diante.
+              Preserve o histórico editando apenas este mês ou atualize a
+              recorrência deste lançamento em diante.
             </p>
 
             <div className="mt-4 grid gap-3 sm:grid-cols-2">
@@ -608,7 +608,7 @@ function TransactionModalContent({
                 onClick={() => void saveRecurringUpdate("single")}
                 className="h-11 cursor-pointer"
               >
-                Somente este mÃªs
+                Somente este mês
               </Button>
               <Button
                 type="button"
@@ -616,7 +616,7 @@ function TransactionModalContent({
                 onClick={() => void saveRecurringUpdate("future")}
                 className="h-11 cursor-pointer bg-emerald-600 font-semibold text-white hover:bg-emerald-700"
               >
-                Este e os prÃ³ximos
+                Este e os próximos
               </Button>
             </div>
             <Button

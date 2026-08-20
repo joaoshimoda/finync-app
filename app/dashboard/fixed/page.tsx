@@ -65,7 +65,7 @@ function getSubscriptionChargeLabel(transaction: Transaction) {
 
   if (dayDifference === 0) return "Cai hoje";
 
-  return "JÃ¡ caiu na fatura";
+  return "Já caiu na fatura";
 }
 
 type RecurringTab = "fixed" | "subscriptions";
@@ -278,12 +278,12 @@ export default function FixedExpensesPage() {
       );
 
       toast.success(
-        `${effectiveSelectedIds.length} ${effectiveSelectedIds.length === 1 ? "lanÃ§amento pago" : "lanÃ§amentos pagos"}.`,
+        `${effectiveSelectedIds.length} ${effectiveSelectedIds.length === 1 ? "lançamento pago" : "lançamentos pagos"}.`,
       );
       setSelectedIds([]);
     } catch (error) {
-      console.error("Erro ao pagar lanÃ§amentos selecionados:", error);
-      toast.error("NÃ£o foi possÃ­vel concluir todos os pagamentos.");
+      console.error("Erro ao pagar lançamentos selecionados:", error);
+      toast.error("Não foi possível concluir todos os pagamentos.");
       await fetchTransactions();
     } finally {
       setIsPayingSelected(false);
@@ -297,7 +297,7 @@ export default function FixedExpensesPage() {
 
   const togglePaymentStatus = useCallback(async (transaction: Transaction) => {
     if (isFutureCardSubscription(transaction)) {
-      toast.error("Essa assinatura ainda nÃ£o caiu na fatura.");
+      toast.error("Essa assinatura ainda não caiu na fatura.");
       return;
     }
 
@@ -315,12 +315,12 @@ export default function FixedExpensesPage() {
       );
       toast.success(
         nextStatus === "paid"
-          ? "LanÃ§amento marcado como pago."
-          : "LanÃ§amento marcado como pendente.",
+          ? "Lançamento marcado como pago."
+          : "Lançamento marcado como pendente.",
       );
     } catch (error) {
       console.error("Erro ao atualizar pagamento:", error);
-      toast.error("NÃ£o foi possÃ­vel atualizar o pagamento.");
+      toast.error("Não foi possível atualizar o pagamento.");
     }
   }, [updateTransaction]);
 
@@ -330,10 +330,10 @@ export default function FixedExpensesPage() {
       setSelectedIds((currentIds) =>
         currentIds.filter((id) => id !== transactionId),
       );
-      toast.success("LanÃ§amento removido.");
+      toast.success("Lançamento removido.");
     } catch (error) {
-      console.error("Erro ao remover lanÃ§amento:", error);
-      toast.error("NÃ£o foi possÃ­vel remover agora.");
+      console.error("Erro ao remover lançamento:", error);
+      toast.error("Não foi possível remover agora.");
     }
   }, [deleteTransaction]);
 
@@ -349,8 +349,8 @@ export default function FixedExpensesPage() {
           : "Lançamento atual e próximos removidos.",
       );
     } catch (error) {
-      console.error("Erro ao remover recorrÃªncia:", error);
-      toast.error("NÃ£o foi possÃ­vel remover a recorrÃªncia agora.");
+      console.error("Erro ao remover recorrência:", error);
+      toast.error("Não foi possível remover a recorrência agora.");
     }
   }, [deleteTransactionGroup]);
 
@@ -370,7 +370,7 @@ export default function FixedExpensesPage() {
   }
 
   function getCardName(cardId?: string | null) {
-    return cards.find((card) => card.id === cardId)?.name ?? "CartÃ£o";
+    return cards.find((card) => card.id === cardId)?.name ?? "Cartão";
   }
 
   function renderFixedList(items: Transaction[]) {
@@ -392,7 +392,7 @@ export default function FixedExpensesPage() {
                     <div className="min-w-0">
                       <TransactionDescription transaction={transaction} />
                       <p className="mt-1 text-xs text-zinc-500">
-                        Conta fixa â€¢ {formatDateOnlyBR(transaction.date)}
+                        Conta fixa • {formatDateOnlyBR(transaction.date)}
                       </p>
                     </div>
                     <strong className="shrink-0 text-sm text-zinc-100">
@@ -459,7 +459,7 @@ export default function FixedExpensesPage() {
           ) : (
             <div className="flex min-h-44 flex-col items-center justify-center gap-3 text-center text-sm text-zinc-500">
               <CalendarX className="size-7" />
-              Nenhuma conta fixa neste perÃ­odo.
+              Nenhuma conta fixa neste período.
             </div>
           )}
         </div>
@@ -481,7 +481,7 @@ export default function FixedExpensesPage() {
               <TableHead>Vencimento</TableHead>
               <TableHead>Status</TableHead>
               <TableHead className="text-right">Valor</TableHead>
-              <TableHead className="w-24 text-right">AÃ§Ãµes</TableHead>
+              <TableHead className="w-24 text-right">Ações</TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
@@ -578,7 +578,7 @@ export default function FixedExpensesPage() {
                 <TableCell colSpan={7} className="h-48 text-center">
                   <div className="flex flex-col items-center justify-center gap-3 text-zinc-500">
                     <CalendarX className="size-7" strokeWidth={1.6} />
-                    <span>Nenhuma conta fixa neste perÃ­odo.</span>
+                    <span>Nenhuma conta fixa neste período.</span>
                   </div>
                 </TableCell>
               </TableRow>
@@ -688,7 +688,7 @@ export default function FixedExpensesPage() {
           ) : (
             <div className="flex min-h-44 flex-col items-center justify-center gap-3 text-center text-sm text-zinc-500">
               <CreditCard className="size-7" />
-              Nenhuma assinatura neste perÃ­odo.
+              Nenhuma assinatura neste período.
             </div>
           )}
         </div>
@@ -835,25 +835,25 @@ export default function FixedExpensesPage() {
               Contas e assinaturas
             </h1>
             <p className="mt-3 text-sm leading-6 text-zinc-400">
-              Acompanhe vencimentos recorrentes e faÃ§a baixas individuais ou em
+              Acompanhe vencimentos recorrentes e faça baixas individuais ou em
               massa.
             </p>
           </div>
 
           <Button
             type="button"
-            aria-label="Criar nova recorrÃªncia"
+            aria-label="Criar nova recorrência"
             onClick={openCreateModal}
             className="h-11 gap-2 bg-emerald-600 px-3.5 text-sm font-semibold text-white hover:bg-emerald-700 md:h-12 md:px-6 md:text-base"
           >
             <PlusCircle className="size-5" />
-            <span className="hidden min-[410px]:inline">Nova RecorrÃªncia</span>
+            <span className="hidden min-[410px]:inline">Nova Recorrência</span>
           </Button>
         </header>
 
         <section className="grid grid-cols-2 overflow-hidden rounded-2xl border border-zinc-800 sm:grid-cols-3">
           <div className="col-span-2 border-b border-zinc-800 px-4 py-5 sm:col-span-1 sm:border-b-0 sm:border-r sm:px-6">
-            <p className="text-sm text-zinc-500">Total do perÃ­odo</p>
+            <p className="text-sm text-zinc-500">Total do período</p>
             <strong className="mt-2 block text-2xl font-semibold text-zinc-100">
               {brlFormatter.format(totalAmount)}
             </strong>
