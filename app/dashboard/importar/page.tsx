@@ -1,7 +1,9 @@
 "use client";
 
+import Link from "next/link";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import {
+  ArrowRight,
   AlertTriangle,
   CheckCircle2,
   CreditCard,
@@ -84,6 +86,16 @@ type ParsedTransaction = {
 
 type CsvRow = Record<string, unknown>;
 type SplitMode = "mine" | "dependent" | "split";
+type ImportResultSummary = {
+  cardName: string;
+  creditsCount: number;
+  ignoredDuplicateCount: number;
+  importedCount: number;
+  invoiceMonthLabel: string;
+  possibleDuplicateCount: number;
+  reviewedCount: number;
+  sourceLineCount: number;
+};
 type ExistingImportTransaction = {
   import_signature: string | null;
   month_start: string | null;
@@ -544,6 +556,8 @@ export default function ImportarPage() {
     setExistingCrossMonthImportSignatures,
   ] = useState<Set<string>>(new Set());
   const [isCheckingDuplicates, setIsCheckingDuplicates] = useState(false);
+  const [lastImportSummary, setLastImportSummary] =
+    useState<ImportResultSummary | null>(null);
   const referenceMonthOptions = useMemo(() => getReferenceMonthOptions(), []);
   const [referenceMonth, setReferenceMonth] = useState("");
   const [selectedCardId, setSelectedCardId] = useState("");
@@ -631,6 +645,7 @@ export default function ImportarPage() {
     if (!file) return;
 
     setParseError("");
+    setLastImportSummary(null);
     setFileName(file.name);
 
     Papa.parse<CsvRow>(file, {
@@ -1185,11 +1200,14 @@ export default function ImportarPage() {
     closeSplitDialog();
   }
 
-  function resetImport() {
+  function resetImport(options?: { keepSummary?: boolean }) {
     setParsedData([]);
     setFileName("");
     setParseError("");
     setIsSubmitting(false);
+    if (!options?.keepSummary) {
+      setLastImportSummary(null);
+    }
   }
 
   function removePreviewRow(indexToRemove: number) {
@@ -1259,19 +1277,54 @@ export default function ImportarPage() {
         return;
       }
 
-      const { error } = await supabase.from("transactions").upsert(uniqueData, {
-        ignoreDuplicates: true,
-        onConflict: "user_id,card_id,import_signature",
-      });
+      const { data: insertedRows, error } = await supabase
+        .from("transactions")
+        .upsert(uniqueData, {
+          ignoreDuplicates: true,
+          onConflict: "user_id,card_id,import_signature",
+        })
+        .select("id");
 
       if (error) throw error;
 
+      const importedCount = insertedRows?.length ?? uniqueData.length;
+      const databaseIgnoredCount = Math.max(uniqueData.length - importedCount, 0);
+      const ignoredDuplicateCount = duplicateCount + databaseIgnoredCount;
+      const summary: ImportResultSummary = {
+        cardName: effectiveSelectedCard?.name ?? "Cartão",
+        creditsCount: importPreviewSummary.creditsCount,
+        ignoredDuplicateCount,
+        importedCount,
+        invoiceMonthLabel: formatInvoiceMonthLabel(effectiveReferenceMonth),
+        possibleDuplicateCount:
+          importDuplicateState.possibleDuplicateSourceCount,
+        reviewedCount: Math.max(
+          importPreviewSummary.reviewCount -
+            importPreviewSummary.pendingReviewCount,
+          0,
+        ),
+        sourceLineCount: importDuplicateState.newSourceCount,
+      };
+
+      setLastImportSummary(summary);
       toast.success(
-        duplicateCount > 0
-          ? `${uniqueData.length} transações importadas. ${duplicateCount} duplicadas ignoradas.`
-          : `${uniqueData.length} transações importadas com sucesso!`,
+        importedCount > 0
+          ? `${importedCount} lançamentos importados.`
+          : "Nenhum lançamento novo importado.",
+        {
+          action: {
+            label: "Ver fatura",
+            onClick: () => {
+              window.location.href = "/dashboard/cards";
+            },
+          },
+          description:
+            ignoredDuplicateCount > 0
+              ? `${ignoredDuplicateCount} duplicados ignorados.`
+              : undefined,
+        },
       );
-      resetImport();
+      resetImport({ keepSummary: true });
     } catch (error) {
       console.error("Erro ao importar CSV:", error);
       toast.error("Não foi possível importar as transações.");
@@ -1349,6 +1402,69 @@ export default function ImportarPage() {
           </div>
         ))}
       </section>
+
+      {lastImportSummary && !parsedData.length ? (
+        <Card className="border-zinc-800 bg-zinc-950 shadow-none">
+          <CardHeader className="flex flex-col gap-4 border-b border-zinc-800/80 sm:flex-row sm:items-center sm:justify-between">
+            <div>
+              <CardTitle className="flex items-center gap-2 text-lg">
+                <CheckCircle2 className="size-5 text-emerald-300" />
+                Importação concluída
+              </CardTitle>
+              <CardDescription>
+                {lastImportSummary.cardName} · {lastImportSummary.invoiceMonthLabel}
+              </CardDescription>
+            </div>
+            <Button asChild className="gap-2 bg-emerald-600 text-white hover:bg-emerald-700">
+              <Link href="/dashboard/cards">
+                Ver fatura
+                <ArrowRight className="size-4" />
+              </Link>
+            </Button>
+          </CardHeader>
+          <CardContent className="grid gap-3 p-4 sm:grid-cols-2 lg:grid-cols-5">
+            {[
+              {
+                label: "Importados",
+                value: String(lastImportSummary.importedCount),
+                tone: "text-emerald-300",
+              },
+              {
+                label: "Duplicados ignorados",
+                value: String(lastImportSummary.ignoredDuplicateCount),
+                tone: "text-amber-300",
+              },
+              {
+                label: "Linhas processadas",
+                value: String(lastImportSummary.sourceLineCount),
+                tone: "text-zinc-100",
+              },
+              {
+                label: "Créditos/estornos",
+                value: String(lastImportSummary.creditsCount),
+                tone: "text-sky-300",
+              },
+              {
+                label: "Revisados",
+                value: String(lastImportSummary.reviewedCount),
+                tone: "text-violet-300",
+              },
+            ].map((item) => (
+              <div
+                key={item.label}
+                className="rounded-xl border border-zinc-800 bg-zinc-900/40 p-3"
+              >
+                <p className="text-[11px] font-medium uppercase tracking-wide text-zinc-500">
+                  {item.label}
+                </p>
+                <strong className={cn("mt-2 block text-xl", item.tone)}>
+                  {item.value}
+                </strong>
+              </div>
+            ))}
+          </CardContent>
+        </Card>
+      ) : null}
 
       {!parsedData.length ? (
         <section className="grid gap-4 lg:grid-cols-[minmax(0,0.8fr)_minmax(0,1.2fr)]">
@@ -1466,7 +1582,7 @@ export default function ImportarPage() {
               type="button"
               variant="ghost"
               className="gap-2 text-zinc-300 hover:text-white"
-              onClick={resetImport}
+              onClick={() => resetImport()}
               disabled={isSubmitting}
             >
               <X className="size-4" />
@@ -2035,7 +2151,7 @@ export default function ImportarPage() {
               <Button
                 type="button"
                 variant="outline"
-                onClick={resetImport}
+                onClick={() => resetImport()}
                 disabled={isSubmitting}
               >
                 Cancelar
