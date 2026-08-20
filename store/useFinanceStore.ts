@@ -176,6 +176,11 @@ interface FinanceState {
     transactionId: string,
     transaction: UpdateTransactionInput,
   ) => Promise<void>;
+  updateTransactionGroup: (
+    groupId: string,
+    fromDate: string,
+    transaction: UpdateTransactionInput,
+  ) => Promise<void>;
   updateTransactionCategories: (
     transactionIds: string[],
     category: string,
@@ -258,6 +263,13 @@ function getOperationalMonthRange(month: number, year: number) {
 
 function getDayFromDate(date: string) {
   return getDateOnlyParts(date).day;
+}
+
+function replaceDateOnlyDay(date: string, nextDay: number) {
+  const { month, year } = getDateOnlyParts(date);
+  const lastDayOfMonth = new Date(year, month, 0).getDate();
+
+  return toDateOnly(year, month, Math.min(nextDay, lastDayOfMonth));
 }
 
 function toTransactionType(value: string | null): TransactionType {
@@ -1183,6 +1195,153 @@ export const useFinanceStore = create<FinanceState>()((set, get) => ({
       }));
     } catch (error) {
       console.error("Erro ao atualizar transação:", error);
+      throw error;
+    }
+  },
+
+  updateTransactionGroup: async (groupId, fromDate, transaction) => {
+    try {
+      const user = await getCurrentUser();
+      if (!user) throw new Error("Usuário não autenticado.");
+
+      const normalizedFromDate = normalizeDateOnly(fromDate);
+      const sourceDay =
+        transaction.date !== undefined ? getDayFromDate(transaction.date) : null;
+      const groupTransactions = get().transactions.filter(
+        (currentTransaction) =>
+          currentTransaction.groupId === groupId &&
+          normalizeDateOnly(currentTransaction.date) >= normalizedFromDate,
+      );
+
+      if (!groupTransactions.length) return;
+
+      const updatedRows = await Promise.all(
+        groupTransactions.map(async (currentTransaction) => {
+          const nextType = transaction.type ?? currentTransaction.type;
+          const nextCardId =
+            transaction.cardId !== undefined
+              ? transaction.cardId
+              : currentTransaction.cardId;
+          const nextDate =
+            sourceDay === null
+              ? normalizeDateOnly(currentTransaction.date)
+              : replaceDateOnlyDay(currentTransaction.date, sourceDay);
+          const updatePayload: Record<
+            string,
+            string | number | boolean | string[] | null
+          > = {};
+
+          if (transaction.description !== undefined) {
+            updatePayload.description = transaction.description;
+          }
+
+          if (transaction.amount !== undefined) {
+            updatePayload.amount = transaction.amount;
+          }
+
+          if (transaction.date !== undefined) {
+            updatePayload.day = getDayFromDate(nextDate);
+            updatePayload.transaction_date = nextDate;
+          }
+
+          if (
+            transaction.date !== undefined ||
+            transaction.type !== undefined ||
+            transaction.cardId !== undefined
+          ) {
+            const cardClosingDay = nextCardId
+              ? get().cards.find((card) => card.id === nextCardId)?.closingDay
+              : undefined;
+
+            updatePayload.month_start =
+              nextType === "card"
+                ? getCardInvoiceMonthStart(nextDate, cardClosingDay)
+                : getMonthStart(nextDate);
+          }
+
+          if (transaction.category !== undefined) {
+            updatePayload.category = transaction.category;
+          }
+
+          if (transaction.type !== undefined) {
+            updatePayload.type = transaction.type;
+            updatePayload.card_id =
+              transaction.type === "card" ? transaction.cardId ?? null : null;
+          } else if (transaction.cardId !== undefined) {
+            updatePayload.card_id = transaction.cardId;
+          }
+
+          if (transaction.dependentId !== undefined) {
+            updatePayload.dependent_id = transaction.dependentId;
+          }
+
+          if (transaction.status !== undefined) {
+            updatePayload.status = toDbStatus(transaction.status);
+          }
+
+          if (transaction.owner !== undefined) {
+            updatePayload.owner = transaction.owner;
+          }
+
+          if (transaction.installmentNumber !== undefined) {
+            updatePayload.installment_number = transaction.installmentNumber;
+          }
+
+          if (transaction.current_installment !== undefined) {
+            updatePayload.installment_number = transaction.current_installment;
+          }
+
+          if (transaction.installmentsTotal !== undefined) {
+            updatePayload.installments_total = transaction.installmentsTotal;
+          }
+
+          if (transaction.installments !== undefined) {
+            updatePayload.installments_total = transaction.installments;
+          }
+
+          if (transaction.is_recurring !== undefined) {
+            updatePayload.recurring = transaction.is_recurring;
+          }
+
+          if (transaction.notes !== undefined) {
+            updatePayload.notes = transaction.notes;
+          }
+
+          if (transaction.dependentIds !== undefined) {
+            updatePayload.split_with = transaction.dependentIds;
+          }
+
+          const { data, error } = await supabase
+            .from("transactions")
+            .update(updatePayload)
+            .eq("id", currentTransaction.id)
+            .eq("user_id", user.id)
+            .select("*")
+            .single();
+
+          if (error) throw error;
+          if (!data) {
+            throw new Error("Supabase não retornou a transação atualizada.");
+          }
+
+          return mapTransaction(data as TransactionRow);
+        }),
+      );
+      const updatedById = new Map(
+        updatedRows.map((updatedTransaction) => [
+          updatedTransaction.id,
+          updatedTransaction,
+        ]),
+      );
+
+      set((state) => ({
+        transactions: state.transactions.map(
+          (currentTransaction) =>
+            updatedById.get(currentTransaction.id) ?? currentTransaction,
+        ),
+      }));
+    } catch (error) {
+      console.error("Erro ao atualizar recorrência:", error);
       throw error;
     }
   },

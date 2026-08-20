@@ -1,4 +1,4 @@
-"use client";
+﻿"use client";
 
 import { FormEvent, useEffect, useMemo, useState } from "react";
 import {
@@ -47,6 +47,7 @@ interface AddTransactionModalProps {
 }
 
 type ExpenseTransactionType = "fixed" | "card";
+type RecurringEditScope = "single" | "future";
 
 function addMonthsToDateOnly(date: string, monthsToAdd: number) {
   const { day, month, year } = getDateOnlyParts(date);
@@ -110,6 +111,9 @@ function TransactionModalContent({
   const addTransaction = useFinanceStore((state) => state.addTransaction);
   const addTransactions = useFinanceStore((state) => state.addTransactions);
   const updateTransaction = useFinanceStore((state) => state.updateTransaction);
+  const updateTransactionGroup = useFinanceStore(
+    (state) => state.updateTransactionGroup,
+  );
   const isFixedMode = mode === "fixed";
 
   const [description, setDescription] = useState(
@@ -142,6 +146,8 @@ function TransactionModalContent({
     isFixedMode ? true : editingTransaction?.is_recurring ?? false,
   );
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [pendingRecurringUpdate, setPendingRecurringUpdate] =
+    useState<CreateTransactionInput | null>(null);
 
   useEffect(() => {
     void Promise.all([fetchCards(), fetchDependents(), fetchCategories()]);
@@ -161,18 +167,49 @@ function TransactionModalContent({
   const transactionCardId =
     transactionType === "card" ? selectedCardId || null : null;
 
+  async function saveRecurringUpdate(scope: RecurringEditScope) {
+    if (!editingTransaction || !pendingRecurringUpdate || isSubmitting) return;
+
+    setIsSubmitting(true);
+
+    try {
+      if (scope === "future" && editingTransaction.groupId) {
+        await updateTransactionGroup(
+          editingTransaction.groupId,
+          editingTransaction.date,
+          pendingRecurringUpdate,
+        );
+      } else {
+        await updateTransaction(editingTransaction.id, pendingRecurringUpdate);
+      }
+
+      await fetchTransactions();
+      toast.success(
+        scope === "future"
+          ? "RecorrÃªncia atualizada deste mÃªs em diante."
+          : "LanÃ§amento deste mÃªs atualizado.",
+      );
+      onClose();
+    } catch (error) {
+      console.error("Erro ao atualizar recorrÃªncia:", error);
+      toast.error("Erro ao atualizar recorrÃªncia.");
+    } finally {
+      setIsSubmitting(false);
+    }
+  }
+
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
 
     if (isSubmitting) return;
 
     if (!authUser?.id) {
-      toast.error("Faça login novamente para salvar a transação.");
+      toast.error("FaÃ§a login novamente para salvar a transaÃ§Ã£o.");
       return;
     }
 
     if (transactionType === "card" && !transactionCardId) {
-      toast.error("Selecione um cartão para lançar no crédito.");
+      toast.error("Selecione um cartÃ£o para lanÃ§ar no crÃ©dito.");
       return;
     }
 
@@ -208,16 +245,22 @@ function TransactionModalContent({
       is_recurring:
         shouldCreateRecurringProjection || shouldCreateCreditCardSubscription,
       notes: selectedCard
-        ? `Cartão: ${selectedCard.name}`
+        ? `CartÃ£o: ${selectedCard.name}`
         : isFixedMode
           ? "Gasto fixo"
-          : "Débito/PIX",
+          : "DÃ©bito/PIX",
     };
 
     setIsSubmitting(true);
 
     try {
       if (editingTransaction) {
+        if (editingTransaction.groupId && editingTransaction.is_recurring) {
+          setPendingRecurringUpdate(transactionPayload);
+          setIsSubmitting(false);
+          return;
+        }
+
         await updateTransaction(editingTransaction.id, transactionPayload);
       } else if (shouldCreateCreditCardSubscription) {
         const groupId = crypto.randomUUID();
@@ -299,15 +342,15 @@ function TransactionModalContent({
         editingTransaction
           ? isFixedMode
             ? "Conta atualizada!"
-            : "Transação atualizada com sucesso!"
+            : "TransaÃ§Ã£o atualizada com sucesso!"
           : isFixedMode
             ? "Conta adicionada com sucesso!"
-            : "Transação adicionada com sucesso!",
+            : "TransaÃ§Ã£o adicionada com sucesso!",
       );
       onClose();
     } catch (error) {
-      console.error("Erro ao salvar transação:", error);
-      toast.error("Erro ao salvar transação.");
+      console.error("Erro ao salvar transaÃ§Ã£o:", error);
+      toast.error("Erro ao salvar transaÃ§Ã£o.");
     } finally {
       setIsSubmitting(false);
     }
@@ -318,23 +361,27 @@ function TransactionModalContent({
       <DialogHeader>
         <div className="flex items-center gap-2 text-sm font-medium text-brand-300">
           <ReceiptText className="size-4" />
-          Lançamento
+          LanÃ§amento
         </div>
         <DialogTitle>
           {editingTransaction
-            ? "Editar transação"
+            ? "Editar transaÃ§Ã£o"
             : isFixedMode
-              ? "Nova recorrência"
-              : "Nova transação"}
+              ? "Nova recorrÃªncia"
+              : "Nova transaÃ§Ã£o"}
         </DialogTitle>
         <DialogDescription>
           {isFixedMode
-            ? "Projete uma despesa recorrente para os próximos 12 meses."
-            : "Registre saídas por débito, PIX ou cartão de crédito."}
+            ? "Projete uma despesa recorrente para os prÃ³ximos 12 meses."
+            : "Registre saÃ­das por dÃ©bito, PIX ou cartÃ£o de crÃ©dito."}
         </DialogDescription>
       </DialogHeader>
 
       <form className="space-y-6" onSubmit={handleSubmit}>
+        <fieldset
+          disabled={Boolean(pendingRecurringUpdate)}
+          className="space-y-6 disabled:opacity-70"
+        >
         <section className="space-y-2 text-center">
           <div className="relative mx-auto max-w-sm rounded-lg border border-zinc-800/80 bg-zinc-900/30">
             <span className="pointer-events-none absolute left-5 top-1/2 -translate-y-1/2 text-xl font-semibold text-zinc-400">
@@ -357,7 +404,7 @@ function TransactionModalContent({
             value={description}
             onChange={(event) => setDescription(event.target.value)}
             type="text"
-            placeholder="Descrição da transação"
+            placeholder="DescriÃ§Ã£o da transaÃ§Ã£o"
             className="mx-auto h-10 max-w-md rounded-lg border border-zinc-800/80 bg-zinc-900/30 text-center text-lg text-zinc-100 shadow-none ring-0 placeholder:text-zinc-400 focus:outline-none focus:ring-0 focus-visible:ring-0 focus-visible:ring-offset-0"
             required
           />
@@ -383,7 +430,7 @@ function TransactionModalContent({
             <div className="space-y-2">
               <div className="flex items-center gap-2 text-xs font-medium uppercase tracking-wide text-zinc-400">
                 <CreditCard className="size-3.5" />
-                {isFixedMode ? "Método" : "Tipo"}
+                {isFixedMode ? "MÃ©todo" : "Tipo"}
               </div>
               <Select
                 value={transactionType}
@@ -401,8 +448,8 @@ function TransactionModalContent({
                   <SelectValue placeholder="Tipo" />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="fixed">Débito/PIX</SelectItem>
-                  <SelectItem value="card">Cartão de Crédito</SelectItem>
+                  <SelectItem value="fixed">DÃ©bito/PIX</SelectItem>
+                  <SelectItem value="card">CartÃ£o de CrÃ©dito</SelectItem>
                 </SelectContent>
               </Select>
             </div>
@@ -411,7 +458,7 @@ function TransactionModalContent({
               <div className="space-y-2">
                 <div className="flex items-center gap-2 text-xs font-medium uppercase tracking-wide text-zinc-400">
                   <CreditCard className="size-3.5" />
-                  Cartão
+                  CartÃ£o
                 </div>
                 <Select
                   value={selectedCardId}
@@ -419,7 +466,7 @@ function TransactionModalContent({
                   disabled={!cards.length}
                 >
                   <SelectTrigger className="flex h-10 items-center border border-zinc-700 bg-zinc-900 text-sm text-zinc-200 shadow-none transition-colors hover:border-zinc-600 focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500 focus:ring-offset-0">
-                    <SelectValue placeholder="Selecionar cartão" />
+                    <SelectValue placeholder="Selecionar cartÃ£o" />
                   </SelectTrigger>
                   <SelectContent>
                     {cards.map((card) => (
@@ -491,7 +538,7 @@ function TransactionModalContent({
                   : "Gasto fixo recorrente"}
               </p>
               <p className="mt-1 text-xs text-zinc-500">
-                Repete automaticamente nos próximos meses.
+                Repete automaticamente nos prÃ³ximos meses.
               </p>
             </div>
             <Switch
@@ -514,7 +561,7 @@ function TransactionModalContent({
                 Compra parcelada?
               </p>
               <p className="mt-1 text-xs text-zinc-500">
-                Divida o lançamento em parcelas mensais.
+                Divida o lanÃ§amento em parcelas mensais.
               </p>
             </div>
             <Switch
@@ -541,6 +588,48 @@ function TransactionModalContent({
             className="h-11 border border-zinc-700 bg-zinc-900 transition-colors hover:border-zinc-600 focus-visible:border-emerald-500"
           />
         ) : null}
+        </fieldset>
+
+        {pendingRecurringUpdate ? (
+          <section className="rounded-xl border border-zinc-800 bg-zinc-900/60 p-4">
+            <p className="text-sm font-semibold text-zinc-100">
+              Como deseja aplicar esta ediÃ§Ã£o?
+            </p>
+            <p className="mt-1 text-xs leading-5 text-zinc-500">
+              Preserve o histÃ³rico editando apenas este mÃªs ou atualize a
+              recorrÃªncia deste lanÃ§amento em diante.
+            </p>
+
+            <div className="mt-4 grid gap-3 sm:grid-cols-2">
+              <Button
+                type="button"
+                variant="secondary"
+                disabled={isSubmitting}
+                onClick={() => void saveRecurringUpdate("single")}
+                className="h-11 cursor-pointer"
+              >
+                Somente este mÃªs
+              </Button>
+              <Button
+                type="button"
+                disabled={isSubmitting}
+                onClick={() => void saveRecurringUpdate("future")}
+                className="h-11 cursor-pointer bg-emerald-600 font-semibold text-white hover:bg-emerald-700"
+              >
+                Este e os prÃ³ximos
+              </Button>
+            </div>
+            <Button
+              type="button"
+              variant="ghost"
+              disabled={isSubmitting}
+              onClick={() => setPendingRecurringUpdate(null)}
+              className="mt-3 h-10 w-full cursor-pointer text-zinc-400"
+            >
+              Alterar dados
+            </Button>
+          </section>
+        ) : null}
 
         <div className="mt-8 flex justify-end gap-3">
           <Button
@@ -554,10 +643,14 @@ function TransactionModalContent({
           </Button>
           <Button
             type="submit"
-            disabled={isSubmitting}
+            disabled={isSubmitting || Boolean(pendingRecurringUpdate)}
             className="h-11 min-w-52 bg-emerald-600 font-semibold text-white hover:bg-emerald-700"
           >
-            {isSubmitting ? "Salvando..." : "Salvar transação"}
+            {isSubmitting
+              ? "Salvando..."
+              : editingTransaction?.groupId && editingTransaction.is_recurring
+                ? "Escolher escopo"
+                : "Salvar transação"}
           </Button>
         </div>
       </form>
