@@ -30,7 +30,11 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { formatDateOnlyBR } from "@/lib/dateUtils";
+import {
+  formatDateOnlyBR,
+  getLocalTodayDateOnly,
+  normalizeDateOnly,
+} from "@/lib/dateUtils";
 import { isTransactionInSelectedPeriod } from "@/lib/transactionPeriod";
 import { useFinanceStore, type Transaction } from "@/store/useFinanceStore";
 
@@ -38,6 +42,41 @@ const brlFormatter = new Intl.NumberFormat("pt-BR", {
   style: "currency",
   currency: "BRL",
 });
+
+function isFutureCardSubscription(transaction: Transaction) {
+  return (
+    transaction.type === "card" &&
+    transaction.is_recurring === true &&
+    transaction.status !== "paid" &&
+    normalizeDateOnly(transaction.date) > getLocalTodayDateOnly()
+  );
+}
+
+function getRecurringStatusPresentation(transaction: Transaction) {
+  if (transaction.status === "paid") {
+    return {
+      className: "border-emerald-800 bg-emerald-950 text-emerald-300",
+      label: "Pago",
+    };
+  }
+
+  if (transaction.type === "card") {
+    return isFutureCardSubscription(transaction)
+      ? {
+          className: "border-zinc-700 bg-zinc-900 text-zinc-400",
+          label: "Agendada",
+        }
+      : {
+          className: "border-sky-800 bg-sky-950 text-sky-300",
+          label: "Na fatura",
+        };
+  }
+
+  return {
+    className: "border-amber-800 bg-amber-950 text-amber-300",
+    label: "Pendente",
+  };
+}
 
 type RecurringTab = "fixed" | "subscriptions";
 
@@ -100,7 +139,11 @@ export default function FixedExpensesPage() {
   );
   const pendingTransactions = useMemo(
     () =>
-      activeTransactions.filter((transaction) => transaction.status !== "paid"),
+      activeTransactions.filter(
+        (transaction) =>
+          transaction.status !== "paid" &&
+          !isFutureCardSubscription(transaction),
+      ),
     [activeTransactions],
   );
   const activePendingIds = useMemo(
@@ -186,7 +229,17 @@ export default function FixedExpensesPage() {
   ]);
 
   const togglePaymentStatus = useCallback(async (transaction: Transaction) => {
-    const nextStatus = transaction.status === "paid" ? "pending" : "paid";
+    if (isFutureCardSubscription(transaction)) {
+      toast.error("Essa assinatura ainda não caiu na fatura.");
+      return;
+    }
+
+    const nextStatus =
+      transaction.status === "paid"
+        ? transaction.type === "card"
+          ? "confirmed"
+          : "pending"
+        : "paid";
 
     try {
       await updateTransaction(transaction.id, { status: nextStatus });
@@ -256,6 +309,9 @@ export default function FixedExpensesPage() {
           {items.length ? (
             items.map((transaction) => {
               const isPaid = transaction.status === "paid";
+              const isFutureSubscription = isFutureCardSubscription(transaction);
+              const statusPresentation =
+                getRecurringStatusPresentation(transaction);
 
               return (
                 <div
@@ -273,24 +329,21 @@ export default function FixedExpensesPage() {
                     <button
                       type="button"
                       onClick={() => void togglePaymentStatus(transaction)}
-                      className="min-h-10 cursor-pointer"
+                      disabled={isFutureSubscription}
+                      className="min-h-10 cursor-pointer disabled:cursor-not-allowed"
                     >
                       <Badge
                         variant="outline"
-                        className={
-                          isPaid
-                            ? "border-emerald-800 bg-emerald-950 text-emerald-300"
-                            : "border-amber-800 bg-amber-950 text-amber-300"
-                        }
+                        className={statusPresentation.className}
                       >
-                        {isPaid ? "Pago" : "Pendente"}
+                        {statusPresentation.label}
                       </Badge>
                     </button>
                     <div className="flex items-center gap-1">
                       <Checkbox
                         aria-label={`Selecionar ${transaction.description}`}
                         checked={effectiveSelectedIds.includes(transaction.id)}
-                        disabled={isPaid}
+                        disabled={isPaid || isFutureSubscription}
                         onCheckedChange={() => toggleSelection(transaction.id)}
                         className="mr-2 size-5 border-zinc-600"
                       />
@@ -357,6 +410,9 @@ export default function FixedExpensesPage() {
             {items.length ? (
               items.map((transaction) => {
                 const isPaid = transaction.status === "paid";
+                const isFutureSubscription = isFutureCardSubscription(transaction);
+                const statusPresentation =
+                  getRecurringStatusPresentation(transaction);
 
                 return (
                   <TableRow
@@ -367,7 +423,7 @@ export default function FixedExpensesPage() {
                       <Checkbox
                         aria-label={`Selecionar ${transaction.description}`}
                         checked={effectiveSelectedIds.includes(transaction.id)}
-                        disabled={isPaid}
+                        disabled={isPaid || isFutureSubscription}
                         onCheckedChange={() => toggleSelection(transaction.id)}
                         className="border-zinc-600"
                       />
@@ -390,17 +446,14 @@ export default function FixedExpensesPage() {
                       <button
                         type="button"
                         onClick={() => void togglePaymentStatus(transaction)}
-                        className="cursor-pointer"
+                        disabled={isFutureSubscription}
+                        className="cursor-pointer disabled:cursor-not-allowed"
                       >
                         <Badge
                           variant="outline"
-                          className={
-                            isPaid
-                              ? "border-emerald-800 bg-emerald-950 text-emerald-300"
-                              : "border-amber-800 bg-amber-950 text-amber-300"
-                          }
+                          className={statusPresentation.className}
                         >
-                          {isPaid ? "Pago" : "Pendente"}
+                          {statusPresentation.label}
                         </Badge>
                       </button>
                     </TableCell>

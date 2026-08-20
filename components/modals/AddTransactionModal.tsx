@@ -223,18 +223,25 @@ function TransactionModalContent({
         const groupId = crypto.randomUUID();
         const subscriptionTransactions = Array.from(
           { length: 12 },
-          (_, index): CreateTransactionInput => ({
-            ...transactionPayload,
-            groupId,
-            cardId: transactionCardId,
-            date: addMonthsToDateOnly(normalizedDate, index),
-            status: "pending",
-            installments: 1,
-            current_installment: 1,
-            installmentsTotal: 1,
-            installmentNumber: 1,
-            is_recurring: true,
-          }),
+          (_, index): CreateTransactionInput => {
+            const subscriptionDate = addMonthsToDateOnly(normalizedDate, index);
+
+            return {
+              ...transactionPayload,
+              groupId,
+              cardId: transactionCardId,
+              date: subscriptionDate,
+              status:
+                subscriptionDate <= getLocalTodayDateOnly()
+                  ? "confirmed"
+                  : "pending",
+              installments: 1,
+              current_installment: 1,
+              installmentsTotal: 1,
+              installmentNumber: 1,
+              is_recurring: true,
+            };
+          },
         );
 
         await addTransactions(subscriptionTransactions);

@@ -211,6 +211,21 @@ function fromDbStatus(status: DbTransactionStatus): TransactionStatus {
   return "confirmed";
 }
 
+function getInitialTransactionStatus(
+  transaction: CreateTransactionInput,
+): TransactionStatus | undefined {
+  if (
+    transaction.type === "card" &&
+    transaction.is_recurring === true &&
+    transaction.status === "pending" &&
+    normalizeDateOnly(transaction.date) <= getLocalTodayDateOnly()
+  ) {
+    return "confirmed";
+  }
+
+  return transaction.status;
+}
+
 function getMonthStart(date: string) {
   const { month, year } = getDateOnlyParts(date);
 
@@ -342,7 +357,7 @@ function toTransactionInsertPayload(
     category: transaction.category,
     amount: transaction.amount,
     day: getDayFromDate(normalizedDate),
-    status: toDbStatus(transaction.status),
+    status: toDbStatus(getInitialTransactionStatus(transaction)),
     owner: transaction.owner ?? "eu",
     installment_number:
       transaction.current_installment ?? transaction.installmentNumber ?? 1,
@@ -908,6 +923,20 @@ export const useFinanceStore = create<FinanceState>()((set, get) => ({
         selectedMonth,
         selectedYear,
       );
+      const todayDate = getLocalTodayDateOnly();
+      const { error: statusSyncError } = await supabase
+        .from("transactions")
+        .update({ status: toDbStatus("confirmed") })
+        .eq("user_id", user.id)
+        .eq("type", "card")
+        .eq("recurring", true)
+        .eq("status", toDbStatus("pending"))
+        .lte("transaction_date", todayDate)
+        .gte("month_start", startDate)
+        .lt("month_start", endDate);
+
+      if (statusSyncError) throw statusSyncError;
+
       const { data, error } = await supabase
         .from("transactions")
         .select("*")
