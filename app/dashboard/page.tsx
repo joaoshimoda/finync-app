@@ -70,6 +70,7 @@ import { isPendingVariableIncome } from "@/lib/incomeRecurrence";
 import { cn } from "@/lib/utils";
 import { isTransactionInSelectedPeriod } from "@/lib/transactionPeriod";
 import { aggregatePeriodExpenses } from "@/lib/financeAggregation";
+import { getCardInvoiceCycle } from "@/lib/cardBilling";
 import {
   useFinanceStore,
   type Transaction,
@@ -182,6 +183,8 @@ interface CardSpendingSummary {
   name: string;
   closingDay?: number;
   dueDay?: number;
+  cycleEndDate: string;
+  cycleStartDate: string;
   accentClassName: string;
   availableLimit: number;
   current: number;
@@ -232,6 +235,7 @@ function FlippableWalletCard({
   const hideBalancesByDefault = useFinanceStore(
     (state) => state.hideBalancesByDefault,
   );
+  const cycleLabel = `${formatDateOnlyBR(cardSummary.cycleStartDate)} - ${formatDateOnlyBR(cardSummary.cycleEndDate)}`;
 
   return (
     <div className="h-[176px] w-full perspective-[1000px] lg:w-[280px]">
@@ -264,9 +268,7 @@ function FlippableWalletCard({
             </button>
           </div>
           <p className="relative mt-2 text-xs text-muted-foreground">
-            {cardSummary.closingDay
-              ? `Fecha dia ${cardSummary.closingDay}`
-              : "Fechamento livre"}
+            Ciclo: {cycleLabel}
             {" • "}
             {cardSummary.dueDay
               ? `Vence dia ${cardSummary.dueDay}`
@@ -604,12 +606,18 @@ export default function DashboardPage() {
             },
             { current: 0, projected: 0 },
           );
+        const invoiceCycle = getCardInvoiceCycle(
+          toDateOnly(displayYear, displayMonth, 1),
+          card.closingDay,
+        );
 
         return {
           id: card.id,
           name: card.name,
           closingDay: card.closingDay,
           dueDay: card.dueDay,
+          cycleEndDate: invoiceCycle.endDate,
+          cycleStartDate: invoiceCycle.startDate,
           accentClassName: getCardAccentClassName(card.name),
           availableLimit: calculateAvailableCardLimit(
             transactions,
@@ -623,7 +631,7 @@ export default function DashboardPage() {
           ...invoiceTotals,
         };
       }),
-    [cards, invoiceCycleTransactions, todayDate, transactions],
+    [cards, displayMonth, displayYear, invoiceCycleTransactions, todayDate, transactions],
   );
 
   const fixedSpendingTotal = useMemo(

@@ -47,3 +47,36 @@ export function getCurrentFinancialMonthStart(
     1,
   );
 }
+
+function addMonthsToMonthStart(monthStart: string, offset: number) {
+  const { month, year } = getDateOnlyParts(monthStart);
+  const monthIndex = month - 1 + offset;
+  const nextYear = year + Math.floor(monthIndex / 12);
+  const nextMonth = ((monthIndex % 12) + 12) % 12 + 1;
+
+  return toDateOnly(nextYear, nextMonth, 1);
+}
+
+export function getCardInvoiceCycle(
+  invoiceMonthStart: string,
+  closingDay?: number | null,
+) {
+  const normalizedInvoiceMonth = normalizeDateOnly(invoiceMonthStart);
+  const safeClosingDay = closingDay && closingDay > 1 ? closingDay : 1;
+  const previousMonthStart = addMonthsToMonthStart(normalizedInvoiceMonth, -1);
+  const invoiceParts = getDateOnlyParts(normalizedInvoiceMonth);
+  const previousParts = getDateOnlyParts(previousMonthStart);
+
+  return {
+    endDate: toDateOnly(
+      invoiceParts.year,
+      invoiceParts.month,
+      safeClosingDay - 1 || 1,
+    ),
+    startDate: toDateOnly(
+      previousParts.year,
+      previousParts.month,
+      safeClosingDay,
+    ),
+  };
+}

@@ -2,6 +2,11 @@
 
 import { formatCurrency } from "@/lib/financeUtils";
 import {
+  getCardInvoiceCycle,
+  getCardInvoiceMonthStart,
+} from "@/lib/cardBilling";
+import { formatDateOnlyBR, getLocalTodayDateOnly } from "@/lib/dateUtils";
+import {
   calculateCardDebt,
   getCardSignedAmount,
   shouldCountCardCharge,
@@ -74,7 +79,10 @@ export function WalletSlider({ cards = [], transactions = [] }: WalletSliderProp
             const usage = limit > 0 ? Math.min((debt / limit) * 100, 100) : 0;
             const isNearLimit = usage >= 85;
             const color = card.color || "#2dd4bf";
-            const closingDay = card.closingDay || "--";
+            const invoiceCycle = getCardInvoiceCycle(
+              getCardInvoiceMonthStart(getLocalTodayDateOnly(), card.closingDay),
+              card.closingDay,
+            );
             const dueDay = card.dueDay || "--";
 
             return (
@@ -103,7 +111,8 @@ export function WalletSlider({ cards = [], transactions = [] }: WalletSliderProp
                         <h3 className="text-lg font-semibold text-white">{card.name}</h3>
                       </div>
                       <p className="mt-2 text-xs font-medium text-zinc-400">
-                        Fechamento: dia {closingDay} {"\u2022"} Vencimento: dia{" "}
+                        Ciclo: {formatDateOnlyBR(invoiceCycle.startDate)} -{" "}
+                        {formatDateOnlyBR(invoiceCycle.endDate)} {"\u2022"} Vencimento: dia{" "}
                         {dueDay}
                       </p>
                       <p className="mt-1 text-xs text-zinc-500">

@@ -51,10 +51,12 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { getCardGradient } from "@/lib/cardUtils";
+import { getCardInvoiceCycle } from "@/lib/cardBilling";
 import {
   formatDateOnlyBR,
   getLocalTodayDateOnly,
   normalizeDateOnly,
+  toDateOnly,
 } from "@/lib/dateUtils";
 import {
   calculateAvailableCardLimit,
@@ -198,6 +200,7 @@ function FlippableManagedCard({
   onEdit,
   onDelete,
   onPayInvoice,
+  invoiceMonthStart,
 }: {
   card: FinanceCard;
   availableLimit: number;
@@ -210,11 +213,14 @@ function FlippableManagedCard({
   onEdit: (card: FinanceCard) => void;
   onDelete: (card: FinanceCard) => void;
   onPayInvoice: (cardId: string) => void;
+  invoiceMonthStart: string;
 }) {
   const [isFlipped, setIsFlipped] = useState(false);
   const hideBalancesByDefault = useFinanceStore(
     (state) => state.hideBalancesByDefault,
   );
+  const invoiceCycle = getCardInvoiceCycle(invoiceMonthStart, card.closingDay);
+  const cycleLabel = `${formatDateOnlyBR(invoiceCycle.startDate)} - ${formatDateOnlyBR(invoiceCycle.endDate)}`;
 
   return (
     <div className="h-[190px] w-full max-w-[340px] perspective-[1000px] sm:w-[304px]">
@@ -247,7 +253,7 @@ function FlippableManagedCard({
                 {card.name}
               </h2>
               <p className="mt-1 text-xs text-white/65">
-                {card.closingDay ? `Fecha dia ${card.closingDay}` : "Fechamento livre"}
+                Ciclo: {cycleLabel}
                 {" • "}
                 {card.dueDay ? `Vence dia ${card.dueDay}` : "Sem vencimento"}
               </p>
@@ -485,6 +491,14 @@ export default function CardsPage() {
       total,
     };
   }, [selectedCardTransactions]);
+  const selectedInvoiceCycle = useMemo(
+    () =>
+      getCardInvoiceCycle(
+        toDateOnly(currentYear, currentMonth, 1),
+        selectedCard?.closingDay,
+      ),
+    [currentMonth, currentYear, selectedCard?.closingDay],
+  );
   const selectedLimit = selectedCard?.limitAmount ?? 0;
   const selectedDebtTotal = useMemo(
     () => (selectedCard ? calculateCardDebt(transactions, selectedCard.id) : 0),
@@ -655,6 +669,7 @@ export default function CardsPage() {
                     onEdit={openEditModal}
                     onDelete={setDeleteTargetCard}
                     onPayInvoice={(cardId) => void handlePayInvoiceClick(cardId)}
+                    invoiceMonthStart={toDateOnly(currentYear, currentMonth, 1)}
                   />
                 </CarouselItem>
               );
@@ -681,6 +696,11 @@ export default function CardsPage() {
               <CardTitle className="mt-1 text-xl tracking-normal lg:text-2xl">
                 {selectedCard?.name ?? "Nenhum cartão selecionado"}
               </CardTitle>
+              <p className="mt-2 text-xs text-muted-foreground">
+                Ciclo: {formatDateOnlyBR(selectedInvoiceCycle.startDate)} -{" "}
+                {formatDateOnlyBR(selectedInvoiceCycle.endDate)}
+                {selectedCard?.dueDay ? ` • Vence dia ${selectedCard.dueDay}` : ""}
+              </p>
             </div>
             <div className="text-left lg:text-right">
               <p className="text-sm text-muted-foreground">Total do mês</p>
