@@ -1,7 +1,13 @@
 "use client";
 
-import { useEffect, useState } from "react";
-import { ReceiptText, type LucideIcon } from "lucide-react";
+import { useEffect, useMemo, useState } from "react";
+import {
+  Activity,
+  BadgePercent,
+  CircleDollarSign,
+  ReceiptText,
+  type LucideIcon,
+} from "lucide-react";
 import {
   Area,
   AreaChart,
@@ -357,10 +363,6 @@ export default function AnalyticsPage() {
     void fetchAnalyticsData();
   }, [currentMonth, currentYear]);
 
-  if (isLoading) {
-    return <AnalyticsSkeleton />;
-  }
-
   const {
     monthlyEvolution,
     categoryDistribution,
@@ -382,10 +384,57 @@ export default function AnalyticsPage() {
     (category) => category.value > 0,
   );
   const hasTopExpenses = topExpenses.length > 0;
-  const balanceData = [
-    { name: "Receitas", value: Number(totalIncome) || 0, fill: "#10b981" },
-    { name: "Despesas", value: Number(totalExpense) || 0, fill: "#71717a" },
-  ];
+  const savingsRate =
+    totalIncome > 0 ? (projectedSavings / totalIncome) * 100 : 0;
+  const balanceData = useMemo(
+    () => [
+      { name: "Receitas", value: Number(totalIncome) || 0, fill: "#10b981" },
+      { name: "Despesas", value: Number(totalExpense) || 0, fill: "#71717a" },
+    ],
+    [totalExpense, totalIncome],
+  );
+  const financialInsights = useMemo(() => {
+    const monthsWithExpenses = monthlyEvolution.filter((item) => item.gastos > 0);
+    const averageExpense =
+      monthsWithExpenses.length > 0
+        ? monthsWithExpenses.reduce((sum, item) => sum + item.gastos, 0) /
+          monthsWithExpenses.length
+        : 0;
+    const dominantCategory = categoryDistribution[0];
+
+    return [
+      {
+        title: "Taxa de poupança",
+        value: `${savingsRate.toFixed(1)}%`,
+        description:
+          savingsRate >= 20
+            ? "Boa margem entre receita e gastos pessoais."
+            : "Margem apertada para o mês selecionado.",
+        icon: BadgePercent,
+        tone: savingsRate >= 20 ? "text-emerald-300" : "text-amber-300",
+      },
+      {
+        title: "Média de gastos",
+        value: brlFormatter.format(averageExpense),
+        description: "Média mensal dos últimos períodos carregados.",
+        icon: Activity,
+        tone: "text-zinc-100",
+      },
+      {
+        title: "Categoria dominante",
+        value: dominantCategory?.name ?? "Sem dados",
+        description: dominantCategory
+          ? brlFormatter.format(dominantCategory.value)
+          : "Nenhuma despesa pessoal no período.",
+        icon: CircleDollarSign,
+        tone: "text-sky-300",
+      },
+    ];
+  }, [categoryDistribution, monthlyEvolution, savingsRate]);
+
+  if (isLoading) {
+    return <AnalyticsSkeleton />;
+  }
 
   return (
     <div className="flex min-h-full w-full flex-col gap-6 md:gap-8">
@@ -467,6 +516,36 @@ export default function AnalyticsPage() {
             </p>
           </CardContent>
         </Card>
+      </section>
+
+      <section className="grid grid-cols-1 gap-3 lg:grid-cols-3">
+        {financialInsights.map((insight) => {
+          const Icon = insight.icon;
+
+          return (
+            <Card
+              key={insight.title}
+              className="border-zinc-800/80 bg-zinc-950/60 shadow-none"
+            >
+              <CardContent className="flex items-start gap-4 p-4">
+                <span className="flex size-10 shrink-0 items-center justify-center rounded-xl border border-zinc-800 bg-zinc-900 text-zinc-300">
+                  <Icon className="size-5" />
+                </span>
+                <div className="min-w-0">
+                  <p className="text-xs font-medium uppercase tracking-wide text-zinc-500">
+                    {insight.title}
+                  </p>
+                  <p className={cn("mt-1 truncate text-lg font-semibold", insight.tone)}>
+                    {insight.value}
+                  </p>
+                  <p className="mt-1 text-xs leading-5 text-zinc-500">
+                    {insight.description}
+                  </p>
+                </div>
+              </CardContent>
+            </Card>
+          );
+        })}
       </section>
 
       <section className="grid grid-cols-1 gap-4 lg:grid-cols-12">
