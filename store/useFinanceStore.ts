@@ -181,6 +181,7 @@ interface FinanceState {
     groupId: string,
     fromDate: string,
     transaction: UpdateTransactionInput,
+    scope?: "future" | "all",
   ) => Promise<void>;
   updateTransactionCategories: (
     transactionIds: string[],
@@ -1216,7 +1217,7 @@ export const useFinanceStore = create<FinanceState>()((set, get) => ({
     }
   },
 
-  updateTransactionGroup: async (groupId, fromDate, transaction) => {
+  updateTransactionGroup: async (groupId, fromDate, transaction, scope = "future") => {
     try {
       const user = await getCurrentUser();
       if (!user) throw new Error("Usuário não autenticado.");
@@ -1228,7 +1229,8 @@ export const useFinanceStore = create<FinanceState>()((set, get) => ({
         .filter(
           (currentTransaction) =>
             currentTransaction.groupId === groupId &&
-            normalizeDateOnly(currentTransaction.date) >= normalizedFromDate,
+            (scope === "all" ||
+              normalizeDateOnly(currentTransaction.date) >= normalizedFromDate),
         )
         .sort((left, right) => {
           const leftInstallment =

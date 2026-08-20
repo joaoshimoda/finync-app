@@ -47,7 +47,7 @@ interface AddTransactionModalProps {
 }
 
 type ExpenseTransactionType = "fixed" | "card";
-type RecurringEditScope = "single" | "future";
+type GroupEditScope = "single" | "future" | "all";
 
 function addMonthsToDateOnly(date: string, monthsToAdd: number) {
   const { day, month, year } = getDateOnlyParts(date);
@@ -148,6 +148,12 @@ function TransactionModalContent({
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [pendingRecurringUpdate, setPendingRecurringUpdate] =
     useState<CreateTransactionInput | null>(null);
+  const isEditingInstallment =
+    Boolean(editingTransaction?.groupId) &&
+    !editingTransaction?.is_recurring &&
+    (editingTransaction?.installmentsTotal ??
+      editingTransaction?.installments ??
+      1) > 1;
 
   useEffect(() => {
     void Promise.all([fetchCards(), fetchDependents(), fetchCategories()]);
@@ -167,17 +173,21 @@ function TransactionModalContent({
   const transactionCardId =
     transactionType === "card" ? selectedCardId || null : null;
 
-  async function saveRecurringUpdate(scope: RecurringEditScope) {
+  async function saveGroupedUpdate(scope: GroupEditScope) {
     if (!editingTransaction || !pendingRecurringUpdate || isSubmitting) return;
 
     setIsSubmitting(true);
 
     try {
-      if (scope === "future" && editingTransaction.groupId) {
+      if (
+        (scope === "future" || scope === "all") &&
+        editingTransaction.groupId
+      ) {
         await updateTransactionGroup(
           editingTransaction.groupId,
           editingTransaction.date,
           pendingRecurringUpdate,
+          scope,
         );
       } else {
         await updateTransaction(editingTransaction.id, pendingRecurringUpdate);
@@ -185,14 +195,16 @@ function TransactionModalContent({
 
       await fetchTransactions();
       toast.success(
-        scope === "future"
-          ? "Recorrência atualizada deste mês em diante."
+        scope === "all"
+          ? "Grupo inteiro atualizado."
+          : scope === "future"
+            ? "Lançamentos atualizados deste mês em diante."
           : "Lançamento deste mês atualizado.",
       );
       onClose();
     } catch (error) {
-      console.error("Erro ao atualizar recorrência:", error);
-      toast.error("Erro ao atualizar recorrência.");
+      console.error("Erro ao atualizar grupo:", error);
+      toast.error("Erro ao atualizar lançamento.");
     } finally {
       setIsSubmitting(false);
     }
@@ -255,7 +267,10 @@ function TransactionModalContent({
 
     try {
       if (editingTransaction) {
-        if (editingTransaction.groupId && editingTransaction.is_recurring) {
+        if (
+          editingTransaction.groupId &&
+          (editingTransaction.is_recurring || isEditingInstallment)
+        ) {
           setPendingRecurringUpdate(transactionPayload);
           setIsSubmitting(false);
           return;
@@ -596,28 +611,39 @@ function TransactionModalContent({
               Como deseja aplicar esta edição?
             </p>
             <p className="mt-1 text-xs leading-5 text-zinc-500">
-              Preserve o histórico editando apenas este mês ou atualize a
-              recorrência deste lançamento em diante.
+              Preserve o histórico editando apenas este lançamento ou propague a
+              alteração pelo grupo.
             </p>
 
-            <div className="mt-4 grid gap-3 sm:grid-cols-2">
+            <div className="mt-4 grid gap-3 sm:grid-cols-3">
               <Button
                 type="button"
                 variant="secondary"
                 disabled={isSubmitting}
-                onClick={() => void saveRecurringUpdate("single")}
+                onClick={() => void saveGroupedUpdate("single")}
                 className="h-11 cursor-pointer"
               >
-                Somente este mês
+                Somente este
               </Button>
               <Button
                 type="button"
                 disabled={isSubmitting}
-                onClick={() => void saveRecurringUpdate("future")}
+                onClick={() => void saveGroupedUpdate("future")}
                 className="h-11 cursor-pointer bg-emerald-600 font-semibold text-white hover:bg-emerald-700"
               >
                 Este e os próximos
               </Button>
+              {isEditingInstallment ? (
+                <Button
+                  type="button"
+                  variant="outline"
+                  disabled={isSubmitting}
+                  onClick={() => void saveGroupedUpdate("all")}
+                  className="h-11 cursor-pointer"
+                >
+                  Todas parcelas
+                </Button>
+              ) : null}
             </div>
             <Button
               type="button"
@@ -648,7 +674,8 @@ function TransactionModalContent({
           >
             {isSubmitting
               ? "Salvando..."
-              : editingTransaction?.groupId && editingTransaction.is_recurring
+              : editingTransaction?.groupId &&
+                  (editingTransaction.is_recurring || isEditingInstallment)
                 ? "Escolher escopo"
                 : "Salvar transação"}
           </Button>
