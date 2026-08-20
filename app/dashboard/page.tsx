@@ -875,16 +875,16 @@ export default function DashboardPage() {
         />
       </div>
 
-      <section className="space-y-4">
-        <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-5">
+      <section className="space-y-3">
+        <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5">
           {[
             {
               icon: ReceiptText,
-              label: "Saldo total",
+              label: "Saldo disponível",
               tone: "text-zinc-50",
               value: monthlyBalances.projectedBalance,
-              detail: "Livre até o fim do mês",
-              featured: true,
+              detail: "Projeção pessoal do mês",
+              className: "border-zinc-800 bg-zinc-950",
             },
             {
               icon: TrendingUp,
@@ -892,6 +892,7 @@ export default function DashboardPage() {
               tone: "text-emerald-300",
               value: monthlyBalances.totalIncome,
               detail: "Entradas registradas",
+              className: "bg-card",
             },
             {
               icon: CreditCard,
@@ -899,13 +900,15 @@ export default function DashboardPage() {
               tone: "text-violet-300",
               value: monthlyBalances.creditCardUntilToday,
               detail: `Meu: ${formatPrivateCurrency(monthlyBalances.userCreditCardUntilToday)} • Dependentes: ${formatPrivateCurrency(monthlyBalances.dependentCreditCardUntilToday)}`,
+              className: "bg-card",
             },
             {
               icon: CreditCard,
-              label: "Projeção cartão",
+              label: "Projeção de fechamento",
               tone: "text-blue-300",
               value: monthlyBalances.creditCardProjected,
               detail: `Meu: ${formatPrivateCurrency(monthlyBalances.userCreditCardProjected)} • Dependentes: ${formatPrivateCurrency(monthlyBalances.dependentCreditCardProjected)}`,
+              className: "bg-card",
             },
             {
               icon: ReceiptText,
@@ -913,6 +916,7 @@ export default function DashboardPage() {
               tone: "text-orange-300",
               value: monthlyBalances.totalPendingObligations,
               detail: `Meu: ${formatPrivateCurrency(monthlyBalances.personalPendingObligations)} • Dependentes: ${formatPrivateCurrency(monthlyBalances.dependentPendingObligations)}`,
+              className: "bg-card",
             },
           ].map((item) => {
             const MetricIcon = item.icon;
@@ -921,8 +925,8 @@ export default function DashboardPage() {
               <Card
                 key={item.label}
                 className={cn(
-                  "min-h-[132px] rounded-xl border border-border/50 shadow-none",
-                  item.featured ? "bg-zinc-950 text-zinc-50" : "bg-card",
+                  "min-h-[118px] rounded-xl border border-border/50 shadow-none",
+                  item.className,
                 )}
               >
                 <CardContent className="flex h-full flex-col justify-between p-4">
@@ -933,7 +937,7 @@ export default function DashboardPage() {
                     <MetricIcon className={cn("size-4", item.tone)} />
                   </div>
                   <strong
-                    className={cn("mt-4 block text-2xl font-semibold", item.tone)}
+                    className={cn("mt-3 block text-xl font-semibold", item.tone)}
                   >
                     {formatPrivateCurrency(item.value)}
                   </strong>
