@@ -1,7 +1,7 @@
 "use client";
 
 import { FormEvent, useEffect, useState } from "react";
-import { Loader2, Plus, Trash2, UserRound } from "lucide-react";
+import { Loader2, PlusCircle, Trash2, UserRound } from "lucide-react";
 import { toast } from "sonner";
 
 import { Button } from "@/components/ui/button";
@@ -15,9 +15,18 @@ import {
 import { ConfirmDialog } from "@/components/ui/ConfirmDialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { cn } from "@/lib/utils";
 import { useFinanceStore } from "@/store/useFinanceStore";
 
-export function DependentManager() {
+interface DependentManagerProps {
+  selectedDependentId?: string | null;
+  onSelectDependent?: (dependentId: string) => void;
+}
+
+export function DependentManager({
+  selectedDependentId,
+  onSelectDependent,
+}: DependentManagerProps) {
   const dependents = useFinanceStore((state) => state.dependents);
   const fetchDependents = useFinanceStore((state) => state.fetchDependents);
   const addDependent = useFinanceStore((state) => state.addDependent);
@@ -62,15 +71,15 @@ export function DependentManager() {
   return (
     <Card className="border-zinc-800 bg-zinc-950 shadow-none">
       <CardHeader className="border-b border-zinc-800">
-        <CardTitle>Dependentes</CardTitle>
+        <CardTitle>Cadastro</CardTitle>
         <CardDescription>
           Cadastre pessoas para identificar gastos e valores a receber.
         </CardDescription>
       </CardHeader>
-      <CardContent className="space-y-7 py-6">
+      <CardContent className="space-y-6 p-5">
         <form
           onSubmit={handleSubmit}
-          className="grid gap-4 sm:grid-cols-[minmax(0,1fr)_auto] sm:items-end"
+          className="rounded-2xl border border-zinc-800 bg-zinc-900/40 p-4"
         >
           <div className="space-y-2">
             <Label htmlFor="dependent-name">Nome</Label>
@@ -84,31 +93,52 @@ export function DependentManager() {
               required
             />
           </div>
-          <Button type="submit" disabled={isSubmitting}>
+          <Button type="submit" disabled={isSubmitting} className="mt-4 w-full">
             {isSubmitting ? (
               <Loader2 className="size-4 animate-spin" />
             ) : (
-              <Plus className="size-4" />
+              <PlusCircle className="size-4" />
             )}
             Adicionar
           </Button>
         </form>
 
-        <div className="divide-y divide-zinc-800 border-y border-zinc-800">
+        <div className="space-y-2">
           {dependents.length ? (
             dependents.map((dependent) => (
               <div
                 key={dependent.id}
-                className="flex items-center justify-between gap-4 py-4"
+                className={cn(
+                  "flex items-center justify-between gap-4 rounded-2xl border p-3 transition-colors",
+                  selectedDependentId === dependent.id
+                    ? "border-emerald-500/40 bg-emerald-500/10"
+                    : "border-zinc-800 bg-zinc-900/30 hover:bg-zinc-900",
+                )}
               >
-                <div className="flex min-w-0 items-center gap-3">
-                  <span className="flex size-9 shrink-0 items-center justify-center rounded-lg bg-zinc-900 text-zinc-400">
+                <button
+                  type="button"
+                  onClick={() => onSelectDependent?.(dependent.id)}
+                  className="flex min-w-0 flex-1 items-center gap-3 text-left"
+                >
+                  <span
+                    className={cn(
+                      "flex size-10 shrink-0 items-center justify-center rounded-xl",
+                      selectedDependentId === dependent.id
+                        ? "bg-emerald-500/15 text-emerald-300"
+                        : "bg-zinc-950 text-zinc-400",
+                    )}
+                  >
                     <UserRound className="size-4" />
                   </span>
-                  <span className="truncate text-sm font-medium text-zinc-100">
-                    {dependent.name}
+                  <span className="min-w-0">
+                    <span className="block truncate text-sm font-medium text-zinc-100">
+                      {dependent.name}
+                    </span>
+                    <span className="text-xs text-zinc-500">
+                      Ver lançamentos vinculados
+                    </span>
                   </span>
-                </div>
+                </button>
 
                 <ConfirmDialog
                   title="Remover dependente?"
@@ -121,7 +151,7 @@ export function DependentManager() {
                     variant="ghost"
                     size="icon-sm"
                     aria-label={`Remover ${dependent.name}`}
-                    className="text-zinc-500 hover:bg-red-950 hover:text-red-300"
+                    className="shrink-0 text-zinc-500 hover:bg-red-950 hover:text-red-300"
                   >
                     <Trash2 />
                   </Button>
@@ -129,9 +159,10 @@ export function DependentManager() {
               </div>
             ))
           ) : (
-            <p className="py-6 text-sm text-zinc-500">
-              Nenhum dependente cadastrado.
-            </p>
+            <div className="rounded-2xl border border-dashed border-zinc-800 p-6 text-sm leading-6 text-zinc-500">
+              Nenhum dependente cadastrado. Adicione um nome para começar a
+              separar gastos de terceiros.
+            </div>
           )}
         </div>
       </CardContent>
