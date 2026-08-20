@@ -81,6 +81,27 @@ type ExistingImportTransaction = {
   installments_total: number | null;
   dependent_id: string | null;
 };
+type PreparedImportTransaction = {
+  sourceIndex: number;
+  card_id: string;
+  dependent_id: string | null;
+  group_id: string | null;
+  month_start: string;
+  transaction_date: string;
+  type: "card";
+  description: string;
+  category: string;
+  amount: number;
+  day: number;
+  status: "CONFIRMADO";
+  owner: string;
+  installment_number: number;
+  installments_total: number;
+  notes: string;
+  recurring: false;
+  direct_subscription: false;
+  split_with: string[];
+};
 
 const brlFormatter = new Intl.NumberFormat("pt-BR", {
   style: "currency",
@@ -438,6 +459,10 @@ export default function ImportarPage() {
   const [splitMode, setSplitMode] = useState<SplitMode>("mine");
   const [splitDependentId, setSplitDependentId] = useState("");
   const [splitUserAmount, setSplitUserAmount] = useState("");
+  const [existingImportSignatures, setExistingImportSignatures] = useState<
+    Set<string>
+  >(new Set());
+  const [isCheckingDuplicates, setIsCheckingDuplicates] = useState(false);
   const referenceMonthOptions = useMemo(() => getReferenceMonthOptions(), []);
   const [referenceMonth, setReferenceMonth] = useState("");
   const [selectedCardId, setSelectedCardId] = useState("");
@@ -572,26 +597,140 @@ export default function ImportarPage() {
       ),
     }));
   }, [effectiveReferenceMonth, parsedData]);
-  const importRowsCount = useMemo(
-    () =>
-      parsedData.reduce((total, transaction) => {
-        if (
-          transaction.type === "credit" ||
-          !transaction.projectFutureInstallments ||
-          transaction.installmentNumber >= transaction.installmentsTotal
-        ) {
-          return total + 1;
+  const preparedImportRows = useMemo<PreparedImportTransaction[]>(() => {
+    const monthStart = getMonthStartFromReference(effectiveReferenceMonth);
+
+    return parsedData.flatMap((sourceTransaction, sourceIndex) =>
+      getRowsForImport(sourceTransaction).map((transaction) => {
+        const dependent = transaction.dependentId
+          ? dependents.find((item) => item.id === transaction.dependentId)
+          : null;
+        const owner = dependent?.name ?? "eu";
+
+        return {
+          sourceIndex,
+          card_id: effectiveSelectedCardId,
+          dependent_id: transaction.dependentId ?? null,
+          group_id: transaction.groupId ?? null,
+          month_start: addMonthsToDateOnly(
+            monthStart,
+            transaction.referenceMonthOffset,
+          ),
+          transaction_date: transaction.date,
+          type: "card",
+          description: transaction.description,
+          category:
+            transaction.type === "credit"
+              ? CARD_CREDIT_ADJUSTMENT_CATEGORY
+              : normalizeImportedExpenseCategory(transaction.category ?? null),
+          amount: transaction.amount,
+          day: getDateOnlyParts(transaction.date).day,
+          status: "CONFIRMADO",
+          owner,
+          installment_number: transaction.installmentNumber,
+          installments_total: transaction.installmentsTotal,
+          notes:
+            transaction.type === "credit"
+              ? `${CARD_CREDIT_ADJUSTMENT_NOTE} Importado de ${fileName}`
+              : `Importado de ${fileName}`,
+          recurring: false,
+          direct_subscription: false,
+          split_with: [dependent?.id ?? "eu"],
+        };
+      }),
+    );
+  }, [dependents, effectiveReferenceMonth, effectiveSelectedCardId, fileName, parsedData]);
+  useEffect(() => {
+    let isMounted = true;
+
+    async function fetchExistingImportSignatures() {
+      if (!preparedImportRows.length || !effectiveSelectedCardId) {
+        if (isMounted) {
+          setExistingImportSignatures(new Set());
+          setIsCheckingDuplicates(false);
+        }
+        return;
+      }
+
+      setIsCheckingDuplicates(true);
+
+      try {
+        const {
+          data: { user },
+          error: userError,
+        } = await supabase.auth.getUser();
+
+        if (userError || !user) {
+          if (isMounted) setExistingImportSignatures(new Set());
+          return;
         }
 
-        return (
-          total +
-          transaction.installmentsTotal -
-          transaction.installmentNumber +
-          1
+        const invoiceMonths = Array.from(
+          new Set(preparedImportRows.map((transaction) => transaction.month_start)),
         );
-      }, 0),
-    [parsedData],
-  );
+        const { data, error } = await supabase
+          .from("transactions")
+          .select(
+            "month_start, transaction_date, description, amount, installment_number, installments_total, dependent_id",
+          )
+          .eq("user_id", user.id)
+          .eq("card_id", effectiveSelectedCardId)
+          .in("month_start", invoiceMonths);
+
+        if (error) throw error;
+
+        if (isMounted) {
+          setExistingImportSignatures(
+            new Set(
+              ((data ?? []) as ExistingImportTransaction[]).map(
+                getImportSignature,
+              ),
+            ),
+          );
+        }
+      } catch (error) {
+        console.error("Erro ao verificar duplicidade da importação:", error);
+        if (isMounted) setExistingImportSignatures(new Set());
+      } finally {
+        if (isMounted) setIsCheckingDuplicates(false);
+      }
+    }
+
+    void fetchExistingImportSignatures();
+
+    return () => {
+      isMounted = false;
+    };
+  }, [effectiveSelectedCardId, preparedImportRows]);
+
+  const importDuplicateState = useMemo(() => {
+    const currentFileSignatures = new Set<string>();
+    const duplicateSourceIndexes = new Set<number>();
+    let newCount = 0;
+    let duplicateCount = 0;
+
+    preparedImportRows.forEach((transaction) => {
+      const signature = getImportSignature(transaction);
+      const isDuplicate =
+        existingImportSignatures.has(signature) ||
+        currentFileSignatures.has(signature);
+
+      if (isDuplicate) {
+        duplicateSourceIndexes.add(transaction.sourceIndex);
+        duplicateCount += 1;
+        return;
+      }
+
+      currentFileSignatures.add(signature);
+      newCount += 1;
+    });
+
+    return {
+      duplicateCount,
+      duplicateSourceIndexes,
+      newCount,
+    };
+  }, [existingImportSignatures, preparedImportRows]);
   const categoryOptions = useMemo(() => {
     const categoryLabels = new Set(
       categories
@@ -804,80 +943,30 @@ export default function ImportarPage() {
 
       if (profileError) throw profileError;
 
-      const monthStart = getMonthStartFromReference(effectiveReferenceMonth);
-      const rowsToImport = parsedData.flatMap(getRowsForImport);
-      const formattedData = rowsToImport.map((transaction) => {
-        const dependent = transaction.dependentId
-          ? dependents.find((item) => item.id === transaction.dependentId)
-          : null;
-        const owner = dependent?.name ?? "eu";
-
-        return {
-          user_id: user.id,
-          card_id: effectiveSelectedCardId,
-          dependent_id: transaction.dependentId ?? null,
-          group_id: transaction.groupId ?? null,
-          month_start: addMonthsToDateOnly(
-            monthStart,
-            transaction.referenceMonthOffset,
-          ),
-          transaction_date: transaction.date,
-          type: "card",
-          description: transaction.description,
-          category:
-            transaction.type === "credit"
-              ? CARD_CREDIT_ADJUSTMENT_CATEGORY
-              : normalizeImportedExpenseCategory(transaction.category ?? null),
-          amount: transaction.amount,
-          day: getDateOnlyParts(transaction.date).day,
-          status: "CONFIRMADO",
-          owner,
-          installment_number: transaction.installmentNumber,
-          installments_total: transaction.installmentsTotal,
-          notes:
-            transaction.type === "credit"
-              ? `${CARD_CREDIT_ADJUSTMENT_NOTE} Importado de ${fileName}`
-              : `Importado de ${fileName}`,
-          recurring: false,
-          direct_subscription: false,
-          split_with: [dependent?.id ?? "eu"],
-        };
-      });
-
-      const invoiceMonths = Array.from(
-        new Set(formattedData.map((transaction) => transaction.month_start)),
-      );
-      const { data: existingTransactions, error: existingError } = await supabase
-        .from("transactions")
-        .select(
-          "month_start, transaction_date, description, amount, installment_number, installments_total, dependent_id",
-        )
-        .eq("user_id", user.id)
-        .eq("card_id", effectiveSelectedCardId)
-        .in("month_start", invoiceMonths);
-
-      if (existingError) throw existingError;
-
-      const existingSignatures = new Set(
-        ((existingTransactions ?? []) as ExistingImportTransaction[]).map(
-          getImportSignature,
-        ),
-      );
       const currentFileSignatures = new Set<string>();
-      const uniqueData = formattedData.filter((transaction) => {
-        const signature = getImportSignature(transaction);
+      const uniqueData = preparedImportRows
+        .filter((transaction) => {
+          const signature = getImportSignature(transaction);
 
-        if (
-          existingSignatures.has(signature) ||
-          currentFileSignatures.has(signature)
-        ) {
-          return false;
-        }
+          if (
+            existingImportSignatures.has(signature) ||
+            currentFileSignatures.has(signature)
+          ) {
+            return false;
+          }
 
-        currentFileSignatures.add(signature);
-        return true;
-      });
-      const duplicateCount = formattedData.length - uniqueData.length;
+          currentFileSignatures.add(signature);
+          return true;
+        })
+        .map(({ sourceIndex, ...transaction }) => {
+          void sourceIndex;
+
+          return {
+            ...transaction,
+            user_id: user.id,
+          };
+        });
+      const duplicateCount = preparedImportRows.length - uniqueData.length;
 
       if (!uniqueData.length) {
         toast.info("Todos os lançamentos dessa fatura já existem.");
@@ -951,7 +1040,9 @@ export default function ImportarPage() {
               </CardTitle>
               <CardDescription>
                 {fileName} · {parsedData.length} linhas revisadas ·{" "}
-                {importRowsCount} lançamentos serão importados.
+                {isCheckingDuplicates
+                  ? "verificando duplicadas..."
+                  : `${importDuplicateState.newCount} novos · ${importDuplicateState.duplicateCount} duplicados`}
               </CardDescription>
             </div>
             <Button
@@ -1020,12 +1111,33 @@ export default function ImportarPage() {
               </div>
             </div>
 
+            <div className="flex flex-wrap gap-2 border-b border-zinc-800/80 px-4 py-3 text-xs">
+              <span className="rounded-full border border-emerald-500/20 bg-emerald-500/10 px-3 py-1 font-medium text-emerald-300">
+                Novos: {importDuplicateState.newCount}
+              </span>
+              <span className="rounded-full border border-amber-500/20 bg-amber-500/10 px-3 py-1 font-medium text-amber-300">
+                Duplicados: {importDuplicateState.duplicateCount}
+              </span>
+              {isCheckingDuplicates ? (
+                <span className="rounded-full border border-zinc-700 bg-zinc-900 px-3 py-1 text-zinc-400">
+                  Verificando banco...
+                </span>
+              ) : null}
+            </div>
+
             <div className="overflow-hidden">
               <div className="space-y-3 p-3 md:hidden">
-                {previewRows.map((transaction, index) => (
+                {previewRows.map((transaction, index) => {
+                  const isDuplicate =
+                    importDuplicateState.duplicateSourceIndexes.has(index);
+
+                  return (
                   <div
                     key={`${transaction.description}-${index}`}
-                    className="rounded-2xl border border-zinc-800 bg-zinc-900/50 p-3"
+                    className={cn(
+                      "rounded-2xl border border-zinc-800 bg-zinc-900/50 p-3",
+                      isDuplicate && "opacity-60",
+                    )}
                   >
                     <MobileTransactionItem
                       className="min-h-16 rounded-none border-0 bg-transparent p-0"
@@ -1045,16 +1157,22 @@ export default function ImportarPage() {
                           size="icon"
                           className="size-11 rounded-xl"
                           onClick={() => openSplitDialog(index)}
-                          disabled={transaction.type === "credit"}
+                          disabled={transaction.type === "credit" || isDuplicate}
                           aria-label="Dividir ou atribuir gasto"
                         >
                           <Split className="size-5" />
                         </Button>
                       }
                     />
+                    {isDuplicate ? (
+                      <span className="mt-2 inline-flex rounded-full border border-amber-500/20 bg-amber-500/10 px-2 py-0.5 text-[11px] font-medium text-amber-300">
+                        Ja existe
+                      </span>
+                    ) : null}
                     <div className="mt-3 grid gap-3 border-t border-zinc-800 pt-3">
                       {transaction.type !== "credit" ? (
                         <Select
+                          disabled={isDuplicate}
                           value={transaction.category || "__no_category__"}
                           onValueChange={(nextCategory) =>
                             setParsedData((currentRows) =>
@@ -1095,6 +1213,7 @@ export default function ImportarPage() {
                           <label className="flex min-h-10 items-center gap-2">
                             <Checkbox
                               className="size-5"
+                              disabled={isDuplicate}
                               checked={transaction.projectFutureInstallments}
                               onCheckedChange={(checked) =>
                                 setParsedData((currentRows) =>
@@ -1116,7 +1235,8 @@ export default function ImportarPage() {
                       </div>
                     </div>
                   </div>
-                ))}
+                  );
+                })}
               </div>
 
               <Table className="hidden w-full table-fixed text-xs md:table">
@@ -1134,15 +1254,29 @@ export default function ImportarPage() {
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {previewRows.map((transaction, index) => (
-                    <TableRow key={`${transaction.description}-${index}`}>
+                  {previewRows.map((transaction, index) => {
+                    const isDuplicate =
+                      importDuplicateState.duplicateSourceIndexes.has(index);
+
+                    return (
+                    <TableRow
+                      key={`${transaction.description}-${index}`}
+                      className={cn(isDuplicate && "opacity-60")}
+                    >
                       <TableCell className="px-3 text-zinc-400">
                         {formatPreviewDate(transaction.date)}
                       </TableCell>
                       <TableCell className="truncate px-3 font-medium text-zinc-100">
-                        <span title={transaction.description}>
-                          {transaction.description}
-                        </span>
+                        <div className="flex min-w-0 items-center gap-2">
+                          <span className="truncate" title={transaction.description}>
+                            {transaction.description}
+                          </span>
+                          {isDuplicate ? (
+                            <span className="shrink-0 rounded-full border border-amber-500/20 bg-amber-500/10 px-2 py-0.5 text-[10px] font-medium text-amber-300">
+                              Ja existe
+                            </span>
+                          ) : null}
+                        </div>
                       </TableCell>
                       <TableCell className="truncate px-3 text-zinc-400">
                         {formatInvoiceMonthLabel(transaction.invoiceMonthStart)}
@@ -1154,6 +1288,7 @@ export default function ImportarPage() {
                           </span>
                         ) : (
                           <Select
+                            disabled={isDuplicate}
                             value={transaction.category || "__no_category__"}
                             onValueChange={(nextCategory) =>
                               setParsedData((currentRows) =>
@@ -1199,6 +1334,7 @@ export default function ImportarPage() {
                           <label className="flex items-center gap-1.5 text-xs">
                             <Checkbox
                               className="size-4"
+                              disabled={isDuplicate}
                               checked={transaction.projectFutureInstallments}
                               onCheckedChange={(checked) =>
                                 setParsedData((currentRows) =>
@@ -1230,14 +1366,15 @@ export default function ImportarPage() {
                           size="icon-sm"
                           className="text-zinc-400 hover:text-white"
                           onClick={() => openSplitDialog(index)}
-                          disabled={transaction.type === "credit"}
+                          disabled={transaction.type === "credit" || isDuplicate}
                           aria-label="Dividir ou atribuir gasto"
                         >
                           <Split className="size-4" />
                         </Button>
                       </TableCell>
                     </TableRow>
-                  ))}
+                    );
+                  })}
                 </TableBody>
               </Table>
             </div>
@@ -1255,11 +1392,18 @@ export default function ImportarPage() {
                 type="button"
                 className="bg-emerald-600 text-white hover:bg-emerald-700"
                 onClick={() => void handleImport()}
-                disabled={isSubmitting || !effectiveSelectedCardId}
+                disabled={
+                  isSubmitting ||
+                  isCheckingDuplicates ||
+                  !effectiveSelectedCardId ||
+                  importDuplicateState.newCount === 0
+                }
               >
                 {isSubmitting
                   ? "Importando..."
-                  : `Importar ${importRowsCount} Transações`}
+                  : isCheckingDuplicates
+                    ? "Verificando..."
+                    : `Importar ${importDuplicateState.newCount} novos`}
               </Button>
             </div>
           </CardContent>
