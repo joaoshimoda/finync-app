@@ -5,6 +5,7 @@ import {
   Activity,
   BadgePercent,
   CircleDollarSign,
+  Info,
   ReceiptText,
   type LucideIcon,
 } from "lucide-react";
@@ -431,6 +432,33 @@ export default function AnalyticsPage() {
       },
     ];
   }, [categoryDistribution, monthlyEvolution, savingsRate]);
+  const dominantCategory = categoryDistribution[0];
+  const hasAnyFinancialData = totalIncome > 0 || totalExpense > 0;
+  const executiveSummary = useMemo(() => {
+    if (!hasAnyFinancialData) {
+      return "Ainda não há dados pessoais suficientes para montar uma leitura financeira deste mês.";
+    }
+
+    const committedText =
+      totalIncome > 0
+        ? `Você comprometeu ${committedIncome}% da sua renda pessoal.`
+        : "Não há receita pessoal registrada neste mês.";
+    const categoryText = dominantCategory
+      ? `Maior concentração: ${dominantCategory.name}.`
+      : "Nenhuma categoria de despesa pessoal registrada.";
+    const balanceText =
+      projectedSavings >= 0
+        ? `Saldo projetado positivo em ${brlFormatter.format(projectedSavings)}.`
+        : `Saldo projetado negativo em ${brlFormatter.format(Math.abs(projectedSavings))}.`;
+
+    return `${committedText} ${categoryText} ${balanceText}`;
+  }, [
+    committedIncome,
+    dominantCategory,
+    hasAnyFinancialData,
+    projectedSavings,
+    totalIncome,
+  ]);
 
   if (isLoading) {
     return <AnalyticsSkeleton />;
@@ -443,113 +471,135 @@ export default function AnalyticsPage() {
           Análise Financeira
         </h1>
         <p className="mt-2 text-sm text-zinc-400">
-          Gráficos, KPIs e indicadores de saúde financeira.
+          Diagnóstico pessoal do mês, sem gastos vinculados a dependentes.
         </p>
       </header>
 
+      <section className="grid grid-cols-1 gap-4 lg:grid-cols-12">
+        <Card className="border-zinc-800 bg-zinc-950 shadow-none lg:col-span-8">
+          <CardHeader className="p-5">
+            <div className="flex items-start justify-between gap-4">
+              <div>
+                <CardDescription>Resumo do mês</CardDescription>
+                <CardTitle className="mt-2 text-2xl tracking-tight text-zinc-50 md:text-3xl">
+                  {projectedSavings >= 0 ? "Fluxo positivo" : "Fluxo pressionado"}
+                </CardTitle>
+              </div>
+              <span className="flex size-9 shrink-0 items-center justify-center rounded-xl border border-zinc-800 bg-zinc-900 text-zinc-400">
+                <Activity className="size-4" />
+              </span>
+            </div>
+            <p className="mt-4 max-w-3xl text-sm leading-6 text-zinc-400">
+              {executiveSummary}
+            </p>
+          </CardHeader>
+        </Card>
+
+        <Card className="border-zinc-800 bg-zinc-950 shadow-none lg:col-span-4">
+          <CardContent className="flex h-full items-start gap-3 p-5">
+            <span className="mt-0.5 flex size-8 shrink-0 items-center justify-center rounded-lg border border-zinc-800 bg-zinc-900 text-zinc-500">
+              <Info className="size-4" />
+            </span>
+            <div>
+              <p className="text-sm font-medium text-zinc-100">
+                Escopo dos dados
+              </p>
+              <p className="mt-2 text-sm leading-6 text-zinc-500">
+                Esta aba considera apenas transações pessoais. Valores de
+                dependentes seguem visíveis no Dashboard e em Cartões.
+              </p>
+            </div>
+          </CardContent>
+        </Card>
+      </section>
+
       <Tabs defaultValue="desempenho" className="min-h-0 w-full">
-        <TabsList className="grid w-full grid-cols-2 border border-zinc-800 bg-zinc-900/60 p-1 backdrop-blur sm:w-[360px]">
+        <TabsList className="grid w-full grid-cols-2 border border-zinc-800 bg-zinc-900 p-1 sm:w-[360px]">
           <TabsTrigger value="desempenho">Desempenho</TabsTrigger>
           <TabsTrigger value="raio-x">Raio-X</TabsTrigger>
         </TabsList>
 
         <TabsContent value="desempenho" className="mt-6 space-y-5">
-      <section className="grid grid-cols-2 gap-3 lg:grid-cols-3 lg:gap-4">
-        <Card className="col-span-2 border-zinc-800/80 bg-zinc-900/50 shadow-none backdrop-blur lg:col-span-1">
-          <CardHeader className="p-4 pb-2">
-            <CardDescription>Despesa Total do Mês</CardDescription>
-            <CardTitle className="text-2xl text-zinc-50">
-              {brlFormatter.format(totalExpense)}
-            </CardTitle>
-          </CardHeader>
-          <CardContent className="p-4 pt-0">
-            <span
-              className={cn(
-                "text-sm font-medium",
-                expenseDelta > 0 ? "text-red-300" : "text-emerald-300",
-              )}
-            >
-              {expenseDelta > 0 ? "+" : ""}
-              {expenseDelta.toFixed(1)}% vs. mês anterior
-            </span>
-          </CardContent>
-        </Card>
-
-        <Card className="border-zinc-800/80 bg-zinc-900/50 shadow-none backdrop-blur">
-          <CardHeader className="p-4 pb-2">
-            <CardDescription>Renda Comprometida</CardDescription>
-            <CardTitle
-              className={cn(
-                "text-2xl",
-                isCommittedIncomeHigh ? "text-amber-300" : "text-emerald-300",
-              )}
-            >
-              {committedIncome}%
-            </CardTitle>
-          </CardHeader>
-          <CardContent className="space-y-2 p-4 pt-0">
-            <Progress
-              value={committedIncome}
-              className={cn(
-                "h-2 bg-zinc-800",
-                isCommittedIncomeHigh
-                  ? "[&_[data-slot=progress-indicator]]:bg-amber-400"
-                  : "[&_[data-slot=progress-indicator]]:bg-emerald-400",
-              )}
-            />
-            <p className="text-xs text-zinc-500">
-              Limite saudável recomendado: até 70%.
-            </p>
-          </CardContent>
-        </Card>
-
-        <Card className="border-zinc-800/80 bg-zinc-900/50 shadow-none backdrop-blur">
-          <CardHeader className="p-4 pb-2">
-            <CardDescription>Projeção de Poupança</CardDescription>
-            <CardTitle className="text-2xl text-emerald-300">
-              {brlFormatter.format(projectedSavings)}
-            </CardTitle>
-          </CardHeader>
-          <CardContent className="p-4 pt-0">
-            <p className="text-xs text-zinc-400">
-              Estimativa restante ao fim do mês atual.
-            </p>
-          </CardContent>
-        </Card>
+      <section className="grid grid-cols-2 gap-3 lg:grid-cols-4 lg:gap-4">
+        {[
+          {
+            label: "Receita",
+            value: brlFormatter.format(totalIncome),
+            helper: "Entradas pessoais",
+            tone: "text-emerald-300",
+          },
+          {
+            label: "Despesa pessoal",
+            value: brlFormatter.format(totalExpense),
+            helper: `${expenseDelta > 0 ? "+" : ""}${expenseDelta.toFixed(1)}% vs. mês anterior`,
+            tone: "text-zinc-50",
+          },
+          {
+            label: "Renda comprometida",
+            value: `${committedIncome}%`,
+            helper: "Meta saudável: até 70%",
+            tone: isCommittedIncomeHigh ? "text-amber-300" : "text-emerald-300",
+          },
+          {
+            label: "Poupança projetada",
+            value: brlFormatter.format(projectedSavings),
+            helper: "Estimativa ao fim do mês",
+            tone: projectedSavings >= 0 ? "text-emerald-300" : "text-red-300",
+          },
+        ].map((item) => (
+          <Card
+            key={item.label}
+            className="border-zinc-800 bg-zinc-950 shadow-none"
+          >
+            <CardContent className="p-4 md:p-5">
+              <p className="text-xs font-medium uppercase tracking-wide text-zinc-500">
+                {item.label}
+              </p>
+              <strong className={cn("mt-2 block text-xl font-semibold", item.tone)}>
+                {item.value}
+              </strong>
+              <p className="mt-1 text-xs text-zinc-500">{item.helper}</p>
+              {item.label === "Renda comprometida" ? (
+                <Progress
+                  value={committedIncome}
+                  className={cn(
+                    "mt-3 h-1.5 bg-zinc-800",
+                    isCommittedIncomeHigh
+                      ? "[&_[data-slot=progress-indicator]]:bg-amber-400"
+                      : "[&_[data-slot=progress-indicator]]:bg-emerald-400",
+                  )}
+                />
+              ) : null}
+            </CardContent>
+          </Card>
+        ))}
       </section>
 
-      <section className="grid grid-cols-1 gap-3 lg:grid-cols-3">
+      <section className="flex gap-2 overflow-x-auto rounded-xl border border-zinc-800 bg-zinc-950 p-2 [&::-webkit-scrollbar]:hidden [-ms-overflow-style:none] [scrollbar-width:none]">
         {financialInsights.map((insight) => {
           const Icon = insight.icon;
 
           return (
-            <Card
+            <div
               key={insight.title}
-              className="border-zinc-800/80 bg-zinc-950/60 shadow-none"
+              className="flex min-w-[240px] shrink-0 items-center gap-3 rounded-lg border border-zinc-800 bg-zinc-900/50 px-3 py-2"
             >
-              <CardContent className="flex items-start gap-4 p-4">
-                <span className="flex size-10 shrink-0 items-center justify-center rounded-xl border border-zinc-800 bg-zinc-900 text-zinc-300">
-                  <Icon className="size-5" />
-                </span>
-                <div className="min-w-0">
-                  <p className="text-xs font-medium uppercase tracking-wide text-zinc-500">
-                    {insight.title}
-                  </p>
-                  <p className={cn("mt-1 truncate text-lg font-semibold", insight.tone)}>
-                    {insight.value}
-                  </p>
-                  <p className="mt-1 text-xs leading-5 text-zinc-500">
-                    {insight.description}
-                  </p>
-                </div>
-              </CardContent>
-            </Card>
+              <span className="flex size-8 shrink-0 items-center justify-center rounded-lg bg-zinc-950 text-zinc-400">
+                <Icon className="size-4" />
+              </span>
+              <div className="min-w-0">
+                <p className="truncate text-xs text-zinc-500">{insight.title}</p>
+                <p className={cn("truncate text-sm font-medium", insight.tone)}>
+                  {insight.value}
+                </p>
+              </div>
+            </div>
           );
         })}
       </section>
 
       <section className="grid grid-cols-1 gap-4 lg:grid-cols-12">
-        <Card className="border-zinc-800/80 bg-zinc-900/50 shadow-none backdrop-blur lg:col-span-8">
+        <Card className="border-zinc-800 bg-zinc-950 shadow-none lg:col-span-8">
           <CardHeader className="p-4 pb-2">
             <CardTitle>Evolução de Gastos vs Receitas</CardTitle>
             <CardDescription>
@@ -557,6 +607,7 @@ export default function AnalyticsPage() {
             </CardDescription>
           </CardHeader>
           <CardContent className="h-[300px] min-h-0 min-w-0 p-3 pt-0">
+            {hasAnyFinancialData ? (
             <ResponsiveContainer width="100%" height="100%" minWidth={1} minHeight={1}>
               <AreaChart data={monthlyEvolution}>
                 <defs>
@@ -613,10 +664,16 @@ export default function AnalyticsPage() {
                 />
               </AreaChart>
             </ResponsiveContainer>
+            ) : (
+              <div className="flex h-full items-center justify-center rounded-xl border border-dashed border-zinc-800 text-center text-sm text-zinc-500">
+                Registre receitas e despesas pessoais para visualizar a
+                evolução.
+              </div>
+            )}
           </CardContent>
         </Card>
 
-        <Card className="border-zinc-800/80 bg-zinc-900/50 shadow-none backdrop-blur lg:col-span-4">
+        <Card className="border-zinc-800 bg-zinc-950 shadow-none lg:col-span-4">
           <CardHeader className="p-4 pb-2">
             <CardTitle>Balanço do Mês</CardTitle>
             <CardDescription>
@@ -624,6 +681,7 @@ export default function AnalyticsPage() {
             </CardDescription>
           </CardHeader>
           <CardContent className="h-[300px] min-h-0 min-w-0 p-3 pt-0">
+            {hasAnyFinancialData ? (
             <ResponsiveContainer width="100%" height="100%" minWidth={1} minHeight={1}>
               <BarChart data={balanceData}>
                 <XAxis
@@ -659,6 +717,11 @@ export default function AnalyticsPage() {
                 </Bar>
               </BarChart>
             </ResponsiveContainer>
+            ) : (
+              <div className="flex h-full items-center justify-center rounded-xl border border-dashed border-zinc-800 text-center text-sm text-zinc-500">
+                Sem receita ou despesa pessoal no mês selecionado.
+              </div>
+            )}
           </CardContent>
         </Card>
       </section>
@@ -666,7 +729,7 @@ export default function AnalyticsPage() {
 
         <TabsContent value="raio-x" className="mt-6">
       <section className="grid grid-cols-1 gap-4 lg:grid-cols-12">
-        <Card className="border-zinc-800/80 bg-zinc-900/50 shadow-none backdrop-blur lg:col-span-4">
+        <Card className="border-zinc-800 bg-zinc-950 shadow-none lg:col-span-4">
           <CardHeader className="p-4 pb-2">
             <CardTitle>Distribuição por Categorias</CardTitle>
             <CardDescription>
@@ -728,7 +791,7 @@ export default function AnalyticsPage() {
           </CardContent>
         </Card>
 
-        <Card className="border-zinc-800/80 bg-zinc-900/50 shadow-none backdrop-blur lg:col-span-4">
+        <Card className="border-zinc-800 bg-zinc-950 shadow-none lg:col-span-4">
           <CardHeader className="p-4 pb-2">
             <CardTitle>Composição de Despesas</CardTitle>
             <CardDescription>
@@ -781,7 +844,7 @@ export default function AnalyticsPage() {
           </CardContent>
         </Card>
 
-        <Card className="border-zinc-800/80 bg-zinc-900/50 shadow-none backdrop-blur lg:col-span-4">
+        <Card className="border-zinc-800 bg-zinc-950 shadow-none lg:col-span-4">
           <CardHeader className="p-4 pb-2">
             <CardTitle>Maiores Despesas do Mês</CardTitle>
           <CardDescription>Top 5 transações individuais.</CardDescription>
