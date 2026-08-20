@@ -79,6 +79,7 @@ type ParsedTransaction = {
   groupId?: string | null;
   owner: "me" | "dependent";
   requiresReview?: boolean;
+  reviewStatus?: "approved" | "ignored";
 };
 
 type CsvRow = Record<string, unknown>;
@@ -655,8 +656,10 @@ export default function ImportarPage() {
   const preparedImportRows = useMemo<PreparedImportTransaction[]>(() => {
     const monthStart = getMonthStartFromReference(effectiveReferenceMonth);
 
-    return parsedData.flatMap((sourceTransaction, sourceIndex) =>
-      getRowsForImport(sourceTransaction).map((transaction) => {
+    return parsedData.flatMap((sourceTransaction, sourceIndex) => {
+      if (sourceTransaction.reviewStatus === "ignored") return [];
+
+      return getRowsForImport(sourceTransaction).map((transaction) => {
         const dependent = transaction.dependentId
           ? dependents.find((item) => item.id === transaction.dependentId)
           : null;
@@ -692,8 +695,8 @@ export default function ImportarPage() {
           direct_subscription: false,
           split_with: [dependent?.id ?? "eu"],
         };
-      }),
-    );
+      });
+    });
   }, [dependents, effectiveReferenceMonth, effectiveSelectedCardId, fileName, parsedData]);
   useEffect(() => {
     let isMounted = true;
@@ -770,6 +773,7 @@ export default function ImportarPage() {
     const currentFileSignatures = new Set<string>();
     const currentLooseFileSignatures = new Set<string>();
     const duplicateSourceIndexes = new Set<number>();
+    const newSourceIndexes = new Set<number>();
     const possibleDuplicateSourceIndexes = new Set<number>();
     let newCount = 0;
     let duplicateCount = 0;
@@ -799,21 +803,29 @@ export default function ImportarPage() {
 
       currentFileSignatures.add(signature);
       currentLooseFileSignatures.add(looseSignature);
+      newSourceIndexes.add(transaction.sourceIndex);
       newCount += 1;
     });
 
     return {
       duplicateCount,
+      duplicateSourceCount: duplicateSourceIndexes.size,
       duplicateSourceIndexes,
       newCount,
+      newSourceCount: newSourceIndexes.size,
       possibleDuplicateCount,
+      possibleDuplicateSourceCount: possibleDuplicateSourceIndexes.size,
       possibleDuplicateSourceIndexes,
     };
   }, [existingImportSignatures, existingLooseImportSignatures, preparedImportRows]);
   const importPreviewSummary = useMemo(() => {
     const duplicateSourceIndexes = importDuplicateState.duplicateSourceIndexes;
+    const possibleDuplicateSourceIndexes =
+      importDuplicateState.possibleDuplicateSourceIndexes;
     const newRows = previewRows.filter(
-      (_, index) => !duplicateSourceIndexes.has(index),
+      (transaction, index) =>
+        transaction.reviewStatus !== "ignored" &&
+        !duplicateSourceIndexes.has(index),
     );
     const totalAmount = newRows.reduce(
       (sum, transaction) =>
@@ -836,35 +848,51 @@ export default function ImportarPage() {
     const reviewCount = newRows.filter(
       (transaction) => transaction.requiresReview,
     ).length;
+    const pendingReviewCount = newRows.filter(
+      (transaction, index) =>
+        transaction.reviewStatus !== "approved" &&
+        (transaction.requiresReview ||
+          possibleDuplicateSourceIndexes.has(index)),
+    ).length;
 
     return {
       creditsCount,
       installmentCount,
+      pendingReviewCount,
       reviewCount,
       totalAmount,
       uncategorizedCount,
     };
-  }, [importDuplicateState.duplicateSourceIndexes, previewRows]);
+  }, [
+    importDuplicateState.duplicateSourceIndexes,
+    importDuplicateState.possibleDuplicateSourceIndexes,
+    previewRows,
+  ]);
   const importButtonLabel = useMemo(() => {
     if (isSubmitting) return "Importando...";
     if (isCheckingDuplicates) return "Verificando...";
 
+    const quantityLabel =
+      importDuplicateState.newSourceCount === importDuplicateState.newCount
+        ? `${importDuplicateState.newSourceCount} linhas`
+        : `${importDuplicateState.newSourceCount} linhas (${importDuplicateState.newCount} lançamentos)`;
     const details = [
-      importDuplicateState.duplicateCount > 0
-        ? `${importDuplicateState.duplicateCount} duplicados ignorados`
+      importDuplicateState.duplicateSourceCount > 0
+        ? `${importDuplicateState.duplicateSourceCount} duplicadas ignoradas`
         : null,
-      importDuplicateState.possibleDuplicateCount > 0
-        ? `${importDuplicateState.possibleDuplicateCount} revisar`
+      importPreviewSummary.pendingReviewCount > 0
+        ? `${importPreviewSummary.pendingReviewCount} revisar`
         : null,
     ].filter(Boolean);
 
     return details.length
-      ? `Importar ${importDuplicateState.newCount} novos (${details.join(" · ")})`
-      : `Importar ${importDuplicateState.newCount} novos`;
+      ? `Importar ${quantityLabel} (${details.join(" · ")})`
+      : `Importar ${quantityLabel}`;
   }, [
-    importDuplicateState.duplicateCount,
+    importDuplicateState.duplicateSourceCount,
     importDuplicateState.newCount,
-    importDuplicateState.possibleDuplicateCount,
+    importDuplicateState.newSourceCount,
+    importPreviewSummary.pendingReviewCount,
     isCheckingDuplicates,
     isSubmitting,
   ]);
@@ -1051,7 +1079,21 @@ export default function ImportarPage() {
 
   function removePreviewRow(indexToRemove: number) {
     setParsedData((currentRows) =>
-      currentRows.filter((_, index) => index !== indexToRemove),
+      currentRows.map((transaction, index) =>
+        index === indexToRemove
+          ? { ...transaction, reviewStatus: "ignored" }
+          : transaction,
+      ),
+    );
+  }
+
+  function approvePreviewRow(indexToApprove: number) {
+    setParsedData((currentRows) =>
+      currentRows.map((transaction, index) =>
+        index === indexToApprove
+          ? { ...transaction, reviewStatus: "approved" }
+          : transaction,
+      ),
     );
   }
 
@@ -1166,7 +1208,10 @@ export default function ImportarPage() {
           },
           {
             title: "Importar",
-            description: `${importDuplicateState.newCount} novos lançamentos`,
+            description:
+              importDuplicateState.newSourceCount === importDuplicateState.newCount
+                ? `${importDuplicateState.newSourceCount} linhas novas`
+                : `${importDuplicateState.newSourceCount} linhas novas, ${importDuplicateState.newCount} lançamentos`,
             active: importDuplicateState.newCount > 0,
           },
         ].map((step, index) => (
@@ -1347,7 +1392,7 @@ export default function ImportarPage() {
             </div>
 
             <div className="border-b border-zinc-800/80 p-4">
-              <div className="grid gap-3 md:grid-cols-3 xl:grid-cols-8">
+              <div className="grid gap-3 md:grid-cols-3 xl:grid-cols-10">
                 {[
                   {
                     label: "Valor líquido",
@@ -1359,24 +1404,39 @@ export default function ImportarPage() {
                         : "text-zinc-100",
                   },
                   {
-                    label: "Novos",
+                    label: "Linhas novas",
+                    value: String(importDuplicateState.newSourceCount),
+                    icon: CheckCircle2,
+                    tone: "text-emerald-300",
+                  },
+                  {
+                    label: "Lançamentos",
                     value: String(importDuplicateState.newCount),
                     icon: CheckCircle2,
                     tone: "text-emerald-300",
                   },
                   {
-                    label: "Duplicados",
-                    value: String(importDuplicateState.duplicateCount),
+                    label: "Linhas duplicadas",
+                    value: String(importDuplicateState.duplicateSourceCount),
                     icon: AlertTriangle,
                     tone: "text-amber-300",
                   },
                   {
                     label: "Possíveis duplicados",
-                    value: String(importDuplicateState.possibleDuplicateCount),
+                    value: String(importDuplicateState.possibleDuplicateSourceCount),
                     icon: AlertTriangle,
                     tone:
-                      importDuplicateState.possibleDuplicateCount > 0
+                      importDuplicateState.possibleDuplicateSourceCount > 0
                         ? "text-orange-300"
+                        : "text-zinc-300",
+                  },
+                  {
+                    label: "Pendentes",
+                    value: String(importPreviewSummary.pendingReviewCount),
+                    icon: AlertTriangle,
+                    tone:
+                      importPreviewSummary.pendingReviewCount > 0
+                        ? "text-red-300"
                         : "text-zinc-300",
                   },
                   {
@@ -1433,6 +1493,13 @@ export default function ImportarPage() {
                   Verificando lançamentos já existentes no banco...
                 </p>
               ) : null}
+              {importPreviewSummary.pendingReviewCount > 0 ? (
+                <p className="mt-3 rounded-lg border border-red-500/20 bg-red-500/10 px-3 py-2 text-xs leading-5 text-red-200">
+                  Revise {importPreviewSummary.pendingReviewCount} item
+                  {importPreviewSummary.pendingReviewCount === 1 ? "" : "s"} antes
+                  de importar. Aprove ou ignore cada linha marcada.
+                </p>
+              ) : null}
               {importPreviewSummary.reviewCount > 0 ? (
                 <p className="mt-3 rounded-lg border border-amber-500/20 bg-amber-500/10 px-3 py-2 text-xs leading-5 text-amber-200">
                   Existem pagamentos recebidos no arquivo. Confira se eles são
@@ -1440,7 +1507,7 @@ export default function ImportarPage() {
                   Remova os que não pertencem a esta competência.
                 </p>
               ) : null}
-              {importDuplicateState.possibleDuplicateCount > 0 ? (
+              {importDuplicateState.possibleDuplicateSourceCount > 0 ? (
                 <p className="mt-3 rounded-lg border border-orange-500/20 bg-orange-500/10 px-3 py-2 text-xs leading-5 text-orange-200">
                   Existem lançamentos parecidos com transações já importadas,
                   possivelmente vinculadas a dependentes. Revise o responsável
@@ -1482,15 +1549,23 @@ export default function ImportarPage() {
                     importDuplicateState.duplicateSourceIndexes.has(index);
                   const isPossibleDuplicate =
                     importDuplicateState.possibleDuplicateSourceIndexes.has(index);
+                  const isIgnored = transaction.reviewStatus === "ignored";
+                  const isApproved = transaction.reviewStatus === "approved";
+                  const isReviewPending =
+                    !isDuplicate &&
+                    !isIgnored &&
+                    !isApproved &&
+                    (transaction.requiresReview || isPossibleDuplicate);
 
                   return (
                   <div
                     key={`${transaction.description}-${index}`}
                     className={cn(
                       "rounded-2xl border border-zinc-800 bg-zinc-900/50 p-3",
-                      isDuplicate && "opacity-60",
+                      (isDuplicate || isIgnored) && "opacity-60",
                       isPossibleDuplicate &&
                         "border-orange-500/30 bg-orange-500/5",
+                      isReviewPending && "border-red-500/30",
                     )}
                   >
                     <MobileTransactionItem
@@ -1511,7 +1586,7 @@ export default function ImportarPage() {
                           size="icon"
                           className="size-11 rounded-xl"
                           onClick={() => openSplitDialog(index)}
-                          disabled={transaction.type === "credit" || isDuplicate}
+                          disabled={transaction.type === "credit" || isDuplicate || isIgnored}
                           aria-label="Dividir ou atribuir gasto"
                         >
                           <Split className="size-5" />
@@ -1533,10 +1608,20 @@ export default function ImportarPage() {
                         Revisar pagamento
                       </span>
                     ) : null}
+                    {isApproved ? (
+                      <span className="mt-2 ml-2 inline-flex rounded-full border border-emerald-500/20 bg-emerald-500/10 px-2 py-0.5 text-[11px] font-medium text-emerald-300">
+                        Aprovado
+                      </span>
+                    ) : null}
+                    {isIgnored ? (
+                      <span className="mt-2 ml-2 inline-flex rounded-full border border-zinc-700 bg-zinc-900 px-2 py-0.5 text-[11px] font-medium text-zinc-400">
+                        Ignorado
+                      </span>
+                    ) : null}
                     <div className="mt-3 grid gap-3 border-t border-zinc-800 pt-3">
                       {transaction.type !== "credit" ? (
                         <Select
-                          disabled={isDuplicate}
+                          disabled={isDuplicate || isIgnored}
                           value={transaction.category || "__no_category__"}
                           onValueChange={(nextCategory) =>
                             setParsedData((currentRows) =>
@@ -1577,7 +1662,7 @@ export default function ImportarPage() {
                           <label className="flex min-h-10 items-center gap-2">
                             <Checkbox
                               className="size-5"
-                              disabled={isDuplicate}
+                              disabled={isDuplicate || isIgnored}
                               checked={transaction.projectFutureInstallments}
                               onCheckedChange={(checked) =>
                                 setParsedData((currentRows) =>
@@ -1597,15 +1682,37 @@ export default function ImportarPage() {
                           </label>
                         ) : null}
                       </div>
-                      <Button
-                        type="button"
-                        variant="ghost"
-                        className="h-10 justify-center text-zinc-400 hover:bg-red-950/40 hover:text-red-300"
-                        onClick={() => removePreviewRow(index)}
-                      >
-                        <X className="size-4" />
-                        Ignorar linha
-                      </Button>
+                      {isReviewPending ? (
+                        <div className="grid gap-2 sm:grid-cols-2">
+                          <Button
+                            type="button"
+                            variant="outline"
+                            className="h-10 justify-center border-emerald-500/30 text-emerald-300 hover:bg-emerald-500/10"
+                            onClick={() => approvePreviewRow(index)}
+                          >
+                            Importar mesmo assim
+                          </Button>
+                          <Button
+                            type="button"
+                            variant="ghost"
+                            className="h-10 justify-center text-zinc-400 hover:bg-red-950/40 hover:text-red-300"
+                            onClick={() => removePreviewRow(index)}
+                          >
+                            <X className="size-4" />
+                            Ignorar linha
+                          </Button>
+                        </div>
+                      ) : !isIgnored ? (
+                        <Button
+                          type="button"
+                          variant="ghost"
+                          className="h-10 justify-center text-zinc-400 hover:bg-red-950/40 hover:text-red-300"
+                          onClick={() => removePreviewRow(index)}
+                        >
+                          <X className="size-4" />
+                          Ignorar linha
+                        </Button>
+                      ) : null}
                     </div>
                   </div>
                   );
@@ -1632,13 +1739,21 @@ export default function ImportarPage() {
                       importDuplicateState.duplicateSourceIndexes.has(index);
                     const isPossibleDuplicate =
                       importDuplicateState.possibleDuplicateSourceIndexes.has(index);
+                    const isIgnored = transaction.reviewStatus === "ignored";
+                    const isApproved = transaction.reviewStatus === "approved";
+                    const isReviewPending =
+                      !isDuplicate &&
+                      !isIgnored &&
+                      !isApproved &&
+                      (transaction.requiresReview || isPossibleDuplicate);
 
                     return (
                     <TableRow
                       key={`${transaction.description}-${index}`}
                       className={cn(
-                        isDuplicate && "opacity-60",
+                        (isDuplicate || isIgnored) && "opacity-60",
                         isPossibleDuplicate && "bg-orange-500/5",
+                        isReviewPending && "bg-red-500/5",
                       )}
                     >
                       <TableCell className="px-3 text-zinc-400">
@@ -1664,6 +1779,16 @@ export default function ImportarPage() {
                               Revisar
                             </span>
                           ) : null}
+                          {isApproved ? (
+                            <span className="shrink-0 rounded-full border border-emerald-500/20 bg-emerald-500/10 px-2 py-0.5 text-[10px] font-medium text-emerald-300">
+                              Aprovado
+                            </span>
+                          ) : null}
+                          {isIgnored ? (
+                            <span className="shrink-0 rounded-full border border-zinc-700 bg-zinc-900 px-2 py-0.5 text-[10px] font-medium text-zinc-400">
+                              Ignorado
+                            </span>
+                          ) : null}
                         </div>
                       </TableCell>
                       <TableCell className="truncate px-3 text-zinc-400">
@@ -1676,7 +1801,7 @@ export default function ImportarPage() {
                           </span>
                         ) : (
                           <Select
-                            disabled={isDuplicate}
+                            disabled={isDuplicate || isIgnored}
                             value={transaction.category || "__no_category__"}
                             onValueChange={(nextCategory) =>
                               setParsedData((currentRows) =>
@@ -1722,7 +1847,7 @@ export default function ImportarPage() {
                           <label className="flex items-center gap-1.5 text-xs">
                             <Checkbox
                               className="size-4"
-                              disabled={isDuplicate}
+                              disabled={isDuplicate || isIgnored}
                               checked={transaction.projectFutureInstallments}
                               onCheckedChange={(checked) =>
                                 setParsedData((currentRows) =>
@@ -1748,16 +1873,30 @@ export default function ImportarPage() {
                         {brlFormatter.format(transaction.amount)}
                       </TableCell>
                       <TableCell className="flex justify-end gap-1 px-2 text-right">
-                        <Button
-                          type="button"
-                          variant="ghost"
-                          size="icon-sm"
-                          className="text-zinc-400 hover:bg-red-950/40 hover:text-red-300"
-                          onClick={() => removePreviewRow(index)}
-                          aria-label="Ignorar linha"
-                        >
-                          <X className="size-4" />
-                        </Button>
+                        {!isIgnored ? (
+                          <Button
+                            type="button"
+                            variant="ghost"
+                            size="icon-sm"
+                            className="text-zinc-400 hover:bg-red-950/40 hover:text-red-300"
+                            onClick={() => removePreviewRow(index)}
+                            aria-label="Ignorar linha"
+                          >
+                            <X className="size-4" />
+                          </Button>
+                        ) : null}
+                        {isReviewPending ? (
+                          <Button
+                            type="button"
+                            variant="ghost"
+                            size="icon-sm"
+                            className="text-emerald-300 hover:bg-emerald-500/10 hover:text-emerald-200"
+                            onClick={() => approvePreviewRow(index)}
+                            aria-label="Importar mesmo assim"
+                          >
+                            <CheckCircle2 className="size-4" />
+                          </Button>
+                        ) : null}
                         {transaction.type !== "credit" ? (
                           <Button
                             type="button"
@@ -1765,7 +1904,7 @@ export default function ImportarPage() {
                             size="icon-sm"
                             className="text-zinc-400 hover:text-white"
                             onClick={() => openSplitDialog(index)}
-                            disabled={isDuplicate}
+                            disabled={isDuplicate || isIgnored}
                             aria-label="Dividir ou atribuir gasto"
                           >
                             <Split className="size-4" />
@@ -1796,6 +1935,7 @@ export default function ImportarPage() {
                   isSubmitting ||
                   isCheckingDuplicates ||
                   !effectiveSelectedCardId ||
+                  importPreviewSummary.pendingReviewCount > 0 ||
                   importDuplicateState.newCount === 0
                 }
               >
