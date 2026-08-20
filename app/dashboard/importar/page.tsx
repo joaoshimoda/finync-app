@@ -78,6 +78,7 @@ type ParsedTransaction = {
   installmentsTotal: number;
   groupId?: string | null;
   owner: "me" | "dependent";
+  requiresReview?: boolean;
 };
 
 type CsvRow = Record<string, unknown>;
@@ -224,9 +225,35 @@ function getImportSignature(transaction: {
   ].join("|");
 }
 
+function getLooseImportSignature(transaction: {
+  month_start?: string | null;
+  transaction_date?: string | null;
+  description?: string | null;
+  amount?: number | string | null;
+  installment_number?: number | null;
+  installments_total?: number | null;
+}) {
+  const monthStart = transaction.month_start
+    ? normalizeDateOnly(transaction.month_start)
+    : "";
+  const transactionDate = transaction.transaction_date
+    ? normalizeDateOnly(transaction.transaction_date)
+    : "";
+
+  return [
+    monthStart,
+    transactionDate,
+    normalizeDescriptionForCategory(transaction.description ?? ""),
+    toImportAmountCents(transaction.amount),
+    transaction.installment_number ?? 1,
+    transaction.installments_total ?? 1,
+  ].join("|");
+}
+
 function parseAmount(value: string) {
   const rawAmount = String(value || "");
-  const isNegative = rawAmount.includes("-");
+  const isNegative =
+    rawAmount.includes("-") || /^\s*\(.*\)\s*$/.test(rawAmount);
   let cleanAmount = rawAmount.replace(/[^0-9,]/g, "");
   cleanAmount = cleanAmount.replace(",", ".");
   const numericValue = parseFloat(cleanAmount) || 0;
@@ -364,7 +391,19 @@ function parseInstallment(description: string) {
   };
 }
 
-function shouldIgnoreImportedRow(description: string) {
+function shouldIgnoreImportedRow(description: string, isCredit: boolean) {
+  if (isCredit) return false;
+
+  const normalizedDescription = normalizeKey(description);
+
+  return ignoredPaymentIndicators.some((indicator) =>
+    normalizedDescription.includes(normalizeKey(indicator)),
+  );
+}
+
+function isAmbiguousPaymentCredit(description: string, isCredit: boolean) {
+  if (!isCredit) return false;
+
   const normalizedDescription = normalizeKey(description);
 
   return ignoredPaymentIndicators.some((indicator) =>
@@ -417,9 +456,10 @@ function mapCsvRow(
   const amount = getCsvAmountCell(row).trim();
 
   if (!date && !description && !amount) return [];
-  if (shouldIgnoreImportedRow(description)) return [];
 
   const parsedAmount = parseAmount(amount);
+  if (shouldIgnoreImportedRow(description, parsedAmount.isNegative)) return [];
+
   const baseDate = parseCsvDate(date);
   const {
     cleanDescription,
@@ -428,6 +468,7 @@ function mapCsvRow(
   } = parseInstallment(description || "Sem descrição");
   const isCredit = parsedAmount.isNegative;
   const finalDescription = cleanDescription || "Sem descrição";
+  const requiresReview = isAmbiguousPaymentCredit(finalDescription, isCredit);
 
   return [
     {
@@ -447,6 +488,7 @@ function mapCsvRow(
       installmentNumber: isCredit ? 1 : installmentNumber,
       installmentsTotal: isCredit ? 1 : installmentsTotal,
       owner: "me",
+      requiresReview,
     },
   ];
 }
@@ -472,6 +514,8 @@ export default function ImportarPage() {
   const [existingImportSignatures, setExistingImportSignatures] = useState<
     Set<string>
   >(new Set());
+  const [existingLooseImportSignatures, setExistingLooseImportSignatures] =
+    useState<Set<string>>(new Set());
   const [isCheckingDuplicates, setIsCheckingDuplicates] = useState(false);
   const referenceMonthOptions = useMemo(() => getReferenceMonthOptions(), []);
   const [referenceMonth, setReferenceMonth] = useState("");
@@ -591,6 +635,7 @@ export default function ImportarPage() {
         "text/csv": [".csv"],
         "application/vnd.ms-excel": [".csv"],
       },
+      disabled: !effectiveSelectedCardId,
       maxFiles: 1,
       multiple: false,
       onDrop,
@@ -657,6 +702,7 @@ export default function ImportarPage() {
       if (!preparedImportRows.length || !effectiveSelectedCardId) {
         if (isMounted) {
           setExistingImportSignatures(new Set());
+          setExistingLooseImportSignatures(new Set());
           setIsCheckingDuplicates(false);
         }
         return;
@@ -671,7 +717,10 @@ export default function ImportarPage() {
         } = await supabase.auth.getUser();
 
         if (userError || !user) {
-          if (isMounted) setExistingImportSignatures(new Set());
+          if (isMounted) {
+            setExistingImportSignatures(new Set());
+            setExistingLooseImportSignatures(new Set());
+          }
           return;
         }
 
@@ -690,17 +739,21 @@ export default function ImportarPage() {
         if (error) throw error;
 
         if (isMounted) {
+          const existingRows = (data ?? []) as ExistingImportTransaction[];
+
           setExistingImportSignatures(
-            new Set(
-              ((data ?? []) as ExistingImportTransaction[]).map(
-                getImportSignature,
-              ),
-            ),
+            new Set(existingRows.map(getImportSignature)),
+          );
+          setExistingLooseImportSignatures(
+            new Set(existingRows.map(getLooseImportSignature)),
           );
         }
       } catch (error) {
         console.error("Erro ao verificar duplicidade da importação:", error);
-        if (isMounted) setExistingImportSignatures(new Set());
+        if (isMounted) {
+          setExistingImportSignatures(new Set());
+          setExistingLooseImportSignatures(new Set());
+        }
       } finally {
         if (isMounted) setIsCheckingDuplicates(false);
       }
@@ -715,15 +768,23 @@ export default function ImportarPage() {
 
   const importDuplicateState = useMemo(() => {
     const currentFileSignatures = new Set<string>();
+    const currentLooseFileSignatures = new Set<string>();
     const duplicateSourceIndexes = new Set<number>();
+    const possibleDuplicateSourceIndexes = new Set<number>();
     let newCount = 0;
     let duplicateCount = 0;
+    let possibleDuplicateCount = 0;
 
     preparedImportRows.forEach((transaction) => {
       const signature = getImportSignature(transaction);
+      const looseSignature = getLooseImportSignature(transaction);
       const isDuplicate =
         existingImportSignatures.has(signature) ||
         currentFileSignatures.has(signature);
+      const isPossibleDuplicate =
+        !isDuplicate &&
+        (existingLooseImportSignatures.has(looseSignature) ||
+          currentLooseFileSignatures.has(looseSignature));
 
       if (isDuplicate) {
         duplicateSourceIndexes.add(transaction.sourceIndex);
@@ -731,7 +792,13 @@ export default function ImportarPage() {
         return;
       }
 
+      if (isPossibleDuplicate) {
+        possibleDuplicateSourceIndexes.add(transaction.sourceIndex);
+        possibleDuplicateCount += 1;
+      }
+
       currentFileSignatures.add(signature);
+      currentLooseFileSignatures.add(looseSignature);
       newCount += 1;
     });
 
@@ -739,8 +806,10 @@ export default function ImportarPage() {
       duplicateCount,
       duplicateSourceIndexes,
       newCount,
+      possibleDuplicateCount,
+      possibleDuplicateSourceIndexes,
     };
-  }, [existingImportSignatures, preparedImportRows]);
+  }, [existingImportSignatures, existingLooseImportSignatures, preparedImportRows]);
   const importPreviewSummary = useMemo(() => {
     const duplicateSourceIndexes = importDuplicateState.duplicateSourceIndexes;
     const newRows = previewRows.filter(
@@ -764,14 +833,41 @@ export default function ImportarPage() {
       (transaction) =>
         transaction.type !== "credit" && transaction.installmentsTotal > 1,
     ).length;
+    const reviewCount = newRows.filter(
+      (transaction) => transaction.requiresReview,
+    ).length;
 
     return {
       creditsCount,
       installmentCount,
+      reviewCount,
       totalAmount,
       uncategorizedCount,
     };
   }, [importDuplicateState.duplicateSourceIndexes, previewRows]);
+  const importButtonLabel = useMemo(() => {
+    if (isSubmitting) return "Importando...";
+    if (isCheckingDuplicates) return "Verificando...";
+
+    const details = [
+      importDuplicateState.duplicateCount > 0
+        ? `${importDuplicateState.duplicateCount} duplicados ignorados`
+        : null,
+      importDuplicateState.possibleDuplicateCount > 0
+        ? `${importDuplicateState.possibleDuplicateCount} revisar`
+        : null,
+    ].filter(Boolean);
+
+    return details.length
+      ? `Importar ${importDuplicateState.newCount} novos (${details.join(" · ")})`
+      : `Importar ${importDuplicateState.newCount} novos`;
+  }, [
+    importDuplicateState.duplicateCount,
+    importDuplicateState.newCount,
+    importDuplicateState.possibleDuplicateCount,
+    isCheckingDuplicates,
+    isSubmitting,
+  ]);
   const categoryOptions = useMemo(() => {
     const categoryLabels = new Set(
       categories
@@ -953,6 +1049,12 @@ export default function ImportarPage() {
     setIsSubmitting(false);
   }
 
+  function removePreviewRow(indexToRemove: number) {
+    setParsedData((currentRows) =>
+      currentRows.filter((_, index) => index !== indexToRemove),
+    );
+  }
+
   async function handleImport() {
     if (!parsedData.length) return;
 
@@ -1100,81 +1202,15 @@ export default function ImportarPage() {
       </section>
 
       {!parsedData.length ? (
-        <Card
-          {...getRootProps()}
-          className={cn(
-            "cursor-pointer border-dashed border-zinc-700 bg-zinc-900/50 shadow-none transition-colors hover:border-emerald-500/70 hover:bg-zinc-900/70",
-            isDragActive && "border-emerald-500 bg-emerald-500/5",
-            isDragReject && "border-red-500 bg-red-500/5",
-          )}
-        >
-          <input {...getInputProps()} />
-          <CardContent className="flex min-h-[360px] flex-col items-center justify-center px-6 py-12 text-center">
-            <div className="flex size-16 items-center justify-center rounded-2xl border border-zinc-800 bg-zinc-950 text-emerald-300">
-              <UploadCloud className="size-8" />
-            </div>
-            <h2 className="mt-6 text-xl font-semibold text-zinc-50">
-              Arraste sua fatura CSV aqui
-            </h2>
-            <p className="mt-2 max-w-md text-sm leading-6 text-zinc-400">
-              Suporta exportações do Nubank, Itaú, bancos digitais e planilhas CSV.
-            </p>
-            <Button type="button" className="mt-8 bg-emerald-600 text-white hover:bg-emerald-700">
-              Selecionar arquivo
-            </Button>
-            {parseError ? (
-              <p className="mt-4 text-sm text-red-300">{parseError}</p>
-            ) : null}
-          </CardContent>
-        </Card>
-      ) : (
-        <Card className="border-zinc-800 bg-zinc-950 shadow-none">
-          <CardHeader className="flex flex-col gap-4 border-b border-zinc-800/80 sm:flex-row sm:items-center sm:justify-between">
-            <div>
-              <CardTitle className="flex items-center gap-2">
-                <FileSpreadsheet className="size-5 text-emerald-300" />
-                Pré-visualização da fatura
-              </CardTitle>
+        <section className="grid gap-4 lg:grid-cols-[minmax(0,0.8fr)_minmax(0,1.2fr)]">
+          <Card className="border-zinc-800 bg-zinc-950 shadow-none">
+            <CardHeader>
+              <CardTitle className="text-lg">Configurar importação</CardTitle>
               <CardDescription>
-                {fileName} · revise categorias, dependentes e parcelas antes de
-                confirmar.
+                Escolha o cartão e o mês da fatura antes de enviar o arquivo.
               </CardDescription>
-            </div>
-            <Button
-              type="button"
-              variant="ghost"
-              className="gap-2 text-zinc-300 hover:text-white"
-              onClick={resetImport}
-              disabled={isSubmitting}
-            >
-              <X className="size-4" />
-              Importar outro arquivo
-            </Button>
-          </CardHeader>
-
-          <CardContent className="p-0">
-            <div className="grid gap-4 border-b border-zinc-800/80 p-4 sm:grid-cols-2">
-              <div className="space-y-2">
-                <p className="text-xs font-medium uppercase tracking-wide text-zinc-400">
-                  Mês da fatura
-                </p>
-                <Select
-                  value={effectiveReferenceMonth}
-                  onValueChange={setReferenceMonth}
-                >
-                  <SelectTrigger className="border-zinc-700 bg-zinc-900 text-zinc-100">
-                    <SelectValue placeholder="Selecione o mês da fatura" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {referenceMonthOptions.map((option) => (
-                      <SelectItem key={option.value} value={option.value}>
-                        {option.label}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-
+            </CardHeader>
+            <CardContent className="space-y-4">
               <div className="space-y-2">
                 <p className="text-xs font-medium uppercase tracking-wide text-zinc-400">
                   Selecionar Cartão
@@ -1204,10 +1240,114 @@ export default function ImportarPage() {
                   </SelectContent>
                 </Select>
               </div>
+
+              <div className="space-y-2">
+                <p className="text-xs font-medium uppercase tracking-wide text-zinc-400">
+                  Mês da fatura
+                </p>
+                <Select
+                  value={effectiveReferenceMonth}
+                  onValueChange={setReferenceMonth}
+                >
+                  <SelectTrigger className="border-zinc-700 bg-zinc-900 text-zinc-100">
+                    <SelectValue placeholder="Selecione o mês da fatura" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {referenceMonthOptions.map((option) => (
+                      <SelectItem key={option.value} value={option.value}>
+                        {option.label}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+
+              <div className="rounded-xl border border-zinc-800 bg-zinc-900/40 p-3 text-xs leading-5 text-zinc-500">
+                Valores negativos do CSV serão tratados como Crédito/Estorno e
+                abaterão a fatura no preview.
+              </div>
+            </CardContent>
+          </Card>
+
+        <Card
+          {...getRootProps()}
+          className={cn(
+            "cursor-pointer border-dashed border-zinc-700 bg-zinc-900/50 shadow-none transition-colors hover:border-emerald-500/70 hover:bg-zinc-900/70",
+            !effectiveSelectedCardId && "pointer-events-none opacity-50",
+            isDragActive && "border-emerald-500 bg-emerald-500/5",
+            isDragReject && "border-red-500 bg-red-500/5",
+          )}
+        >
+          <input {...getInputProps()} />
+          <CardContent className="flex min-h-[360px] flex-col items-center justify-center px-6 py-12 text-center">
+            <div className="flex size-16 items-center justify-center rounded-2xl border border-zinc-800 bg-zinc-950 text-emerald-300">
+              <UploadCloud className="size-8" />
+            </div>
+            <h2 className="mt-6 text-xl font-semibold text-zinc-50">
+              Arraste sua fatura CSV aqui
+            </h2>
+            <p className="mt-2 max-w-md text-sm leading-6 text-zinc-400">
+              {effectiveSelectedCardId
+                ? "Suporta exportações do Nubank, Itaú, bancos digitais e planilhas CSV."
+                : "Cadastre ou selecione um cartão para liberar o upload."}
+            </p>
+            <Button type="button" className="mt-8 bg-emerald-600 text-white hover:bg-emerald-700">
+              Selecionar arquivo
+            </Button>
+            {parseError ? (
+              <p className="mt-4 text-sm text-red-300">{parseError}</p>
+            ) : null}
+          </CardContent>
+        </Card>
+        </section>
+      ) : (
+        <Card className="border-zinc-800 bg-zinc-950 shadow-none">
+          <CardHeader className="flex flex-col gap-4 border-b border-zinc-800/80 sm:flex-row sm:items-center sm:justify-between">
+            <div>
+              <CardTitle className="flex items-center gap-2">
+                <FileSpreadsheet className="size-5 text-emerald-300" />
+                Pré-visualização da fatura
+              </CardTitle>
+              <CardDescription>
+                {fileName} · revise categorias, dependentes e parcelas antes de
+                confirmar.
+              </CardDescription>
+            </div>
+            <Button
+              type="button"
+              variant="ghost"
+              className="gap-2 text-zinc-300 hover:text-white"
+              onClick={resetImport}
+              disabled={isSubmitting}
+            >
+              <X className="size-4" />
+              Importar outro arquivo
+            </Button>
+          </CardHeader>
+
+          <CardContent className="p-0">
+            <div className="grid gap-4 border-b border-zinc-800/80 p-4 sm:grid-cols-2">
+              <div className="rounded-xl border border-zinc-800 bg-zinc-900/40 p-3">
+                <p className="text-xs font-medium uppercase tracking-wide text-zinc-500">
+                  Cartão selecionado
+                </p>
+                <p className="mt-2 text-sm font-medium text-zinc-100">
+                  {effectiveSelectedCard?.name ?? "Cartão não encontrado"}
+                </p>
+              </div>
+
+              <div className="rounded-xl border border-zinc-800 bg-zinc-900/40 p-3">
+                <p className="text-xs font-medium uppercase tracking-wide text-zinc-500">
+                  Fatura selecionada
+                </p>
+                <p className="mt-2 text-sm font-medium text-zinc-100">
+                  {formatInvoiceMonthLabel(effectiveReferenceMonth)}
+                </p>
+              </div>
             </div>
 
             <div className="border-b border-zinc-800/80 p-4">
-              <div className="grid gap-3 md:grid-cols-3 xl:grid-cols-6">
+              <div className="grid gap-3 md:grid-cols-3 xl:grid-cols-8">
                 {[
                   {
                     label: "Valor líquido",
@@ -1231,10 +1371,28 @@ export default function ImportarPage() {
                     tone: "text-amber-300",
                   },
                   {
+                    label: "Possíveis duplicados",
+                    value: String(importDuplicateState.possibleDuplicateCount),
+                    icon: AlertTriangle,
+                    tone:
+                      importDuplicateState.possibleDuplicateCount > 0
+                        ? "text-orange-300"
+                        : "text-zinc-300",
+                  },
+                  {
                     label: "Créditos",
                     value: String(importPreviewSummary.creditsCount),
                     icon: CreditCard,
                     tone: "text-sky-300",
+                  },
+                  {
+                    label: "Revisar pagamentos",
+                    value: String(importPreviewSummary.reviewCount),
+                    icon: AlertTriangle,
+                    tone:
+                      importPreviewSummary.reviewCount > 0
+                        ? "text-amber-300"
+                        : "text-zinc-300",
                   },
                   {
                     label: "Sem categoria",
@@ -1275,6 +1433,20 @@ export default function ImportarPage() {
                   Verificando lançamentos já existentes no banco...
                 </p>
               ) : null}
+              {importPreviewSummary.reviewCount > 0 ? (
+                <p className="mt-3 rounded-lg border border-amber-500/20 bg-amber-500/10 px-3 py-2 text-xs leading-5 text-amber-200">
+                  Existem pagamentos recebidos no arquivo. Confira se eles são
+                  abatimentos desta fatura ou pagamentos da fatura anterior.
+                  Remova os que não pertencem a esta competência.
+                </p>
+              ) : null}
+              {importDuplicateState.possibleDuplicateCount > 0 ? (
+                <p className="mt-3 rounded-lg border border-orange-500/20 bg-orange-500/10 px-3 py-2 text-xs leading-5 text-orange-200">
+                  Existem lançamentos parecidos com transações já importadas,
+                  possivelmente vinculadas a dependentes. Revise o responsável
+                  antes de importar para evitar duplicidade.
+                </p>
+              ) : null}
             </div>
 
             <div className="overflow-hidden">
@@ -1295,6 +1467,9 @@ export default function ImportarPage() {
                   <span className="rounded-full border border-amber-500/20 bg-amber-500/10 px-2 py-1 text-amber-300">
                     Duplicado
                   </span>
+                  <span className="rounded-full border border-orange-500/20 bg-orange-500/10 px-2 py-1 text-orange-300">
+                    Possível duplicado
+                  </span>
                   <span className="rounded-full border border-sky-500/20 bg-sky-500/10 px-2 py-1 text-sky-300">
                     Crédito/Estorno
                   </span>
@@ -1305,6 +1480,8 @@ export default function ImportarPage() {
                 {previewRows.map((transaction, index) => {
                   const isDuplicate =
                     importDuplicateState.duplicateSourceIndexes.has(index);
+                  const isPossibleDuplicate =
+                    importDuplicateState.possibleDuplicateSourceIndexes.has(index);
 
                   return (
                   <div
@@ -1312,6 +1489,8 @@ export default function ImportarPage() {
                     className={cn(
                       "rounded-2xl border border-zinc-800 bg-zinc-900/50 p-3",
                       isDuplicate && "opacity-60",
+                      isPossibleDuplicate &&
+                        "border-orange-500/30 bg-orange-500/5",
                     )}
                   >
                     <MobileTransactionItem
@@ -1342,6 +1521,16 @@ export default function ImportarPage() {
                     {isDuplicate ? (
                       <span className="mt-2 inline-flex rounded-full border border-amber-500/20 bg-amber-500/10 px-2 py-0.5 text-[11px] font-medium text-amber-300">
                         Já existe
+                      </span>
+                    ) : null}
+                    {isPossibleDuplicate ? (
+                      <span className="mt-2 ml-2 inline-flex rounded-full border border-orange-500/20 bg-orange-500/10 px-2 py-0.5 text-[11px] font-medium text-orange-300">
+                        Possível duplicado
+                      </span>
+                    ) : null}
+                    {transaction.requiresReview ? (
+                      <span className="mt-2 ml-2 inline-flex rounded-full border border-sky-500/20 bg-sky-500/10 px-2 py-0.5 text-[11px] font-medium text-sky-300">
+                        Revisar pagamento
                       </span>
                     ) : null}
                     <div className="mt-3 grid gap-3 border-t border-zinc-800 pt-3">
@@ -1408,6 +1597,15 @@ export default function ImportarPage() {
                           </label>
                         ) : null}
                       </div>
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        className="h-10 justify-center text-zinc-400 hover:bg-red-950/40 hover:text-red-300"
+                        onClick={() => removePreviewRow(index)}
+                      >
+                        <X className="size-4" />
+                        Ignorar linha
+                      </Button>
                     </div>
                   </div>
                   );
@@ -1425,18 +1623,23 @@ export default function ImportarPage() {
                     <TableHead className="w-[104px] px-3">Dono</TableHead>
                     <TableHead className="w-[120px] px-3">Parcelas</TableHead>
                     <TableHead className="w-[104px] px-3 text-right">Valor</TableHead>
-                    <TableHead className="w-10 px-2" />
+                    <TableHead className="w-20 px-2" />
                   </TableRow>
                 </TableHeader>
                 <TableBody>
                   {previewRows.map((transaction, index) => {
                     const isDuplicate =
                       importDuplicateState.duplicateSourceIndexes.has(index);
+                    const isPossibleDuplicate =
+                      importDuplicateState.possibleDuplicateSourceIndexes.has(index);
 
                     return (
                     <TableRow
                       key={`${transaction.description}-${index}`}
-                      className={cn(isDuplicate && "opacity-60")}
+                      className={cn(
+                        isDuplicate && "opacity-60",
+                        isPossibleDuplicate && "bg-orange-500/5",
+                      )}
                     >
                       <TableCell className="px-3 text-zinc-400">
                         {formatPreviewDate(transaction.date)}
@@ -1449,6 +1652,16 @@ export default function ImportarPage() {
                           {isDuplicate ? (
                             <span className="shrink-0 rounded-full border border-amber-500/20 bg-amber-500/10 px-2 py-0.5 text-[10px] font-medium text-amber-300">
                               Já existe
+                            </span>
+                          ) : null}
+                          {isPossibleDuplicate ? (
+                            <span className="shrink-0 rounded-full border border-orange-500/20 bg-orange-500/10 px-2 py-0.5 text-[10px] font-medium text-orange-300">
+                              Possível duplicado
+                            </span>
+                          ) : null}
+                          {transaction.requiresReview ? (
+                            <span className="shrink-0 rounded-full border border-sky-500/20 bg-sky-500/10 px-2 py-0.5 text-[10px] font-medium text-sky-300">
+                              Revisar
                             </span>
                           ) : null}
                         </div>
@@ -1534,18 +1747,30 @@ export default function ImportarPage() {
                       <TableCell className="px-3 text-right font-medium text-zinc-50">
                         {brlFormatter.format(transaction.amount)}
                       </TableCell>
-                      <TableCell className="px-2 text-right">
+                      <TableCell className="flex justify-end gap-1 px-2 text-right">
                         <Button
                           type="button"
                           variant="ghost"
                           size="icon-sm"
-                          className="text-zinc-400 hover:text-white"
-                          onClick={() => openSplitDialog(index)}
-                          disabled={transaction.type === "credit" || isDuplicate}
-                          aria-label="Dividir ou atribuir gasto"
+                          className="text-zinc-400 hover:bg-red-950/40 hover:text-red-300"
+                          onClick={() => removePreviewRow(index)}
+                          aria-label="Ignorar linha"
                         >
-                          <Split className="size-4" />
+                          <X className="size-4" />
                         </Button>
+                        {transaction.type !== "credit" ? (
+                          <Button
+                            type="button"
+                            variant="ghost"
+                            size="icon-sm"
+                            className="text-zinc-400 hover:text-white"
+                            onClick={() => openSplitDialog(index)}
+                            disabled={isDuplicate}
+                            aria-label="Dividir ou atribuir gasto"
+                          >
+                            <Split className="size-4" />
+                          </Button>
+                        ) : null}
                       </TableCell>
                     </TableRow>
                     );
@@ -1574,11 +1799,7 @@ export default function ImportarPage() {
                   importDuplicateState.newCount === 0
                 }
               >
-                {isSubmitting
-                  ? "Importando..."
-                  : isCheckingDuplicates
-                    ? "Verificando..."
-                    : `Importar ${importDuplicateState.newCount} novos`}
+                {importButtonLabel}
               </Button>
             </div>
           </CardContent>
