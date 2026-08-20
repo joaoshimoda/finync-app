@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useState } from "react";
 import {
+  Ban,
   CalendarDays,
   CalendarX,
   Check,
@@ -373,7 +374,11 @@ export default function FixedExpensesPage() {
     try {
       await deleteTransactionGroup(transaction.groupId, transaction.date);
       setSelectedIds([]);
-      toast.success("LanÃ§amento atual e prÃ³ximos removidos.");
+      toast.success(
+        transaction.type === "card" && transaction.is_recurring
+          ? "Assinatura cancelada. Histórico preservado."
+          : "Lançamento atual e próximos removidos.",
+      );
     } catch (error) {
       console.error("Erro ao remover recorrÃªncia:", error);
       toast.error("NÃ£o foi possÃ­vel remover a recorrÃªncia agora.");
@@ -694,15 +699,16 @@ export default function FixedExpensesPage() {
                         transaction={transaction}
                         onDeleteSingle={(item) => handleDeleteTransaction(item.id)}
                         onDeleteFuture={handleDeleteFutureTransactions}
+                        mode="cancelSubscription"
                       >
                         <Button
                           type="button"
                           variant="ghost"
                           size="icon"
                           className="size-11 rounded-xl text-zinc-400 hover:text-red-300"
-                          aria-label="Excluir assinatura"
+                          aria-label="Cancelar assinatura"
                         >
-                          <Trash2 className="size-5" />
+                          <Ban className="size-5" />
                         </Button>
                       </RecurringDeleteDialog>
                     </div>
@@ -818,15 +824,16 @@ export default function FixedExpensesPage() {
                             handleDeleteTransaction(item.id)
                           }
                           onDeleteFuture={handleDeleteFutureTransactions}
+                          mode="cancelSubscription"
                         >
                           <Button
                             type="button"
                             variant="ghost"
                             size="icon-sm"
-                            aria-label="Excluir assinatura"
+                            aria-label="Cancelar assinatura"
                             className="text-zinc-500 hover:bg-red-950 hover:text-red-300"
                           >
-                            <Trash2 />
+                            <Ban />
                           </Button>
                         </RecurringDeleteDialog>
                       </div>

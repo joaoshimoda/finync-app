@@ -13,6 +13,7 @@ interface RecurringDeleteDialogProps {
   onDeleteFuture: (transaction: Transaction) => Promise<void> | void;
   open?: boolean;
   onOpenChange?: (open: boolean) => void;
+  mode?: "delete" | "cancelSubscription";
 }
 
 type DeleteScope = "single" | "future";
@@ -24,11 +25,13 @@ export function RecurringDeleteDialog({
   onDeleteFuture,
   open,
   onOpenChange,
+  mode = "delete",
 }: RecurringDeleteDialogProps) {
   const [internalOpen, setInternalOpen] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
   const isDeleteDialogOpen = open ?? internalOpen;
   const setIsDeleteDialogOpen = onOpenChange ?? setInternalOpen;
+  const isCancelSubscription = mode === "cancelSubscription";
 
   async function handleConfirmDelete(scope: DeleteScope) {
     setIsDeleting(true);
@@ -57,11 +60,14 @@ export function RecurringDeleteDialog({
           <div className="flex flex-col gap-6">
             <div className="space-y-2">
               <h2 className="text-xl font-semibold tracking-tight">
-                Excluir despesa recorrente?
+                {isCancelSubscription
+                  ? "Cancelar assinatura?"
+                  : "Excluir despesa recorrente?"}
               </h2>
               <p className="text-sm leading-relaxed text-muted-foreground">
-                Escolha se deseja remover apenas o lançamento deste mês ou este
-                e os próximos lançamentos da mesma recorrência.
+                {isCancelSubscription
+                  ? "Esta ação remove a cobrança deste mês e as próximas cobranças da mesma assinatura. O histórico anterior será preservado."
+                  : "Escolha se deseja remover apenas o lançamento deste mês ou este e os próximos lançamentos da mesma recorrência."}
               </p>
             </div>
 
@@ -72,17 +78,21 @@ export function RecurringDeleteDialog({
                 onClick={() => handleConfirmDelete("future")}
                 className="h-11 w-full cursor-pointer"
               >
-                Este e os próximos (Excluir tudo)
+                {isCancelSubscription
+                  ? "Cancelar assinatura"
+                  : "Este e os próximos (Excluir tudo)"}
               </Button>
 
-              <Button
-                variant="secondary"
-                disabled={isDeleting}
-                onClick={() => handleConfirmDelete("single")}
-                className="h-11 w-full cursor-pointer"
-              >
-                Somente este mês
-              </Button>
+              {isCancelSubscription ? null : (
+                <Button
+                  variant="secondary"
+                  disabled={isDeleting}
+                  onClick={() => handleConfirmDelete("single")}
+                  className="h-11 w-full cursor-pointer"
+                >
+                  Somente este mês
+                </Button>
+              )}
 
               <Button
                 variant="ghost"
