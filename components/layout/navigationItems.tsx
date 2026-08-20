@@ -6,6 +6,7 @@ import {
   LayoutDashboard,
   Receipt,
   Settings,
+  UsersRound,
   type LucideIcon,
 } from "lucide-react";
 
@@ -40,6 +41,12 @@ export const navigationItems: NavigationItem[] = [
     shortLabel: "Dados",
     href: "/dashboard/analytics",
     icon: BarChart3,
+  },
+  {
+    label: "Dependentes",
+    shortLabel: "Deps.",
+    href: "/dashboard/dependentes",
+    icon: UsersRound,
   },
   {
     label: "Contas Fixas",

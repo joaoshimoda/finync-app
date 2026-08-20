@@ -8,6 +8,7 @@ const mobileRoutes = new Set([
   "/dashboard",
   "/dashboard/transactions",
   "/dashboard/cards",
+  "/dashboard/dependentes",
   "/dashboard/fixed",
   "/dashboard/analytics",
 ]);
@@ -23,7 +24,7 @@ export function BottomNav() {
 
   return (
     <nav className="fixed inset-x-0 bottom-0 z-50 border-t border-white/[0.08] bg-black/80 px-2 pb-[calc(env(safe-area-inset-bottom)+8px)] pt-2 backdrop-blur-xl md:hidden">
-      <div className="mx-auto grid max-w-lg grid-cols-5 gap-1">
+      <div className="mx-auto grid max-w-lg grid-cols-6 gap-1">
         {mobileItems.map((item) => {
           const active = isActiveRoute(pathname, item.href);
           const Icon = item.icon;
