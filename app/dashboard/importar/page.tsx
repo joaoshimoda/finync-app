@@ -72,6 +72,15 @@ type ParsedTransaction = {
 
 type CsvRow = Record<string, unknown>;
 type SplitMode = "mine" | "dependent" | "split";
+type ExistingImportTransaction = {
+  month_start: string | null;
+  transaction_date: string | null;
+  description: string | null;
+  amount: number | string | null;
+  installment_number: number | null;
+  installments_total: number | null;
+  dependent_id: string | null;
+};
 
 const brlFormatter = new Intl.NumberFormat("pt-BR", {
   style: "currency",
@@ -148,6 +157,40 @@ function normalizeImportedExpenseCategory(category: string | null) {
   }
 
   return category?.trim() || "Outros";
+}
+
+function toImportAmountCents(amount: number | string | null | undefined) {
+  const numericAmount =
+    typeof amount === "string" ? Number(amount.replace(",", ".")) : Number(amount);
+
+  return Number.isFinite(numericAmount) ? Math.round(numericAmount * 100) : 0;
+}
+
+function getImportSignature(transaction: {
+  month_start?: string | null;
+  transaction_date?: string | null;
+  description?: string | null;
+  amount?: number | string | null;
+  installment_number?: number | null;
+  installments_total?: number | null;
+  dependent_id?: string | null;
+}) {
+  const monthStart = transaction.month_start
+    ? normalizeDateOnly(transaction.month_start)
+    : "";
+  const transactionDate = transaction.transaction_date
+    ? normalizeDateOnly(transaction.transaction_date)
+    : "";
+
+  return [
+    monthStart,
+    transactionDate,
+    normalizeDescriptionForCategory(transaction.description ?? ""),
+    toImportAmountCents(transaction.amount),
+    transaction.installment_number ?? 1,
+    transaction.installments_total ?? 1,
+    transaction.dependent_id ?? "eu",
+  ].join("|");
 }
 
 function parseAmount(value: string) {
@@ -801,11 +844,55 @@ export default function ImportarPage() {
         };
       });
 
-      const { error } = await supabase.from("transactions").insert(formattedData);
+      const invoiceMonths = Array.from(
+        new Set(formattedData.map((transaction) => transaction.month_start)),
+      );
+      const { data: existingTransactions, error: existingError } = await supabase
+        .from("transactions")
+        .select(
+          "month_start, transaction_date, description, amount, installment_number, installments_total, dependent_id",
+        )
+        .eq("user_id", user.id)
+        .eq("card_id", effectiveSelectedCardId)
+        .in("month_start", invoiceMonths);
+
+      if (existingError) throw existingError;
+
+      const existingSignatures = new Set(
+        ((existingTransactions ?? []) as ExistingImportTransaction[]).map(
+          getImportSignature,
+        ),
+      );
+      const currentFileSignatures = new Set<string>();
+      const uniqueData = formattedData.filter((transaction) => {
+        const signature = getImportSignature(transaction);
+
+        if (
+          existingSignatures.has(signature) ||
+          currentFileSignatures.has(signature)
+        ) {
+          return false;
+        }
+
+        currentFileSignatures.add(signature);
+        return true;
+      });
+      const duplicateCount = formattedData.length - uniqueData.length;
+
+      if (!uniqueData.length) {
+        toast.info("Todos os lançamentos dessa fatura já existem.");
+        return;
+      }
+
+      const { error } = await supabase.from("transactions").insert(uniqueData);
 
       if (error) throw error;
 
-      toast.success(`${formattedData.length} transações importadas com sucesso!`);
+      toast.success(
+        duplicateCount > 0
+          ? `${uniqueData.length} transações importadas. ${duplicateCount} duplicadas ignoradas.`
+          : `${uniqueData.length} transações importadas com sucesso!`,
+      );
       resetImport();
     } catch (error) {
       console.error("Erro ao importar CSV:", error);
