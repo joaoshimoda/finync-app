@@ -59,7 +59,6 @@ export default function FixedExpensesPage() {
 
   const cards = useFinanceStore((state) => state.cards);
   const transactions = useFinanceStore((state) => state.transactions);
-  const fetchCards = useFinanceStore((state) => state.fetchCards);
   const fetchTransactions = useFinanceStore((state) => state.fetchTransactions);
   const deleteTransaction = useFinanceStore((state) => state.deleteTransaction);
   const deleteTransactionGroup = useFinanceStore(
@@ -70,8 +69,8 @@ export default function FixedExpensesPage() {
   const currentYear = useFinanceStore((state) => state.currentYear);
 
   useEffect(() => {
-    void Promise.all([fetchCards(), fetchTransactions()]);
-  }, [currentMonth, currentYear, fetchCards, fetchTransactions]);
+    void fetchTransactions();
+  }, [currentMonth, currentYear, fetchTransactions]);
 
   const fixedTransactions = useMemo(
     () =>

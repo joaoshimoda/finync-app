@@ -150,9 +150,6 @@ export default function TransactionsPage() {
   const dependents = useFinanceStore((state) => state.dependents);
   const storedCategories = useFinanceStore((state) => state.categories);
   const transactions = useFinanceStore((state) => state.transactions);
-  const fetchCards = useFinanceStore((state) => state.fetchCards);
-  const fetchDependents = useFinanceStore((state) => state.fetchDependents);
-  const fetchCategories = useFinanceStore((state) => state.fetchCategories);
   const fetchTransactions = useFinanceStore((state) => state.fetchTransactions);
   const deleteTransaction = useFinanceStore((state) => state.deleteTransaction);
   const deleteTransactionGroup = useFinanceStore(
@@ -167,18 +164,8 @@ export default function TransactionsPage() {
   const prevMonth = useFinanceStore((state) => state.prevMonth);
 
   useEffect(() => {
-    void fetchCards();
-    void fetchDependents();
-    void fetchCategories();
     void fetchTransactions();
-  }, [
-    currentMonth,
-    currentYear,
-    fetchCards,
-    fetchCategories,
-    fetchDependents,
-    fetchTransactions,
-  ]);
+  }, [currentMonth, currentYear, fetchTransactions]);
 
   const selectedPeriodLabel = monthFormatter.format(
     new Date(currentYear, currentMonth - 1, 1),

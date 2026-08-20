@@ -3,7 +3,6 @@
 import { BottomNav } from "@/components/layout/BottomNav";
 import { Sidebar } from "@/components/layout/Sidebar";
 import { MobileTopBar } from "@/components/layout/MobileTopBar";
-import { supabase } from "@/lib/supabaseClient";
 import { useFinanceStore } from "@/store/useFinanceStore";
 import { useRouter } from "next/navigation";
 import { useEffect } from "react";
@@ -25,26 +24,6 @@ export default function DashboardLayout({
       unsubscribe();
     };
   }, [initializeAuth]);
-
-  useEffect(() => {
-    let isMounted = true;
-
-    async function verifySession() {
-      const {
-        data: { session },
-      } = await supabase.auth.getSession();
-
-      if (isMounted && !session) {
-        router.replace("/login");
-      }
-    }
-
-    verifySession();
-
-    return () => {
-      isMounted = false;
-    };
-  }, [router]);
 
   useEffect(() => {
     if (isAuthReady && !authUser) {

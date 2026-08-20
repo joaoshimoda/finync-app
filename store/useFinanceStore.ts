@@ -221,6 +221,21 @@ function getSelectedMonthRange(month: number, year: number) {
   return { startDate, endDate };
 }
 
+function addMonthsToMonthStart(month: number, year: number, offset: number) {
+  const monthIndex = month - 1 + offset;
+  const nextYear = year + Math.floor(monthIndex / 12);
+  const nextMonth = ((monthIndex % 12) + 12) % 12 + 1;
+
+  return toDateOnly(nextYear, nextMonth, 1);
+}
+
+function getOperationalMonthRange(month: number, year: number) {
+  return {
+    startDate: addMonthsToMonthStart(month, year, -1),
+    endDate: addMonthsToMonthStart(month, year, 13),
+  };
+}
+
 function getDayFromDate(date: string) {
   return getDateOnlyParts(date).day;
 }
@@ -866,10 +881,16 @@ export const useFinanceStore = create<FinanceState>()((set, get) => ({
 
       const selectedMonth = get().currentMonth;
       const selectedYear = get().currentYear;
+      const { startDate, endDate } = getOperationalMonthRange(
+        selectedMonth,
+        selectedYear,
+      );
       const { data, error } = await supabase
         .from("transactions")
         .select("*")
         .eq("user_id", user.id)
+        .gte("month_start", startDate)
+        .lt("month_start", endDate)
         .order("month_start", { ascending: false })
         .order("day", { ascending: false })
         .order("created_at", { ascending: false });

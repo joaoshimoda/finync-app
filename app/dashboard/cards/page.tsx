@@ -385,8 +385,6 @@ export default function CardsPage() {
   const cards = useFinanceStore((state) => state.cards);
   const dependents = useFinanceStore((state) => state.dependents);
   const transactions = useFinanceStore((state) => state.transactions);
-  const fetchCards = useFinanceStore((state) => state.fetchCards);
-  const fetchDependents = useFinanceStore((state) => state.fetchDependents);
   const fetchTransactions = useFinanceStore((state) => state.fetchTransactions);
   const deleteCard = useFinanceStore((state) => state.deleteCard);
   const payCardInvoice = useFinanceStore((state) => state.payCardInvoice);
@@ -399,14 +397,10 @@ export default function CardsPage() {
     formatSensitiveCurrency(value, hideBalancesByDefault);
 
   useEffect(() => {
-    void fetchCards();
-    void fetchDependents();
     void fetchTransactions();
   }, [
     currentMonth,
     currentYear,
-    fetchCards,
-    fetchDependents,
     fetchTransactions,
   ]);
 

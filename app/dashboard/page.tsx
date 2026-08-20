@@ -356,8 +356,6 @@ export default function DashboardPage() {
   const cards = useFinanceStore((state) => state.cards);
   const dependents = useFinanceStore((state) => state.dependents);
   const transactions = useFinanceStore((state) => state.transactions);
-  const fetchCards = useFinanceStore((state) => state.fetchCards);
-  const fetchDependents = useFinanceStore((state) => state.fetchDependents);
   const fetchTransactions = useFinanceStore((state) => state.fetchTransactions);
   const payCardInvoice = useFinanceStore((state) => state.payCardInvoice);
   const updateTransaction = useFinanceStore((state) => state.updateTransaction);
@@ -684,10 +682,8 @@ export default function DashboardPage() {
   );
 
   useEffect(() => {
-    void fetchCards();
-    void fetchDependents();
     void fetchTransactions();
-  }, [currentMonth, currentYear, fetchCards, fetchDependents, fetchTransactions]);
+  }, [currentMonth, currentYear, fetchTransactions]);
 
   const handleCloseIncomeModal = useCallback(() => {
     setIsAddIncomeModalOpen(false);
