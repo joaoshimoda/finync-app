@@ -4,6 +4,7 @@ import { supabase } from "@/lib/supabaseClient";
 import {
   getCardInvoiceMonthStart,
   getCurrentFinancialMonthStart,
+  getInstallmentInvoiceMonthStart,
 } from "@/lib/cardBilling";
 import {
   getDateOnlyParts,
@@ -1096,10 +1097,26 @@ export const useFinanceStore = create<FinanceState>()((set, get) => ({
         const cardClosingDay = nextCardId
           ? get().cards.find((card) => card.id === nextCardId)?.closingDay
           : undefined;
+        const installmentIndex = Math.max(
+          (currentTransaction?.installmentNumber ??
+            currentTransaction?.current_installment ??
+            1) - 1,
+          0,
+        );
+        const isInstallment =
+          (currentTransaction?.installmentsTotal ??
+            currentTransaction?.installments ??
+            1) > 1;
 
         updatePayload.month_start =
           nextType === "card"
-            ? getCardInvoiceMonthStart(normalizedNextDate, cardClosingDay)
+            ? isInstallment && dateChanged
+              ? getInstallmentInvoiceMonthStart(
+                  normalizedNextDate,
+                  cardClosingDay,
+                  installmentIndex,
+                )
+              : getCardInvoiceMonthStart(normalizedNextDate, cardClosingDay)
             : getMonthStart(normalizedNextDate);
       }
 
@@ -1207,11 +1224,26 @@ export const useFinanceStore = create<FinanceState>()((set, get) => ({
       const normalizedFromDate = normalizeDateOnly(fromDate);
       const sourceDay =
         transaction.date !== undefined ? getDayFromDate(transaction.date) : null;
-      const groupTransactions = get().transactions.filter(
-        (currentTransaction) =>
-          currentTransaction.groupId === groupId &&
-          normalizeDateOnly(currentTransaction.date) >= normalizedFromDate,
-      );
+      const groupTransactions = get().transactions
+        .filter(
+          (currentTransaction) =>
+            currentTransaction.groupId === groupId &&
+            normalizeDateOnly(currentTransaction.date) >= normalizedFromDate,
+        )
+        .sort((left, right) => {
+          const leftInstallment =
+            left.installmentNumber ?? left.current_installment ?? 1;
+          const rightInstallment =
+            right.installmentNumber ?? right.current_installment ?? 1;
+
+          if (leftInstallment !== rightInstallment) {
+            return leftInstallment - rightInstallment;
+          }
+
+          return normalizeDateOnly(left.date).localeCompare(
+            normalizeDateOnly(right.date),
+          );
+        });
 
       if (!groupTransactions.length) return;
 
@@ -1222,6 +1254,12 @@ export const useFinanceStore = create<FinanceState>()((set, get) => ({
             transaction.cardId !== undefined
               ? transaction.cardId
               : currentTransaction.cardId;
+          const currentInstallmentIndex = Math.max(
+            (currentTransaction.installmentNumber ??
+              currentTransaction.current_installment ??
+              1) - 1,
+            0,
+          );
           const nextDate =
             sourceDay === null
               ? normalizeDateOnly(currentTransaction.date)
@@ -1255,7 +1293,15 @@ export const useFinanceStore = create<FinanceState>()((set, get) => ({
 
             updatePayload.month_start =
               nextType === "card"
-                ? getCardInvoiceMonthStart(nextDate, cardClosingDay)
+                ? currentTransaction.is_recurring
+                  ? getCardInvoiceMonthStart(nextDate, cardClosingDay)
+                  : transaction.date !== undefined
+                    ? getInstallmentInvoiceMonthStart(
+                        normalizeDateOnly(transaction.date),
+                        cardClosingDay,
+                        currentInstallmentIndex,
+                      )
+                    : getCardInvoiceMonthStart(nextDate, cardClosingDay)
                 : getMonthStart(nextDate);
           }
 

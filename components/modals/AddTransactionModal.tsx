@@ -237,7 +237,7 @@ function TransactionModalContent({
       cardId: transactionCardId,
       dependentId: selectedDependentId || null,
       owner: "eu",
-      dependentIds: ["eu"],
+      dependentIds: [selectedDependentId || "eu"],
       installments: 1,
       current_installment: 1,
       installmentsTotal: 1,
