@@ -875,143 +875,106 @@ export default function DashboardPage() {
         />
       </div>
 
-      <section>
-        <div className="mb-4">
-          <p className="text-xs font-medium uppercase text-muted-foreground">
-            Resumo do mês
-          </p>
-          <h2 className="mt-1 text-xl font-semibold text-foreground">
-            Seu dinheiro em um olhar
-          </h2>
+      <section className="space-y-4">
+        <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-5">
+          {[
+            {
+              icon: ReceiptText,
+              label: "Saldo total",
+              tone: "text-zinc-50",
+              value: monthlyBalances.projectedBalance,
+              detail: "Livre até o fim do mês",
+              featured: true,
+            },
+            {
+              icon: TrendingUp,
+              label: "Receitas",
+              tone: "text-emerald-300",
+              value: monthlyBalances.totalIncome,
+              detail: "Entradas registradas",
+            },
+            {
+              icon: CreditCard,
+              label: "Faturas em aberto",
+              tone: "text-violet-300",
+              value: monthlyBalances.creditCardUntilToday,
+              detail: `Meu: ${formatPrivateCurrency(monthlyBalances.userCreditCardUntilToday)} • Dependentes: ${formatPrivateCurrency(monthlyBalances.dependentCreditCardUntilToday)}`,
+            },
+            {
+              icon: CreditCard,
+              label: "Projeção cartão",
+              tone: "text-blue-300",
+              value: monthlyBalances.creditCardProjected,
+              detail: `Meu: ${formatPrivateCurrency(monthlyBalances.userCreditCardProjected)} • Dependentes: ${formatPrivateCurrency(monthlyBalances.dependentCreditCardProjected)}`,
+            },
+            {
+              icon: ReceiptText,
+              label: "Pendentes",
+              tone: "text-orange-300",
+              value: monthlyBalances.totalPendingObligations,
+              detail: `Meu: ${formatPrivateCurrency(monthlyBalances.personalPendingObligations)} • Dependentes: ${formatPrivateCurrency(monthlyBalances.dependentPendingObligations)}`,
+            },
+          ].map((item) => {
+            const MetricIcon = item.icon;
+
+            return (
+              <Card
+                key={item.label}
+                className={cn(
+                  "min-h-[132px] rounded-xl border border-border/50 shadow-none",
+                  item.featured ? "bg-zinc-950 text-zinc-50" : "bg-card",
+                )}
+              >
+                <CardContent className="flex h-full flex-col justify-between p-4">
+                  <div className="flex items-center justify-between gap-3">
+                    <span className="text-sm text-muted-foreground">
+                      {item.label}
+                    </span>
+                    <MetricIcon className={cn("size-4", item.tone)} />
+                  </div>
+                  <strong
+                    className={cn("mt-4 block text-2xl font-semibold", item.tone)}
+                  >
+                    {formatPrivateCurrency(item.value)}
+                  </strong>
+                  <p className="mt-2 line-clamp-2 text-xs leading-4 text-zinc-500">
+                    {item.detail}
+                  </p>
+                </CardContent>
+              </Card>
+            );
+          })}
         </div>
 
-        <div className="grid grid-cols-2 gap-3 xl:grid-cols-5">
-          <Card className="col-span-2 min-h-28 rounded-2xl border border-border/50 bg-zinc-950 p-4 text-zinc-50 shadow-none xl:col-span-1">
-            <CardHeader className="p-0">
-              <CardDescription className="text-zinc-400">
-                Saldo Disponível Total
-              </CardDescription>
-              <CardTitle className="mt-3 text-base font-semibold tracking-tight sm:text-xl">
-                {formatPrivateCurrency(monthlyBalances.projectedBalance)}
-              </CardTitle>
-            </CardHeader>
-            <CardContent className="flex items-center gap-2 p-0 pt-3 text-xs text-zinc-500">
-              <ReceiptText className="size-4 text-emerald-400" />
-              Após compromissos do mês, ignorando gastos de dependentes.
-            </CardContent>
-          </Card>
-
-          <Card className="min-h-32 rounded-2xl border border-border/50 bg-card p-3.5 shadow-none transition-colors hover:bg-accent/10 sm:p-4">
-            <CardHeader className="p-0">
-              <CardDescription>Receitas do Mês</CardDescription>
-              <CardTitle className="mt-3 text-base tracking-normal text-emerald-300 sm:text-xl">
-                {formatPrivateCurrency(monthlyBalances.totalIncome)}
-              </CardTitle>
-            </CardHeader>
-            <CardContent className="flex items-center gap-2 p-0 pt-4 text-xs text-muted-foreground">
-              <TrendingUp className="size-4 text-emerald-300" />
-              Entradas registradas
-            </CardContent>
-          </Card>
-
-          <Card className="min-h-32 rounded-2xl border border-border/50 bg-card p-3.5 shadow-none transition-colors hover:bg-accent/10 sm:p-4">
-            <CardHeader className="p-0">
-              <CardDescription>Faturas em Aberto</CardDescription>
-              <CardTitle className="mt-3 text-base tracking-normal text-violet-300 sm:text-xl">
-                {formatPrivateCurrency(monthlyBalances.creditCardUntilToday)}
-              </CardTitle>
-            </CardHeader>
-            <CardContent className="p-0 pt-3 text-xs text-muted-foreground">
-              <div className="flex items-center gap-2">
-                <CreditCard className="size-4 shrink-0 text-violet-300" />
-                Total consolidado no dia de hoje
-              </div>
-              <p className="mt-2 text-[10px] leading-4 text-zinc-500 sm:text-xs">
-                Meu: {formatPrivateCurrency(monthlyBalances.userCreditCardUntilToday)}
-                <span className="mx-1">•</span>
-                Dependentes: {formatPrivateCurrency(monthlyBalances.dependentCreditCardUntilToday)}
-              </p>
-            </CardContent>
-          </Card>
-
-          <Card className="min-h-32 rounded-2xl border border-border/50 bg-card p-3.5 shadow-none transition-colors hover:bg-accent/10 sm:p-4">
-            <CardHeader className="p-0">
-              <CardDescription>Projeção de Fechamento</CardDescription>
-              <CardTitle className="mt-3 text-base tracking-normal text-blue-300 sm:text-xl">
-                {formatPrivateCurrency(monthlyBalances.creditCardProjected)}
-              </CardTitle>
-            </CardHeader>
-            <CardContent className="p-0 pt-3 text-xs text-muted-foreground">
-              <div className="flex items-center gap-2">
-                <CreditCard className="size-4 shrink-0 text-blue-300" />
-                Faturas atuais + lançamentos futuros
-              </div>
-              <p className="mt-2 text-[10px] leading-4 text-zinc-500 sm:text-xs">
-                Meu: {formatPrivateCurrency(monthlyBalances.userCreditCardProjected)}
-                <span className="mx-1">•</span>
-                Dependentes: {formatPrivateCurrency(monthlyBalances.dependentCreditCardProjected)}
-              </p>
-            </CardContent>
-          </Card>
-
-          <Card className="min-h-32 rounded-2xl border border-border/50 bg-card p-3.5 shadow-none transition-colors hover:bg-accent/10 sm:p-4">
-            <CardHeader className="p-0">
-              <CardDescription>Gastos Pendentes</CardDescription>
-              <CardTitle className="mt-3 text-base tracking-normal text-orange-300 sm:text-xl">
-                {formatPrivateCurrency(monthlyBalances.totalPendingObligations)}
-              </CardTitle>
-            </CardHeader>
-            <CardContent className="p-0 pt-3 text-xs text-muted-foreground">
-              <div className="flex items-center gap-2">
-                <ReceiptText className="size-4 shrink-0 text-orange-300" />
-                Faturas e contas em aberto
-              </div>
-              <p className="mt-2 text-[10px] leading-4 text-zinc-500 sm:text-xs">
-                Meu: {formatPrivateCurrency(monthlyBalances.personalPendingObligations)}
-                <span className="mx-1">•</span>
-                Dependentes: {formatPrivateCurrency(monthlyBalances.dependentPendingObligations)}
-              </p>
-            </CardContent>
-          </Card>
-        </div>
-      </section>
-
-      <Card className="rounded-2xl border border-border/50 bg-card shadow-none">
-        <CardHeader className="border-b border-border/50 p-5">
-          <CardDescription>Composição do Saldo</CardDescription>
-          <CardTitle className="text-xl tracking-normal">
-            Como o saldo disponível foi calculado
-          </CardTitle>
-        </CardHeader>
-        <CardContent className="grid gap-4 p-4 lg:grid-cols-[minmax(0,1fr)_280px]">
-          <div className="grid gap-2">
+        <Card className="rounded-xl border border-border/50 bg-card shadow-none">
+          <CardContent className="grid gap-2 p-3 sm:grid-cols-2 lg:grid-cols-5">
             {[
               {
-                label: "Receitas consideradas",
+                label: "Receitas",
                 value: balanceComposition.income,
                 tone: "text-emerald-300",
                 prefix: "+",
               },
               {
-                label: "Contas fixas pessoais",
+                label: "Fixos",
                 value: balanceComposition.fixed,
                 tone: "text-zinc-100",
                 prefix: "-",
               },
               {
-                label: "Débito / Pix pessoais",
+                label: "Débito / Pix",
                 value: balanceComposition.debitPix,
                 tone: "text-zinc-100",
                 prefix: "-",
               },
               {
-                label: "Cartão pessoal projetado",
+                label: "Cartão pessoal",
                 value: balanceComposition.cardGross,
                 tone: "text-zinc-100",
                 prefix: "-",
               },
               {
-                label: "Créditos e estornos no cartão",
+                label: "Créditos",
                 value: balanceComposition.cardCredits,
                 tone: "text-emerald-300",
                 prefix: "+",
@@ -1019,44 +982,18 @@ export default function DashboardPage() {
             ].map((item) => (
               <div
                 key={item.label}
-                className="flex items-center justify-between gap-4 rounded-xl border border-zinc-800 bg-zinc-950/50 px-4 py-3"
+                className="flex items-center justify-between gap-3 rounded-lg bg-zinc-900/40 px-3 py-2"
               >
-                <span className="text-sm text-zinc-400">{item.label}</span>
-                <strong className={cn("text-sm font-semibold", item.tone)}>
+                <span className="text-xs text-zinc-500">{item.label}</span>
+                <strong className={cn("text-xs font-semibold", item.tone)}>
                   {item.prefix}
                   {formatPrivateCurrency(item.value)}
                 </strong>
               </div>
             ))}
-          </div>
-
-          <div className="flex flex-col justify-between rounded-xl border border-zinc-800 bg-zinc-950 p-4">
-            <div>
-              <p className="text-xs font-medium uppercase tracking-wide text-zinc-500">
-                Resultado
-              </p>
-              <strong className="mt-3 block text-2xl font-semibold tracking-tight text-zinc-50">
-                {formatPrivateCurrency(balanceComposition.projectedBalance)}
-              </strong>
-              <p className="mt-2 text-xs leading-5 text-zinc-500">
-                Dependentes excluídos do saldo pessoal:{" "}
-                {formatPrivateCurrency(balanceComposition.dependentTotal)}
-              </p>
-            </div>
-            <div className="mt-5 h-1.5 overflow-hidden rounded-full bg-zinc-800">
-              <div
-                className={cn(
-                  "h-full rounded-full",
-                  balanceComposition.projectedBalance >= 0
-                    ? "bg-emerald-500"
-                    : "bg-red-500",
-                )}
-                style={{ width: "100%" }}
-              />
-            </div>
-          </div>
-        </CardContent>
-      </Card>
+          </CardContent>
+        </Card>
+      </section>
 
       {pendingVariableIncomes.length ? (
         <Card className="rounded-xl border border-emerald-500/30 bg-emerald-500/10 shadow-none">
