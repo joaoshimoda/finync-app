@@ -44,6 +44,8 @@ interface AddIncomeModalProps {
   editingTransaction?: Transaction | null;
 }
 
+type GroupEditScope = "single" | "future" | "all";
+
 function addMonthsToDateOnly(date: string, monthsToAdd: number) {
   const { day, month, year } = getDateOnlyParts(date);
   const monthIndex = month - 1 + monthsToAdd;
@@ -86,6 +88,9 @@ function IncomeModalContent({
   const addTransactions = useFinanceStore((state) => state.addTransactions);
   const fetchTransactions = useFinanceStore((state) => state.fetchTransactions);
   const updateTransaction = useFinanceStore((state) => state.updateTransaction);
+  const updateTransactionGroup = useFinanceStore(
+    (state) => state.updateTransactionGroup,
+  );
 
   const [amount, setAmount] = useState(
     editingTransaction ? String(editingTransaction.amount).replace(".", ",") : "",
@@ -108,6 +113,8 @@ function IncomeModalContent({
     editingTransaction ? isVariableIncome(editingTransaction) : false,
   );
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [pendingRecurringUpdate, setPendingRecurringUpdate] =
+    useState<CreateTransactionInput | null>(null);
 
   const incomeCategories = useMemo(
     () => categories.filter((item) => item.kind === "income"),
@@ -117,6 +124,43 @@ function IncomeModalContent({
   useEffect(() => {
     void fetchCategories();
   }, [fetchCategories]);
+
+  async function saveGroupedUpdate(scope: GroupEditScope) {
+    if (!editingTransaction || !pendingRecurringUpdate || isSubmitting) return;
+
+    setIsSubmitting(true);
+
+    try {
+      if (
+        (scope === "future" || scope === "all") &&
+        editingTransaction.groupId
+      ) {
+        await updateTransactionGroup(
+          editingTransaction.groupId,
+          editingTransaction.date,
+          pendingRecurringUpdate,
+          scope,
+        );
+      } else {
+        await updateTransaction(editingTransaction.id, pendingRecurringUpdate);
+      }
+
+      await fetchTransactions();
+      toast.success(
+        scope === "all"
+          ? "Todas as receitas da recorrência foram atualizadas."
+          : scope === "future"
+            ? "Esta receita e as próximas foram atualizadas."
+            : "Somente esta receita foi atualizada.",
+      );
+      onClose();
+    } catch (error) {
+      console.error("Erro ao atualizar receita recorrente:", error);
+      toast.error("Não foi possível atualizar a receita recorrente.");
+    } finally {
+      setIsSubmitting(false);
+    }
+  }
 
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -153,7 +197,11 @@ function IncomeModalContent({
     setIsSubmitting(true);
 
     try {
-      if (editingTransaction) {
+      if (editingTransaction?.groupId && editingTransaction.is_recurring) {
+        setPendingRecurringUpdate(incomePayload);
+        setIsSubmitting(false);
+        return;
+      } else if (editingTransaction) {
         await updateTransaction(editingTransaction.id, incomePayload);
       } else if (repeatMonthly || isVariableValue) {
         const groupId = crypto.randomUUID();
@@ -324,11 +372,61 @@ function IncomeModalContent({
           </div>
         </section>
 
+        {pendingRecurringUpdate ? (
+          <section className="rounded-xl border border-zinc-800 bg-zinc-900/60 p-4">
+            <p className="text-sm font-semibold text-zinc-100">
+              Como deseja aplicar esta edição?
+            </p>
+            <p className="mt-1 text-xs leading-5 text-zinc-500">
+              Escolha se a alteração vale somente para esta receita, para as
+              próximas ou para todo o histórico da recorrência.
+            </p>
+
+            <div className="mt-4 grid gap-3 sm:grid-cols-3">
+              <Button
+                type="button"
+                variant="secondary"
+                disabled={isSubmitting}
+                onClick={() => void saveGroupedUpdate("single")}
+                className="h-11 cursor-pointer"
+              >
+                Somente esta
+              </Button>
+              <Button
+                type="button"
+                disabled={isSubmitting}
+                onClick={() => void saveGroupedUpdate("future")}
+                className="h-11 cursor-pointer bg-emerald-600 font-semibold text-white hover:bg-emerald-700"
+              >
+                Esta e as próximas
+              </Button>
+              <Button
+                type="button"
+                variant="outline"
+                disabled={isSubmitting}
+                onClick={() => void saveGroupedUpdate("all")}
+                className="h-11 cursor-pointer"
+              >
+                Todas
+              </Button>
+            </div>
+            <Button
+              type="button"
+              variant="ghost"
+              disabled={isSubmitting}
+              onClick={() => setPendingRecurringUpdate(null)}
+              className="mt-3 h-10 w-full cursor-pointer text-zinc-400"
+            >
+              Alterar dados
+            </Button>
+          </section>
+        ) : null}
+
         <div className="mt-8 flex justify-end gap-3">
           <Button
             type="button"
             variant="ghost"
-            disabled={isSubmitting}
+            disabled={isSubmitting || Boolean(pendingRecurringUpdate)}
             onClick={onClose}
             className="h-11 px-5 text-zinc-400 hover:text-zinc-50"
           >
@@ -339,7 +437,11 @@ function IncomeModalContent({
             disabled={isSubmitting}
             className="h-11 min-w-52 bg-emerald-600 font-semibold text-white hover:bg-emerald-700"
           >
-            {isSubmitting ? "Salvando..." : "Salvar receita"}
+            {isSubmitting
+              ? "Salvando..."
+              : editingTransaction?.groupId && editingTransaction.is_recurring
+                ? "Escolher escopo"
+                : "Salvar receita"}
           </Button>
         </div>
       </form>

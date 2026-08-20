@@ -48,8 +48,11 @@ import { useFinanceStore } from "@/store/useFinanceStore";
 
 const AVATAR_CROP_SIZE = 280;
 const AVATAR_OUTPUT_SIZE = 512;
+const MAX_AVATAR_FILE_SIZE = 5 * 1024 * 1024;
 const invoiceReminderStorageKey = "finync-invoice-reminder";
 const weeklySummaryStorageKey = "finync-weekly-summary";
+const currencyStorageKey = "finync-default-currency";
+const dateFormatStorageKey = "finync-date-format";
 
 function isNotificationPermissionDenied() {
   return (
@@ -65,6 +68,12 @@ function getStoredBoolean(key: string) {
   }
 
   return window.localStorage.getItem(key) === "true";
+}
+
+function getStoredPreference(key: string, fallback: string) {
+  if (typeof window === "undefined") return fallback;
+
+  return window.localStorage.getItem(key) ?? fallback;
 }
 
 function getInitials(name: string, email: string) {
@@ -123,6 +132,17 @@ async function loadImage(src: string) {
   return image;
 }
 
+function getAvatarStoragePath(publicUrl: string | undefined) {
+  if (!publicUrl) return null;
+
+  const marker = "/storage/v1/object/public/avatars/";
+  const markerIndex = publicUrl.indexOf(marker);
+
+  if (markerIndex < 0) return null;
+
+  return decodeURIComponent(publicUrl.slice(markerIndex + marker.length));
+}
+
 export default function ConfiguracoesPage() {
   const authUser = useFinanceStore((state) => state.authUser);
   const updateAuthUser = useFinanceStore((state) => state.updateAuthUser);
@@ -142,8 +162,12 @@ export default function ConfiguracoesPage() {
   const [displayName, setDisplayName] = useState<string | null>(null);
   const [isSaving, setIsSaving] = useState(false);
   const [isUploadingAvatar, setIsUploadingAvatar] = useState(false);
-  const [defaultCurrency, setDefaultCurrency] = useState("BRL");
-  const [dateFormat, setDateFormat] = useState("DD/MM/AAAA");
+  const [defaultCurrency, setDefaultCurrency] = useState(() =>
+    getStoredPreference(currencyStorageKey, "BRL"),
+  );
+  const [dateFormat, setDateFormat] = useState(() =>
+    getStoredPreference(dateFormatStorageKey, "DD/MM/AAAA"),
+  );
   const [invoiceReminder, setInvoiceReminder] = useState(() =>
     getStoredBoolean(invoiceReminderStorageKey),
   );
@@ -259,6 +283,12 @@ export default function ConfiguracoesPage() {
 
     if (!file.type.startsWith("image/")) {
       toast.error("Selecione uma imagem válida.");
+      event.target.value = "";
+      return;
+    }
+
+    if (file.size > MAX_AVATAR_FILE_SIZE) {
+      toast.error("A imagem deve ter no máximo 5 MB.");
       event.target.value = "";
       return;
     }
@@ -388,6 +418,18 @@ export default function ConfiguracoesPage() {
 
       if (data.user) {
         updateAuthUser(data.user);
+      }
+
+      const previousAvatarPath = getAvatarStoragePath(avatarUrl);
+
+      if (previousAvatarPath && previousAvatarPath !== filePath) {
+        const { error: removeError } = await supabase.storage
+          .from("avatars")
+          .remove([previousAvatarPath]);
+
+        if (removeError) {
+          console.warn("Não foi possível remover o avatar anterior:", removeError);
+        }
       }
 
       closeCropDialog();
@@ -654,7 +696,13 @@ export default function ConfiguracoesPage() {
             <CardContent className="space-y-6 px-6 py-7">
               <div className="space-y-2">
                 <Label>Moeda Padrão</Label>
-                <Select value={defaultCurrency} onValueChange={setDefaultCurrency}>
+                <Select
+                  value={defaultCurrency}
+                  onValueChange={(value) => {
+                    setDefaultCurrency(value);
+                    window.localStorage.setItem(currencyStorageKey, value);
+                  }}
+                >
                   <SelectTrigger className="h-11 border-zinc-700 bg-zinc-900 text-zinc-100">
                     <SelectValue placeholder="Selecione a moeda" />
                   </SelectTrigger>
@@ -668,7 +716,13 @@ export default function ConfiguracoesPage() {
 
               <div className="space-y-2">
                 <Label>Formato de Data</Label>
-                <Select value={dateFormat} onValueChange={setDateFormat}>
+                <Select
+                  value={dateFormat}
+                  onValueChange={(value) => {
+                    setDateFormat(value);
+                    window.localStorage.setItem(dateFormatStorageKey, value);
+                  }}
+                >
                   <SelectTrigger className="h-11 border-zinc-700 bg-zinc-900 text-zinc-100">
                     <SelectValue placeholder="Selecione o formato" />
                   </SelectTrigger>

@@ -1185,32 +1185,12 @@ export const useFinanceStore = create<FinanceState>()((set, get) => ({
       if (error) throw error;
       if (!data) throw new Error("Supabase não retornou a transação atualizada.");
 
-      if (transaction.category !== undefined && currentTransaction?.groupId) {
-        const { error: groupCategoryError } = await supabase
-          .from("transactions")
-          .update({ category: transaction.category })
-          .eq("user_id", user.id)
-          .eq("group_id", currentTransaction.groupId);
-
-        if (groupCategoryError) throw groupCategoryError;
-      }
-
       const updatedTransaction = mapTransaction(data as TransactionRow);
 
       set((state) => ({
-        transactions: state.transactions.map((item) => {
-          if (item.id === transactionId) return updatedTransaction;
-
-          if (
-            transaction.category !== undefined &&
-            currentTransaction?.groupId &&
-            item.groupId === currentTransaction.groupId
-          ) {
-            return { ...item, category: transaction.category };
-          }
-
-          return item;
-        }),
+        transactions: state.transactions.map((item) =>
+          item.id === transactionId ? updatedTransaction : item,
+        ),
       }));
     } catch (error) {
       console.error("Erro ao atualizar transação:", error);
@@ -1414,24 +1394,19 @@ export const useFinanceStore = create<FinanceState>()((set, get) => ({
         ),
       );
 
-      const updateRequests = [
-        supabase
-          .from("transactions")
-          .update({ category })
-          .eq("user_id", user.id)
-          .in("id", transactionIds),
-        ...groupIds.map((groupId) =>
-          supabase
-            .from("transactions")
-            .update({ category })
-            .eq("user_id", user.id)
-            .eq("group_id", groupId),
-        ),
-      ];
-      const results = await Promise.all(updateRequests);
-      const failedRequest = results.find((result) => result.error);
+      const filters = [`id.in.(${transactionIds.join(",")})`];
 
-      if (failedRequest?.error) throw failedRequest.error;
+      if (groupIds.length) {
+        filters.push(`group_id.in.(${groupIds.join(",")})`);
+      }
+
+      const { error } = await supabase
+        .from("transactions")
+        .update({ category })
+        .eq("user_id", user.id)
+        .or(filters.join(","));
+
+      if (error) throw error;
 
       const groupIdSet = new Set(groupIds);
       set((state) => ({
@@ -1531,14 +1506,12 @@ export const useFinanceStore = create<FinanceState>()((set, get) => ({
       if (!user) throw new Error("Usuário não autenticado.");
 
       const normalizedFromDate = normalizeDateOnly(fromDate);
-      const fromMonthStart = getMonthStart(normalizedFromDate);
-
       const { error } = await supabase
         .from("transactions")
         .delete()
         .eq("user_id", user.id)
         .eq("group_id", groupId)
-        .gte("month_start", fromMonthStart);
+        .gte("transaction_date", normalizedFromDate);
 
       if (error) throw error;
 

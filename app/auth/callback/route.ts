@@ -1,5 +1,6 @@
 import { createServerClient, type CookieOptions } from "@supabase/ssr";
 import { NextResponse, type NextRequest } from "next/server";
+import { getSafeInternalRedirect } from "@/lib/safeRedirect";
 
 const thirtyDaysInSeconds = 30 * 24 * 60 * 60;
 
@@ -24,7 +25,7 @@ function getSessionCookieOptions(
 export async function GET(request: NextRequest) {
   const requestUrl = new URL(request.url);
   const code = requestUrl.searchParams.get("code");
-  const next = requestUrl.searchParams.get("next") || "/dashboard";
+  const next = getSafeInternalRedirect(requestUrl.searchParams.get("next"));
   const rememberConnected =
     request.cookies.get("finync-remember")?.value === "true";
   let response = NextResponse.next({ request });
