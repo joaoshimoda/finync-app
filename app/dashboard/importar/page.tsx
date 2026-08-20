@@ -85,6 +85,7 @@ type ParsedTransaction = {
 type CsvRow = Record<string, unknown>;
 type SplitMode = "mine" | "dependent" | "split";
 type ExistingImportTransaction = {
+  import_signature: string | null;
   month_start: string | null;
   transaction_date: string | null;
   day: number | null;
@@ -96,6 +97,7 @@ type ExistingImportTransaction = {
 };
 type PreparedImportTransaction = {
   sourceIndex: number;
+  import_signature: string;
   card_id: string;
   dependent_id: string | null;
   group_id: string | null;
@@ -689,7 +691,10 @@ export default function ImportarPage() {
           : null;
         const owner = dependent?.name ?? "eu";
 
-        return {
+        const preparedTransaction: Omit<
+          PreparedImportTransaction,
+          "import_signature"
+        > = {
           sourceIndex,
           card_id: effectiveSelectedCardId,
           dependent_id: transaction.dependentId ?? null,
@@ -718,6 +723,11 @@ export default function ImportarPage() {
           recurring: false,
           direct_subscription: false,
           split_with: [dependent?.id ?? "eu"],
+        };
+
+        return {
+          ...preparedTransaction,
+          import_signature: getImportSignature(preparedTransaction),
         };
       });
     });
@@ -768,7 +778,7 @@ export default function ImportarPage() {
         const { data, error } = await supabase
           .from("transactions")
           .select(
-            "month_start, transaction_date, day, description, amount, installment_number, installments_total, dependent_id",
+            "import_signature, month_start, transaction_date, day, description, amount, installment_number, installments_total, dependent_id",
           )
           .eq("user_id", user.id)
           .eq("card_id", effectiveSelectedCardId)
@@ -780,7 +790,14 @@ export default function ImportarPage() {
           const existingRows = (data ?? []) as ExistingImportTransaction[];
 
           setExistingImportSignatures(
-            new Set(existingRows.map(getImportSignature)),
+            new Set(
+              existingRows.flatMap(
+                (row) =>
+                  row.import_signature
+                    ? [row.import_signature, getImportSignature(row)]
+                    : [getImportSignature(row)],
+              ),
+            ),
           );
           setExistingLooseImportSignatures(
             new Set(
@@ -1242,7 +1259,10 @@ export default function ImportarPage() {
         return;
       }
 
-      const { error } = await supabase.from("transactions").insert(uniqueData);
+      const { error } = await supabase.from("transactions").upsert(uniqueData, {
+        ignoreDuplicates: true,
+        onConflict: "user_id,card_id,import_signature",
+      });
 
       if (error) throw error;
 

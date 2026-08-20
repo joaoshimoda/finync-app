@@ -115,6 +115,7 @@ interface TransactionRow {
   day: number;
   status: DbTransactionStatus;
   owner: string | null;
+  import_signature: string | null;
   installment_number: number | null;
   installments_total: number | null;
   recurring: boolean | null;
