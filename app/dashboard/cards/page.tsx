@@ -59,7 +59,6 @@ import {
   toDateOnly,
 } from "@/lib/dateUtils";
 import {
-  calculateAvailableCardLimit,
   calculateCardDebt,
   getCardSignedAmount,
   isCardCreditAdjustment,
@@ -455,6 +454,14 @@ export default function CardsPage() {
       ),
     [selectedChargeableCardTransactions],
   );
+  const selectedProjectedInvoiceTotal = useMemo(
+    () =>
+      selectedCardTransactions.reduce(
+        (total, transaction) => total + getCardSignedAmount(transaction),
+        0,
+      ),
+    [selectedCardTransactions],
+  );
   const selectedInvoiceSummary = useMemo(() => {
     const today = getLocalTodayDateOnly();
     const total = selectedCardTransactions.reduce(
@@ -475,10 +482,10 @@ export default function CardsPage() {
       (sum, transaction) => sum + getCardSignedAmount(transaction),
       0,
     );
-    const paid = postedTransactions
+    const paid = selectedCardTransactions
       .filter((transaction) => transaction.status === "paid")
       .reduce((sum, transaction) => sum + getCardSignedAmount(transaction), 0);
-    const open = Math.max(posted - paid, 0);
+    const open = Math.max(total - paid, 0);
     const dependentsTotal = selectedCardTransactions
       .filter((transaction) => transaction.dependentId)
       .reduce((sum, transaction) => sum + getCardSignedAmount(transaction), 0);
@@ -504,13 +511,6 @@ export default function CardsPage() {
   const selectedDebtTotal = useMemo(
     () => (selectedCard ? calculateCardDebt(transactions, selectedCard.id) : 0),
     [selectedCard, transactions],
-  );
-  const selectedAvailableLimit = useMemo(
-    () =>
-      selectedCard
-        ? calculateAvailableCardLimit(transactions, selectedCard.id, selectedLimit)
-        : 0,
-    [selectedCard, selectedLimit, transactions],
   );
   const selectedUsage = useMemo(
     () =>
@@ -704,12 +704,12 @@ export default function CardsPage() {
               </p>
             </div>
             <div className="text-left lg:text-right">
-              <p className="text-sm text-muted-foreground">Total do mês</p>
+              <p className="text-sm text-muted-foreground">Fatura atual</p>
               <p className="mt-1 text-2xl font-bold text-foreground lg:text-3xl">
                 {formatPrivateCurrency(selectedInvoiceTotal)}
               </p>
               <p className="mt-1 text-xs text-muted-foreground">
-                Disponível: {formatPrivateCurrency(selectedAvailableLimit)}
+                Projetado: {formatPrivateCurrency(selectedProjectedInvoiceTotal)}
               </p>
             </div>
           </div>
@@ -729,7 +729,7 @@ export default function CardsPage() {
           <div className="mt-5 grid grid-cols-2 gap-3 lg:grid-cols-6">
             {[
               {
-                label: "Total da fatura",
+                label: "Projeção",
                 value: selectedInvoiceSummary.total,
                 tone: "text-zinc-50",
               },
@@ -775,7 +775,7 @@ export default function CardsPage() {
         </CardHeader>
 
         <CardContent className="pt-4">
-          <TopCategories transactions={selectedChargeableCardTransactions} />
+          <TopCategories transactions={selectedCardTransactions} />
 
           <div className="space-y-2 md:hidden">
             {selectedCardTransactions.length ? (

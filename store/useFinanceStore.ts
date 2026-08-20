@@ -1417,7 +1417,6 @@ export const useFinanceStore = create<FinanceState>()((set, get) => ({
         .eq("card_id", cardId)
         .gte("month_start", startDate)
         .lt("month_start", endDate)
-        .lte("transaction_date", getLocalTodayDateOnly())
         .select("*");
 
       if (error) throw error;
