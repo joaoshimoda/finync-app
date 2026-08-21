@@ -64,6 +64,10 @@ import {
   toDateOnly,
 } from "@/lib/dateUtils";
 import { supabase } from "@/lib/supabaseClient";
+import {
+  addOccurrenceSignatures,
+  getOccurrenceSignatureSet,
+} from "@/lib/importOccurrences";
 import { cn } from "@/lib/utils";
 import { useFinanceStore } from "@/store/useFinanceStore";
 
@@ -106,6 +110,7 @@ type ExistingImportTransaction = {
   installment_number: number | null;
   installments_total: number | null;
   dependent_id: string | null;
+  notes: string | null;
 };
 type PreparedImportTransaction = {
   sourceIndex: number;
@@ -135,7 +140,11 @@ const brlFormatter = new Intl.NumberFormat("pt-BR", {
   currency: "BRL",
 });
 
-const ignoredPaymentIndicators = ["pagamento", "pagamento recebido", "pagamento de fatura"];
+const ignoredPaymentIndicators = [
+  "pagamento",
+  "pagamento recebido",
+  "pagamento de fatura",
+];
 const installmentPattern =
   /(?:\s*-\s*Parcela\s*|\s*-\s*|\s*\()?(\d{1,2})\/(\d{1,2})\)?$/i;
 const monthLabels = [
@@ -209,7 +218,9 @@ function normalizeImportedExpenseCategory(category: string | null) {
 
 function toImportAmountCents(amount: number | string | null | undefined) {
   const numericAmount =
-    typeof amount === "string" ? Number(amount.replace(",", ".")) : Number(amount);
+    typeof amount === "string"
+      ? Number(amount.replace(",", "."))
+      : Number(amount);
 
   return Number.isFinite(numericAmount) ? Math.round(numericAmount * 100) : 0;
 }
@@ -327,7 +338,11 @@ function getCsvCell(row: CsvRow, keys: string[], fallbackIndex: number) {
 }
 
 function getCsvAmountCell(row: CsvRow) {
-  const amount = getCsvCell(row, ["amount", "valor", "preco", "preço", "total"], 2);
+  const amount = getCsvCell(
+    row,
+    ["amount", "valor", "preco", "preço", "total"],
+    2,
+  );
   const parsedExtra = row.__parsed_extra;
 
   if (
@@ -354,7 +369,9 @@ function parseCsvDate(value: string) {
     return normalizeDateOnly(normalizedValue);
   }
 
-  const brDateMatch = normalizedValue.match(/^(\d{1,2})\/(\d{1,2})\/(\d{2,4})$/);
+  const brDateMatch = normalizedValue.match(
+    /^(\d{1,2})\/(\d{1,2})\/(\d{2,4})$/,
+  );
   if (brDateMatch) {
     const day = Number(brDateMatch[1]);
     const month = Number(brDateMatch[2]);
@@ -496,11 +513,8 @@ function mapCsvRow(
   if (shouldIgnoreImportedRow(description, parsedAmount.isNegative)) return [];
 
   const baseDate = parseCsvDate(date);
-  const {
-    cleanDescription,
-    installmentNumber,
-    installmentsTotal,
-  } = parseInstallment(description || "Sem descrição");
+  const { cleanDescription, installmentNumber, installmentsTotal } =
+    parseInstallment(description || "Sem descrição");
   const isCredit = parsedAmount.isNegative;
   const finalDescription = cleanDescription || "Sem descrição";
   const requiresReview = isAmbiguousPaymentCredit(finalDescription, isCredit);
@@ -631,7 +645,8 @@ export default function ImportarPage() {
   const effectiveSelectedCard = cards.find(
     (card) => card.id === effectiveSelectedCardId,
   );
-  const effectiveReferenceMonth = referenceMonth ||
+  const effectiveReferenceMonth =
+    referenceMonth ||
     (effectiveSelectedCard
       ? getCardInvoiceMonthStart(
           getLocalTodayDateOnly(),
@@ -639,37 +654,42 @@ export default function ImportarPage() {
         )
       : getMonthStartFromReference(getLocalTodayDateOnly()));
 
-  const onDrop = useCallback((acceptedFiles: File[]) => {
-    const file = acceptedFiles[0];
+  const onDrop = useCallback(
+    (acceptedFiles: File[]) => {
+      const file = acceptedFiles[0];
 
-    if (!file) return;
+      if (!file) return;
 
-    setParseError("");
-    setLastImportSummary(null);
-    setFileName(file.name);
+      setParseError("");
+      setLastImportSummary(null);
+      setFileName(file.name);
 
-    Papa.parse<CsvRow>(file, {
-      header: true,
-      skipEmptyLines: true,
-      delimitersToGuess: [",", ";", "\t", "|"],
-      transformHeader: (header) => normalizeKey(header),
-      complete: (result) => {
-        const rows = result.data.flatMap((row) =>
-          mapCsvRow(row, historicalCategoryMap),
-        );
+      Papa.parse<CsvRow>(file, {
+        header: true,
+        skipEmptyLines: true,
+        delimitersToGuess: [",", ";", "\t", "|"],
+        transformHeader: (header) => normalizeKey(header),
+        complete: (result) => {
+          const rows = result.data.flatMap((row) =>
+            mapCsvRow(row, historicalCategoryMap),
+          );
 
-        setParsedData(rows);
+          setParsedData(rows);
 
-        if (!rows.length) {
-          setParseError("Não encontramos transações válidas nesse arquivo.");
-        }
-      },
-      error: () => {
-        setParsedData([]);
-        setParseError("Não foi possível ler o CSV. Verifique o arquivo e tente novamente.");
-      },
-    });
-  }, [historicalCategoryMap]);
+          if (!rows.length) {
+            setParseError("Não encontramos transações válidas nesse arquivo.");
+          }
+        },
+        error: () => {
+          setParsedData([]);
+          setParseError(
+            "Não foi possível ler o CSV. Verifique o arquivo e tente novamente.",
+          );
+        },
+      });
+    },
+    [historicalCategoryMap],
+  );
 
   const { getInputProps, getRootProps, isDragActive, isDragReject } =
     useDropzone({
@@ -697,7 +717,7 @@ export default function ImportarPage() {
   const preparedImportRows = useMemo<PreparedImportTransaction[]>(() => {
     const monthStart = getMonthStartFromReference(effectiveReferenceMonth);
 
-    return parsedData.flatMap((sourceTransaction, sourceIndex) => {
+    const baseRows = parsedData.flatMap((sourceTransaction, sourceIndex) => {
       if (sourceTransaction.reviewStatus === "ignored") return [];
 
       return getRowsForImport(sourceTransaction).map((transaction) => {
@@ -746,19 +766,27 @@ export default function ImportarPage() {
         };
       });
     });
-  }, [dependents, effectiveReferenceMonth, effectiveSelectedCardId, fileName, parsedData]);
+
+    return addOccurrenceSignatures(baseRows, getImportSignature);
+  }, [
+    dependents,
+    effectiveReferenceMonth,
+    effectiveSelectedCardId,
+    fileName,
+    parsedData,
+  ]);
   useEffect(() => {
     let isMounted = true;
 
     async function fetchExistingImportSignatures() {
-        if (!preparedImportRows.length || !effectiveSelectedCardId) {
-          if (isMounted) {
-            setExistingImportSignatures(new Set());
-            setExistingLooseImportSignatures(new Set());
-            setExistingCrossMonthImportSignatures(new Set());
-            setIsCheckingDuplicates(false);
-          }
-          return;
+      if (!preparedImportRows.length || !effectiveSelectedCardId) {
+        if (isMounted) {
+          setExistingImportSignatures(new Set());
+          setExistingLooseImportSignatures(new Set());
+          setExistingCrossMonthImportSignatures(new Set());
+          setIsCheckingDuplicates(false);
+        }
+        return;
       }
 
       setIsCheckingDuplicates(true);
@@ -779,7 +807,9 @@ export default function ImportarPage() {
         }
 
         const invoiceMonths = Array.from(
-          new Set(preparedImportRows.map((transaction) => transaction.month_start)),
+          new Set(
+            preparedImportRows.map((transaction) => transaction.month_start),
+          ),
         );
         const invoiceMonthsWithAdjacent = Array.from(
           new Set(
@@ -793,7 +823,7 @@ export default function ImportarPage() {
         const { data, error } = await supabase
           .from("transactions")
           .select(
-            "import_signature, month_start, transaction_date, day, description, amount, installment_number, installments_total, dependent_id",
+            "import_signature, month_start, transaction_date, day, description, amount, installment_number, installments_total, dependent_id, notes",
           )
           .eq("user_id", user.id)
           .eq("card_id", effectiveSelectedCardId)
@@ -803,16 +833,21 @@ export default function ImportarPage() {
 
         if (isMounted) {
           const existingRows = (data ?? []) as ExistingImportTransaction[];
+          const previouslyImportedRows = existingRows.filter((row) =>
+            row.notes?.includes("Importado de"),
+          );
+          const occurrenceSignatures = getOccurrenceSignatureSet(
+            previouslyImportedRows,
+            getImportSignature,
+          );
 
           setExistingImportSignatures(
-            new Set(
-              existingRows.flatMap(
-                (row) =>
-                  row.import_signature
-                    ? [row.import_signature, getImportSignature(row)]
-                    : [getImportSignature(row)],
+            new Set([
+              ...occurrenceSignatures,
+              ...previouslyImportedRows.flatMap((row) =>
+                row.import_signature ? [row.import_signature] : [],
               ),
-            ),
+            ]),
           );
           setExistingLooseImportSignatures(
             new Set(
@@ -849,9 +884,6 @@ export default function ImportarPage() {
   }, [effectiveSelectedCardId, preparedImportRows]);
 
   const importDuplicateState = useMemo(() => {
-    const currentFileSignatures = new Set<string>();
-    const currentLooseFileSignatures = new Set<string>();
-    const currentCrossMonthFileSignatures = new Set<string>();
     const importableRows: PreparedImportTransaction[] = [];
     const duplicateSourceIndexes = new Set<number>();
     const newSourceIndexes = new Set<number>();
@@ -875,18 +907,14 @@ export default function ImportarPage() {
         importableCount: 0,
         possibleDuplicateCount: 0,
       };
-      const signature = getImportSignature(transaction);
+      const signature = transaction.import_signature;
       const looseSignature = getLooseImportSignature(transaction);
       const crossMonthSignature = getCrossMonthImportSignature(transaction);
-      const isDuplicate =
-        existingImportSignatures.has(signature) ||
-        currentFileSignatures.has(signature) ||
-        existingLooseImportSignatures.has(looseSignature) ||
-        currentLooseFileSignatures.has(looseSignature);
+      const isDuplicate = existingImportSignatures.has(signature);
       const isPossibleDuplicate =
         !isDuplicate &&
-        (existingCrossMonthImportSignatures.has(crossMonthSignature) ||
-          currentCrossMonthFileSignatures.has(crossMonthSignature));
+        (existingLooseImportSignatures.has(looseSignature) ||
+          existingCrossMonthImportSignatures.has(crossMonthSignature));
 
       if (isDuplicate) {
         sourceStat.duplicateCount += 1;
@@ -900,9 +928,6 @@ export default function ImportarPage() {
         possibleDuplicateCount += 1;
       }
 
-      currentFileSignatures.add(signature);
-      currentLooseFileSignatures.add(looseSignature);
-      currentCrossMonthFileSignatures.add(crossMonthSignature);
       sourceStat.importableCount += 1;
       sourceStats.set(transaction.sourceIndex, sourceStat);
       importableRows.push(transaction);
@@ -957,7 +982,10 @@ export default function ImportarPage() {
     );
     const totalAmount = newRows.reduce(
       (sum, transaction) =>
-        sum + (transaction.type === "credit" ? -transaction.amount : transaction.amount),
+        sum +
+        (transaction.type === "credit"
+          ? -transaction.amount
+          : transaction.amount),
       0,
     );
     const creditsCount = newRows.filter(
@@ -1052,7 +1080,7 @@ export default function ImportarPage() {
     );
   }, [categories, historicalCategoryMap, parsedData]);
   const selectedSplitTransaction =
-    splitDialogIndex === null ? null : parsedData[splitDialogIndex] ?? null;
+    splitDialogIndex === null ? null : (parsedData[splitDialogIndex] ?? null);
   const selectedSplitDependent = dependents.find(
     (dependent) => dependent.id === splitDependentId,
   );
@@ -1088,7 +1116,10 @@ export default function ImportarPage() {
 
   function parseCurrencyInput(value: string) {
     const numericValue = Number(
-      value.replace(/[^0-9,.]/g, "").replace(/\./g, "").replace(",", "."),
+      value
+        .replace(/[^0-9,.]/g, "")
+        .replace(/\./g, "")
+        .replace(",", "."),
     );
 
     return Number.isFinite(numericValue) ? numericValue : 0;
@@ -1261,15 +1292,16 @@ export default function ImportarPage() {
 
       if (profileError) throw profileError;
 
-      const uniqueData = importDuplicateState.importableRows
-        .map(({ sourceIndex, ...transaction }) => {
+      const uniqueData = importDuplicateState.importableRows.map(
+        ({ sourceIndex, ...transaction }) => {
           void sourceIndex;
 
           return {
             ...transaction,
             user_id: user.id,
           };
-        });
+        },
+      );
       const duplicateCount = importDuplicateState.duplicateCount;
 
       if (!uniqueData.length) {
@@ -1288,7 +1320,10 @@ export default function ImportarPage() {
       if (error) throw error;
 
       const importedCount = insertedRows?.length ?? uniqueData.length;
-      const databaseIgnoredCount = Math.max(uniqueData.length - importedCount, 0);
+      const databaseIgnoredCount = Math.max(
+        uniqueData.length - importedCount,
+        0,
+      );
       const ignoredDuplicateCount = duplicateCount + databaseIgnoredCount;
       const summary: ImportResultSummary = {
         cardName: effectiveSelectedCard?.name ?? "Cartão",
@@ -1340,7 +1375,8 @@ export default function ImportarPage() {
           Importar Fatura
         </h1>
         <p className="text-sm text-zinc-400">
-          Envie um CSV de cartão ou banco para revisar as transações antes de importar.
+          Envie um CSV de cartão ou banco para revisar as transações antes de
+          importar.
         </p>
       </header>
 
@@ -1366,7 +1402,8 @@ export default function ImportarPage() {
           {
             title: "Importar",
             description:
-              importDuplicateState.newSourceCount === importDuplicateState.newCount
+              importDuplicateState.newSourceCount ===
+              importDuplicateState.newCount
                 ? `${importDuplicateState.newSourceCount} linhas novas`
                 : `${importDuplicateState.newSourceCount} linhas novas, ${importDuplicateState.newCount} lançamentos`,
             active: importDuplicateState.newCount > 0,
@@ -1412,10 +1449,14 @@ export default function ImportarPage() {
                 Importação concluída
               </CardTitle>
               <CardDescription>
-                {lastImportSummary.cardName} · {lastImportSummary.invoiceMonthLabel}
+                {lastImportSummary.cardName} ·{" "}
+                {lastImportSummary.invoiceMonthLabel}
               </CardDescription>
             </div>
-            <Button asChild className="gap-2 bg-emerald-600 text-white hover:bg-emerald-700">
+            <Button
+              asChild
+              className="gap-2 bg-emerald-600 text-white hover:bg-emerald-700"
+            >
               <Link href="/dashboard/cards">
                 Ver fatura
                 <ArrowRight className="size-4" />
@@ -1534,36 +1575,39 @@ export default function ImportarPage() {
             </CardContent>
           </Card>
 
-        <Card
-          {...getRootProps()}
-          className={cn(
-            "cursor-pointer border-dashed border-zinc-700 bg-zinc-900/50 shadow-none transition-colors hover:border-emerald-500/70 hover:bg-zinc-900/70",
-            !effectiveSelectedCardId && "pointer-events-none opacity-50",
-            isDragActive && "border-emerald-500 bg-emerald-500/5",
-            isDragReject && "border-red-500 bg-red-500/5",
-          )}
-        >
-          <input {...getInputProps()} />
-          <CardContent className="flex min-h-[360px] flex-col items-center justify-center px-6 py-12 text-center">
-            <div className="flex size-16 items-center justify-center rounded-2xl border border-zinc-800 bg-zinc-950 text-emerald-300">
-              <UploadCloud className="size-8" />
-            </div>
-            <h2 className="mt-6 text-xl font-semibold text-zinc-50">
-              Arraste sua fatura CSV aqui
-            </h2>
-            <p className="mt-2 max-w-md text-sm leading-6 text-zinc-400">
-              {effectiveSelectedCardId
-                ? "Suporta exportações do Nubank, Itaú, bancos digitais e planilhas CSV."
-                : "Cadastre ou selecione um cartão para liberar o upload."}
-            </p>
-            <Button type="button" className="mt-8 bg-emerald-600 text-white hover:bg-emerald-700">
-              Selecionar arquivo
-            </Button>
-            {parseError ? (
-              <p className="mt-4 text-sm text-red-300">{parseError}</p>
-            ) : null}
-          </CardContent>
-        </Card>
+          <Card
+            {...getRootProps()}
+            className={cn(
+              "cursor-pointer border-dashed border-zinc-700 bg-zinc-900/50 shadow-none transition-colors hover:border-emerald-500/70 hover:bg-zinc-900/70",
+              !effectiveSelectedCardId && "pointer-events-none opacity-50",
+              isDragActive && "border-emerald-500 bg-emerald-500/5",
+              isDragReject && "border-red-500 bg-red-500/5",
+            )}
+          >
+            <input {...getInputProps()} />
+            <CardContent className="flex min-h-[360px] flex-col items-center justify-center px-6 py-12 text-center">
+              <div className="flex size-16 items-center justify-center rounded-2xl border border-zinc-800 bg-zinc-950 text-emerald-300">
+                <UploadCloud className="size-8" />
+              </div>
+              <h2 className="mt-6 text-xl font-semibold text-zinc-50">
+                Arraste sua fatura CSV aqui
+              </h2>
+              <p className="mt-2 max-w-md text-sm leading-6 text-zinc-400">
+                {effectiveSelectedCardId
+                  ? "Suporta exportações do Nubank, Itaú, bancos digitais e planilhas CSV."
+                  : "Cadastre ou selecione um cartão para liberar o upload."}
+              </p>
+              <Button
+                type="button"
+                className="mt-8 bg-emerald-600 text-white hover:bg-emerald-700"
+              >
+                Selecionar arquivo
+              </Button>
+              {parseError ? (
+                <p className="mt-4 text-sm text-red-300">{parseError}</p>
+              ) : null}
+            </CardContent>
+          </Card>
         </section>
       ) : (
         <Card className="border-zinc-800 bg-zinc-950 shadow-none">
@@ -1616,7 +1660,9 @@ export default function ImportarPage() {
                 {[
                   {
                     label: "Valor líquido",
-                    value: brlFormatter.format(importPreviewSummary.totalAmount),
+                    value: brlFormatter.format(
+                      importPreviewSummary.totalAmount,
+                    ),
                     icon: FileSpreadsheet,
                     tone:
                       importPreviewSummary.totalAmount < 0
@@ -1643,7 +1689,9 @@ export default function ImportarPage() {
                   },
                   {
                     label: "Possíveis duplicados",
-                    value: String(importDuplicateState.possibleDuplicateSourceCount),
+                    value: String(
+                      importDuplicateState.possibleDuplicateSourceCount,
+                    ),
                     icon: AlertTriangle,
                     tone:
                       importDuplicateState.possibleDuplicateSourceCount > 0
@@ -1716,8 +1764,10 @@ export default function ImportarPage() {
               {importPreviewSummary.pendingReviewCount > 0 ? (
                 <p className="mt-3 rounded-lg border border-red-500/20 bg-red-500/10 px-3 py-2 text-xs leading-5 text-red-200">
                   Revise {importPreviewSummary.pendingReviewCount} item
-                  {importPreviewSummary.pendingReviewCount === 1 ? "" : "s"} antes
-                  de importar. Aprove ou ignore cada linha marcada.
+                  {importPreviewSummary.pendingReviewCount === 1
+                    ? ""
+                    : "s"}{" "}
+                  antes de importar. Aprove ou ignore cada linha marcada.
                 </p>
               ) : null}
               {importPreviewSummary.reviewCount > 0 ? (
@@ -1771,9 +1821,13 @@ export default function ImportarPage() {
                   const isDuplicate =
                     importDuplicateState.duplicateSourceIndexes.has(index);
                   const isPossibleDuplicate =
-                    importDuplicateState.possibleDuplicateSourceIndexes.has(index);
+                    importDuplicateState.possibleDuplicateSourceIndexes.has(
+                      index,
+                    );
                   const isPartialDuplicate =
-                    importDuplicateState.partialDuplicateSourceIndexes.has(index);
+                    importDuplicateState.partialDuplicateSourceIndexes.has(
+                      index,
+                    );
                   const isIgnored = transaction.reviewStatus === "ignored";
                   const isApproved = transaction.reviewStatus === "approved";
                   const isReviewPending =
@@ -1783,252 +1837,74 @@ export default function ImportarPage() {
                     (transaction.requiresReview || isPossibleDuplicate);
 
                   return (
-                  <div
-                    key={`${transaction.description}-${index}`}
-                    className={cn(
-                      "rounded-2xl border border-zinc-800 bg-zinc-900/50 p-3",
-                      (isDuplicate || isIgnored) && "opacity-60",
-                      isPossibleDuplicate &&
-                        "border-orange-500/30 bg-orange-500/5",
-                      isPartialDuplicate && "border-amber-500/30 bg-amber-500/5",
-                      isReviewPending && "border-red-500/30",
-                    )}
-                  >
-                    <MobileTransactionItem
-                      className="min-h-16 rounded-none border-0 bg-transparent p-0"
-                      title={transaction.description}
-                      category={
-                        transaction.type === "credit"
-                          ? CARD_CREDIT_ADJUSTMENT_CATEGORY
-                          : transaction.category || "Sem categoria"
-                      }
-                      date={formatPreviewDate(transaction.date)}
-                      amount={brlFormatter.format(transaction.amount)}
-                      positive={transaction.type === "credit"}
-                      trailing={
-                        <Button
-                          type="button"
-                          variant="ghost"
-                          size="icon"
-                          className="size-11 rounded-xl"
-                          onClick={() => openSplitDialog(index)}
-                          disabled={transaction.type === "credit" || isDuplicate || isIgnored}
-                          aria-label="Dividir ou atribuir gasto"
-                        >
-                          <Split className="size-5" />
-                        </Button>
-                      }
-                    />
-                    {isDuplicate ? (
-                      <span className="mt-2 inline-flex rounded-full border border-amber-500/20 bg-amber-500/10 px-2 py-0.5 text-[11px] font-medium text-amber-300">
-                        Já existe
-                      </span>
-                    ) : null}
-                    {isPossibleDuplicate ? (
-                      <span className="mt-2 ml-2 inline-flex rounded-full border border-orange-500/20 bg-orange-500/10 px-2 py-0.5 text-[11px] font-medium text-orange-300">
-                        Possível duplicado
-                      </span>
-                    ) : null}
-                    {transaction.requiresReview ? (
-                      <span className="mt-2 ml-2 inline-flex rounded-full border border-sky-500/20 bg-sky-500/10 px-2 py-0.5 text-[11px] font-medium text-sky-300">
-                        Revisar pagamento
-                      </span>
-                    ) : null}
-                    {isApproved ? (
-                      <span className="mt-2 ml-2 inline-flex rounded-full border border-emerald-500/20 bg-emerald-500/10 px-2 py-0.5 text-[11px] font-medium text-emerald-300">
-                        Aprovado
-                      </span>
-                    ) : null}
-                    {isIgnored ? (
-                      <span className="mt-2 ml-2 inline-flex rounded-full border border-zinc-700 bg-zinc-900 px-2 py-0.5 text-[11px] font-medium text-zinc-400">
-                        Ignorado
-                      </span>
-                    ) : null}
-                    <div className="mt-3 grid gap-3 border-t border-zinc-800 pt-3">
-                      {transaction.type !== "credit" ? (
-                        <Select
-                          disabled={isDuplicate || isIgnored}
-                          value={transaction.category || "__no_category__"}
-                          onValueChange={(nextCategory) =>
-                            setParsedData((currentRows) =>
-                              currentRows.map((item, itemIndex) =>
-                                itemIndex === index
-                                  ? {
-                                      ...item,
-                                      category:
-                                        nextCategory === "__no_category__"
-                                          ? null
-                                          : nextCategory,
-                                    }
-                                  : item,
-                              ),
-                            )
-                          }
-                        >
-                          <SelectTrigger className="h-11 border-zinc-700 bg-zinc-950 text-zinc-100">
-                            <SelectValue placeholder="Categoria" />
-                          </SelectTrigger>
-                          <SelectContent>
-                            <SelectItem value="__no_category__">Sem categoria</SelectItem>
-                            {categoryOptions.map((category) => (
-                              <SelectItem key={category} value={category}>
-                                {category}
-                              </SelectItem>
-                            ))}
-                          </SelectContent>
-                        </Select>
-                      ) : null}
-                      <div className="flex items-center justify-between text-xs text-zinc-400">
-                        <span>{getTransactionOwnerLabel(transaction)}</span>
-                        <span>
-                          Fatura: {formatInvoiceMonthLabel(transaction.invoiceMonthStart)}
-                        </span>
-                        {transaction.installmentsTotal > 1 &&
-                        transaction.type !== "credit" ? (
-                          <label className="flex min-h-10 items-center gap-2">
-                            <Checkbox
-                              className="size-5"
-                              disabled={isDuplicate || isIgnored}
-                              checked={transaction.projectFutureInstallments}
-                              onCheckedChange={(checked) =>
-                                setParsedData((currentRows) =>
-                                  currentRows.map((item, itemIndex) =>
-                                    itemIndex === index
-                                      ? {
-                                          ...item,
-                                          projectFutureInstallments:
-                                            checked === true,
-                                        }
-                                      : item,
-                                  ),
-                                )
-                              }
-                            />
-                            Projetar parcelas
-                          </label>
-                        ) : null}
-                      </div>
-                      {isReviewPending ? (
-                        <div className="grid gap-2 sm:grid-cols-2">
-                          <Button
-                            type="button"
-                            variant="outline"
-                            className="h-10 justify-center border-emerald-500/30 text-emerald-300 hover:bg-emerald-500/10"
-                            onClick={() => approvePreviewRow(index)}
-                          >
-                            Importar mesmo assim
-                          </Button>
+                    <div
+                      key={`${transaction.description}-${index}`}
+                      className={cn(
+                        "rounded-2xl border border-zinc-800 bg-zinc-900/50 p-3",
+                        (isDuplicate || isIgnored) && "opacity-60",
+                        isPossibleDuplicate &&
+                          "border-orange-500/30 bg-orange-500/5",
+                        isPartialDuplicate &&
+                          "border-amber-500/30 bg-amber-500/5",
+                        isReviewPending && "border-red-500/30",
+                      )}
+                    >
+                      <MobileTransactionItem
+                        className="min-h-16 rounded-none border-0 bg-transparent p-0"
+                        title={transaction.description}
+                        category={
+                          transaction.type === "credit"
+                            ? CARD_CREDIT_ADJUSTMENT_CATEGORY
+                            : transaction.category || "Sem categoria"
+                        }
+                        date={formatPreviewDate(transaction.date)}
+                        amount={brlFormatter.format(transaction.amount)}
+                        positive={transaction.type === "credit"}
+                        trailing={
                           <Button
                             type="button"
                             variant="ghost"
-                            className="h-10 justify-center text-zinc-400 hover:bg-red-950/40 hover:text-red-300"
-                            onClick={() => removePreviewRow(index)}
+                            size="icon"
+                            className="size-11 rounded-xl"
+                            onClick={() => openSplitDialog(index)}
+                            disabled={
+                              transaction.type === "credit" ||
+                              isDuplicate ||
+                              isIgnored
+                            }
+                            aria-label="Dividir ou atribuir gasto"
                           >
-                            <X className="size-4" />
-                            Ignorar linha
+                            <Split className="size-5" />
                           </Button>
-                        </div>
-                      ) : !isIgnored ? (
-                        <Button
-                          type="button"
-                          variant="ghost"
-                          className="h-10 justify-center text-zinc-400 hover:bg-red-950/40 hover:text-red-300"
-                          onClick={() => removePreviewRow(index)}
-                        >
-                          <X className="size-4" />
-                          Ignorar linha
-                        </Button>
+                        }
+                      />
+                      {isDuplicate ? (
+                        <span className="mt-2 inline-flex rounded-full border border-amber-500/20 bg-amber-500/10 px-2 py-0.5 text-[11px] font-medium text-amber-300">
+                          Já existe
+                        </span>
                       ) : null}
-                    </div>
-                  </div>
-                  );
-                })}
-              </div>
-
-              <Table className="hidden w-full table-fixed text-xs md:table">
-                <TableHeader className="bg-muted/30">
-                  <TableRow>
-                    <TableHead className="w-[64px] px-3">Data</TableHead>
-                    <TableHead className="w-[26%] px-3">Descrição</TableHead>
-                    <TableHead className="w-[120px] px-3">Fatura</TableHead>
-                    <TableHead className="w-[150px] px-3">Categoria</TableHead>
-                    <TableHead className="w-[88px] px-3">Tipo</TableHead>
-                    <TableHead className="w-[104px] px-3">Dono</TableHead>
-                    <TableHead className="w-[120px] px-3">Parcelas</TableHead>
-                    <TableHead className="w-[104px] px-3 text-right">Valor</TableHead>
-                    <TableHead className="w-20 px-2" />
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {previewRows.map((transaction, index) => {
-                    const isDuplicate =
-                      importDuplicateState.duplicateSourceIndexes.has(index);
-                    const isPossibleDuplicate =
-                      importDuplicateState.possibleDuplicateSourceIndexes.has(index);
-                    const isPartialDuplicate =
-                      importDuplicateState.partialDuplicateSourceIndexes.has(index);
-                    const isIgnored = transaction.reviewStatus === "ignored";
-                    const isApproved = transaction.reviewStatus === "approved";
-                    const isReviewPending =
-                      !isDuplicate &&
-                      !isIgnored &&
-                      !isApproved &&
-                      (transaction.requiresReview || isPossibleDuplicate);
-
-                    return (
-                    <TableRow
-                      key={`${transaction.description}-${index}`}
-                      className={cn(
-                        (isDuplicate || isIgnored) && "opacity-60",
-                        isPossibleDuplicate && "bg-orange-500/5",
-                        isPartialDuplicate && "bg-amber-500/5",
-                        isReviewPending && "bg-red-500/5",
-                      )}
-                    >
-                      <TableCell className="px-3 text-zinc-400">
-                        {formatPreviewDate(transaction.date)}
-                      </TableCell>
-                      <TableCell className="truncate px-3 font-medium text-zinc-100">
-                        <div className="flex min-w-0 items-center gap-2">
-                          <span className="truncate" title={transaction.description}>
-                            {transaction.description}
-                          </span>
-                          {isDuplicate ? (
-                            <span className="shrink-0 rounded-full border border-amber-500/20 bg-amber-500/10 px-2 py-0.5 text-[10px] font-medium text-amber-300">
-                              Já existe
-                            </span>
-                          ) : null}
-                          {isPossibleDuplicate ? (
-                            <span className="shrink-0 rounded-full border border-orange-500/20 bg-orange-500/10 px-2 py-0.5 text-[10px] font-medium text-orange-300">
-                              Possível duplicado
-                            </span>
-                          ) : null}
-                          {transaction.requiresReview ? (
-                            <span className="shrink-0 rounded-full border border-sky-500/20 bg-sky-500/10 px-2 py-0.5 text-[10px] font-medium text-sky-300">
-                              Revisar
-                            </span>
-                          ) : null}
-                          {isApproved ? (
-                            <span className="shrink-0 rounded-full border border-emerald-500/20 bg-emerald-500/10 px-2 py-0.5 text-[10px] font-medium text-emerald-300">
-                              Aprovado
-                            </span>
-                          ) : null}
-                          {isIgnored ? (
-                            <span className="shrink-0 rounded-full border border-zinc-700 bg-zinc-900 px-2 py-0.5 text-[10px] font-medium text-zinc-400">
-                              Ignorado
-                            </span>
-                          ) : null}
-                        </div>
-                      </TableCell>
-                      <TableCell className="truncate px-3 text-zinc-400">
-                        {formatInvoiceMonthLabel(transaction.invoiceMonthStart)}
-                      </TableCell>
-                      <TableCell className="px-3">
-                        {transaction.type === "credit" ? (
-                          <span className="block truncate text-xs text-zinc-400">
-                            {CARD_CREDIT_ADJUSTMENT_CATEGORY}
-                          </span>
-                        ) : (
+                      {isPossibleDuplicate ? (
+                        <span className="mt-2 ml-2 inline-flex rounded-full border border-orange-500/20 bg-orange-500/10 px-2 py-0.5 text-[11px] font-medium text-orange-300">
+                          Possível duplicado
+                        </span>
+                      ) : null}
+                      {transaction.requiresReview ? (
+                        <span className="mt-2 ml-2 inline-flex rounded-full border border-sky-500/20 bg-sky-500/10 px-2 py-0.5 text-[11px] font-medium text-sky-300">
+                          Revisar pagamento
+                        </span>
+                      ) : null}
+                      {isApproved ? (
+                        <span className="mt-2 ml-2 inline-flex rounded-full border border-emerald-500/20 bg-emerald-500/10 px-2 py-0.5 text-[11px] font-medium text-emerald-300">
+                          Aprovado
+                        </span>
+                      ) : null}
+                      {isIgnored ? (
+                        <span className="mt-2 ml-2 inline-flex rounded-full border border-zinc-700 bg-zinc-900 px-2 py-0.5 text-[11px] font-medium text-zinc-400">
+                          Ignorado
+                        </span>
+                      ) : null}
+                      <div className="mt-3 grid gap-3 border-t border-zinc-800 pt-3">
+                        {transaction.type !== "credit" ? (
                           <Select
                             disabled={isDuplicate || isIgnored}
                             value={transaction.category || "__no_category__"}
@@ -2048,7 +1924,7 @@ export default function ImportarPage() {
                               )
                             }
                           >
-                            <SelectTrigger className="h-8 w-full border-zinc-700 bg-zinc-900 px-2 text-xs text-zinc-100">
+                            <SelectTrigger className="h-11 border-zinc-700 bg-zinc-950 text-zinc-100">
                               <SelectValue placeholder="Categoria" />
                             </SelectTrigger>
                             <SelectContent>
@@ -2062,85 +1938,284 @@ export default function ImportarPage() {
                               ))}
                             </SelectContent>
                           </Select>
+                        ) : null}
+                        <div className="flex items-center justify-between text-xs text-zinc-400">
+                          <span>{getTransactionOwnerLabel(transaction)}</span>
+                          <span>
+                            Fatura:{" "}
+                            {formatInvoiceMonthLabel(
+                              transaction.invoiceMonthStart,
+                            )}
+                          </span>
+                          {transaction.installmentsTotal > 1 &&
+                          transaction.type !== "credit" ? (
+                            <label className="flex min-h-10 items-center gap-2">
+                              <Checkbox
+                                className="size-5"
+                                disabled={isDuplicate || isIgnored}
+                                checked={transaction.projectFutureInstallments}
+                                onCheckedChange={(checked) =>
+                                  setParsedData((currentRows) =>
+                                    currentRows.map((item, itemIndex) =>
+                                      itemIndex === index
+                                        ? {
+                                            ...item,
+                                            projectFutureInstallments:
+                                              checked === true,
+                                          }
+                                        : item,
+                                    ),
+                                  )
+                                }
+                              />
+                              Projetar parcelas
+                            </label>
+                          ) : null}
+                        </div>
+                        {isReviewPending ? (
+                          <div className="grid gap-2 sm:grid-cols-2">
+                            <Button
+                              type="button"
+                              variant="outline"
+                              className="h-10 justify-center border-emerald-500/30 text-emerald-300 hover:bg-emerald-500/10"
+                              onClick={() => approvePreviewRow(index)}
+                            >
+                              Importar mesmo assim
+                            </Button>
+                            <Button
+                              type="button"
+                              variant="ghost"
+                              className="h-10 justify-center text-zinc-400 hover:bg-red-950/40 hover:text-red-300"
+                              onClick={() => removePreviewRow(index)}
+                            >
+                              <X className="size-4" />
+                              Ignorar linha
+                            </Button>
+                          </div>
+                        ) : !isIgnored ? (
+                          <Button
+                            type="button"
+                            variant="ghost"
+                            className="h-10 justify-center text-zinc-400 hover:bg-red-950/40 hover:text-red-300"
+                            onClick={() => removePreviewRow(index)}
+                          >
+                            <X className="size-4" />
+                            Ignorar linha
+                          </Button>
+                        ) : null}
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+
+              <Table className="hidden w-full table-fixed text-xs md:table">
+                <TableHeader className="bg-muted/30">
+                  <TableRow>
+                    <TableHead className="w-[64px] px-3">Data</TableHead>
+                    <TableHead className="w-[26%] px-3">Descrição</TableHead>
+                    <TableHead className="w-[120px] px-3">Fatura</TableHead>
+                    <TableHead className="w-[150px] px-3">Categoria</TableHead>
+                    <TableHead className="w-[88px] px-3">Tipo</TableHead>
+                    <TableHead className="w-[104px] px-3">Dono</TableHead>
+                    <TableHead className="w-[120px] px-3">Parcelas</TableHead>
+                    <TableHead className="w-[104px] px-3 text-right">
+                      Valor
+                    </TableHead>
+                    <TableHead className="w-20 px-2" />
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {previewRows.map((transaction, index) => {
+                    const isDuplicate =
+                      importDuplicateState.duplicateSourceIndexes.has(index);
+                    const isPossibleDuplicate =
+                      importDuplicateState.possibleDuplicateSourceIndexes.has(
+                        index,
+                      );
+                    const isPartialDuplicate =
+                      importDuplicateState.partialDuplicateSourceIndexes.has(
+                        index,
+                      );
+                    const isIgnored = transaction.reviewStatus === "ignored";
+                    const isApproved = transaction.reviewStatus === "approved";
+                    const isReviewPending =
+                      !isDuplicate &&
+                      !isIgnored &&
+                      !isApproved &&
+                      (transaction.requiresReview || isPossibleDuplicate);
+
+                    return (
+                      <TableRow
+                        key={`${transaction.description}-${index}`}
+                        className={cn(
+                          (isDuplicate || isIgnored) && "opacity-60",
+                          isPossibleDuplicate && "bg-orange-500/5",
+                          isPartialDuplicate && "bg-amber-500/5",
+                          isReviewPending && "bg-red-500/5",
                         )}
-                      </TableCell>
-                      <TableCell className="truncate px-3 text-zinc-400">
-                        {transaction.type === "credit" ? "Abate" : "Cartão"}
-                      </TableCell>
-                      <TableCell className="truncate px-3 text-zinc-400">
-                        {getTransactionOwnerLabel(transaction)}
-                      </TableCell>
-                      <TableCell className="px-3 text-zinc-400">
-                        {transaction.installmentsTotal > 1 &&
-                        transaction.type !== "credit" ? (
-                          <label className="flex items-center gap-1.5 text-xs">
-                            <Checkbox
-                              className="size-4"
+                      >
+                        <TableCell className="px-3 text-zinc-400">
+                          {formatPreviewDate(transaction.date)}
+                        </TableCell>
+                        <TableCell className="truncate px-3 font-medium text-zinc-100">
+                          <div className="flex min-w-0 items-center gap-2">
+                            <span
+                              className="truncate"
+                              title={transaction.description}
+                            >
+                              {transaction.description}
+                            </span>
+                            {isDuplicate ? (
+                              <span className="shrink-0 rounded-full border border-amber-500/20 bg-amber-500/10 px-2 py-0.5 text-[10px] font-medium text-amber-300">
+                                Já existe
+                              </span>
+                            ) : null}
+                            {isPossibleDuplicate ? (
+                              <span className="shrink-0 rounded-full border border-orange-500/20 bg-orange-500/10 px-2 py-0.5 text-[10px] font-medium text-orange-300">
+                                Possível duplicado
+                              </span>
+                            ) : null}
+                            {transaction.requiresReview ? (
+                              <span className="shrink-0 rounded-full border border-sky-500/20 bg-sky-500/10 px-2 py-0.5 text-[10px] font-medium text-sky-300">
+                                Revisar
+                              </span>
+                            ) : null}
+                            {isApproved ? (
+                              <span className="shrink-0 rounded-full border border-emerald-500/20 bg-emerald-500/10 px-2 py-0.5 text-[10px] font-medium text-emerald-300">
+                                Aprovado
+                              </span>
+                            ) : null}
+                            {isIgnored ? (
+                              <span className="shrink-0 rounded-full border border-zinc-700 bg-zinc-900 px-2 py-0.5 text-[10px] font-medium text-zinc-400">
+                                Ignorado
+                              </span>
+                            ) : null}
+                          </div>
+                        </TableCell>
+                        <TableCell className="truncate px-3 text-zinc-400">
+                          {formatInvoiceMonthLabel(
+                            transaction.invoiceMonthStart,
+                          )}
+                        </TableCell>
+                        <TableCell className="px-3">
+                          {transaction.type === "credit" ? (
+                            <span className="block truncate text-xs text-zinc-400">
+                              {CARD_CREDIT_ADJUSTMENT_CATEGORY}
+                            </span>
+                          ) : (
+                            <Select
                               disabled={isDuplicate || isIgnored}
-                              checked={transaction.projectFutureInstallments}
-                              onCheckedChange={(checked) =>
+                              value={transaction.category || "__no_category__"}
+                              onValueChange={(nextCategory) =>
                                 setParsedData((currentRows) =>
                                   currentRows.map((item, itemIndex) =>
                                     itemIndex === index
                                       ? {
                                           ...item,
-                                          projectFutureInstallments:
-                                            checked === true,
+                                          category:
+                                            nextCategory === "__no_category__"
+                                              ? null
+                                              : nextCategory,
                                         }
                                       : item,
                                   ),
                                 )
                               }
-                            />
-                            <span className="truncate">Projetar</span>
-                          </label>
-                        ) : (
-                          <span className="text-xs text-zinc-600">—</span>
-                        )}
-                      </TableCell>
-                      <TableCell className="px-3 text-right font-medium text-zinc-50">
-                        {brlFormatter.format(transaction.amount)}
-                      </TableCell>
-                      <TableCell className="flex justify-end gap-1 px-2 text-right">
-                        {!isIgnored ? (
-                          <Button
-                            type="button"
-                            variant="ghost"
-                            size="icon-sm"
-                            className="text-zinc-400 hover:bg-red-950/40 hover:text-red-300"
-                            onClick={() => removePreviewRow(index)}
-                            aria-label="Ignorar linha"
-                          >
-                            <X className="size-4" />
-                          </Button>
-                        ) : null}
-                        {isReviewPending ? (
-                          <Button
-                            type="button"
-                            variant="ghost"
-                            size="icon-sm"
-                            className="text-emerald-300 hover:bg-emerald-500/10 hover:text-emerald-200"
-                            onClick={() => approvePreviewRow(index)}
-                            aria-label="Importar mesmo assim"
-                          >
-                            <CheckCircle2 className="size-4" />
-                          </Button>
-                        ) : null}
-                        {transaction.type !== "credit" ? (
-                          <Button
-                            type="button"
-                            variant="ghost"
-                            size="icon-sm"
-                            className="text-zinc-400 hover:text-white"
-                            onClick={() => openSplitDialog(index)}
-                            disabled={isDuplicate || isIgnored}
-                            aria-label="Dividir ou atribuir gasto"
-                          >
-                            <Split className="size-4" />
-                          </Button>
-                        ) : null}
-                      </TableCell>
-                    </TableRow>
+                            >
+                              <SelectTrigger className="h-8 w-full border-zinc-700 bg-zinc-900 px-2 text-xs text-zinc-100">
+                                <SelectValue placeholder="Categoria" />
+                              </SelectTrigger>
+                              <SelectContent>
+                                <SelectItem value="__no_category__">
+                                  Sem categoria
+                                </SelectItem>
+                                {categoryOptions.map((category) => (
+                                  <SelectItem key={category} value={category}>
+                                    {category}
+                                  </SelectItem>
+                                ))}
+                              </SelectContent>
+                            </Select>
+                          )}
+                        </TableCell>
+                        <TableCell className="truncate px-3 text-zinc-400">
+                          {transaction.type === "credit" ? "Abate" : "Cartão"}
+                        </TableCell>
+                        <TableCell className="truncate px-3 text-zinc-400">
+                          {getTransactionOwnerLabel(transaction)}
+                        </TableCell>
+                        <TableCell className="px-3 text-zinc-400">
+                          {transaction.installmentsTotal > 1 &&
+                          transaction.type !== "credit" ? (
+                            <label className="flex items-center gap-1.5 text-xs">
+                              <Checkbox
+                                className="size-4"
+                                disabled={isDuplicate || isIgnored}
+                                checked={transaction.projectFutureInstallments}
+                                onCheckedChange={(checked) =>
+                                  setParsedData((currentRows) =>
+                                    currentRows.map((item, itemIndex) =>
+                                      itemIndex === index
+                                        ? {
+                                            ...item,
+                                            projectFutureInstallments:
+                                              checked === true,
+                                          }
+                                        : item,
+                                    ),
+                                  )
+                                }
+                              />
+                              <span className="truncate">Projetar</span>
+                            </label>
+                          ) : (
+                            <span className="text-xs text-zinc-600">—</span>
+                          )}
+                        </TableCell>
+                        <TableCell className="px-3 text-right font-medium text-zinc-50">
+                          {brlFormatter.format(transaction.amount)}
+                        </TableCell>
+                        <TableCell className="flex justify-end gap-1 px-2 text-right">
+                          {!isIgnored ? (
+                            <Button
+                              type="button"
+                              variant="ghost"
+                              size="icon-sm"
+                              className="text-zinc-400 hover:bg-red-950/40 hover:text-red-300"
+                              onClick={() => removePreviewRow(index)}
+                              aria-label="Ignorar linha"
+                            >
+                              <X className="size-4" />
+                            </Button>
+                          ) : null}
+                          {isReviewPending ? (
+                            <Button
+                              type="button"
+                              variant="ghost"
+                              size="icon-sm"
+                              className="text-emerald-300 hover:bg-emerald-500/10 hover:text-emerald-200"
+                              onClick={() => approvePreviewRow(index)}
+                              aria-label="Importar mesmo assim"
+                            >
+                              <CheckCircle2 className="size-4" />
+                            </Button>
+                          ) : null}
+                          {transaction.type !== "credit" ? (
+                            <Button
+                              type="button"
+                              variant="ghost"
+                              size="icon-sm"
+                              className="text-zinc-400 hover:text-white"
+                              onClick={() => openSplitDialog(index)}
+                              disabled={isDuplicate || isIgnored}
+                              aria-label="Dividir ou atribuir gasto"
+                            >
+                              <Split className="size-4" />
+                            </Button>
+                          ) : null}
+                        </TableCell>
+                      </TableRow>
                     );
                   })}
                 </TableBody>
@@ -2184,7 +2259,8 @@ export default function ImportarPage() {
           <DialogHeader>
             <DialogTitle>Dividir ou atribuir gasto</DialogTitle>
             <DialogDescription>
-              Defina de quem é essa compra sem alterar o total da fatura do cartão.
+              Defina de quem é essa compra sem alterar o total da fatura do
+              cartão.
             </DialogDescription>
           </DialogHeader>
 
@@ -2207,7 +2283,11 @@ export default function ImportarPage() {
                     "Gasto de Dependente",
                     "100% atribuído a um dependente",
                   ],
-                  ["split", "Dividir Gasto", "Rachar entre você e um dependente"],
+                  [
+                    "split",
+                    "Dividir Gasto",
+                    "Rachar entre você e um dependente",
+                  ],
                 ].map(([value, title, description]) => (
                   <button
                     key={value}
@@ -2261,7 +2341,9 @@ export default function ImportarPage() {
                     </p>
                     <Input
                       value={splitUserAmount}
-                      onChange={(event) => setSplitUserAmount(event.target.value)}
+                      onChange={(event) =>
+                        setSplitUserAmount(event.target.value)
+                      }
                       className="border-zinc-700 bg-zinc-900 text-zinc-100"
                       placeholder="0,00"
                     />
