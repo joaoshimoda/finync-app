@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   ArrowRight,
   AlertTriangle,
@@ -72,6 +72,7 @@ import {
   extractPdfInvoice,
   type PdfInvoiceBank,
   type PdfInvoiceTransaction,
+  type PdfOcrProgress,
   type PdfRejectedInvoiceLine,
 } from "@/lib/invoicePdf";
 import { cn } from "@/lib/utils";
@@ -103,9 +104,11 @@ type PdfReviewLine = Omit<PdfRejectedInvoiceLine, "amount" | "date"> & {
 };
 type PdfImportAudit = {
   bank: PdfInvoiceBank;
+  ocrConfidence: number | null;
   recognizedCount: number;
   rejectedLines: PdfReviewLine[];
   totalPages: number;
+  usedOcr: boolean;
 };
 type ImportResultSummary = {
   cardName: string;
@@ -157,6 +160,7 @@ const brlFormatter = new Intl.NumberFormat("pt-BR", {
   currency: "BRL",
 });
 const pdfBankLabels: Record<PdfInvoiceBank, string> = {
+  bradesco: "Bradesco",
   generic: "Formato genérico",
   inter: "Banco Inter",
   nubank: "Nubank",
@@ -612,6 +616,8 @@ export default function ImportarPage() {
   const [fileName, setFileName] = useState("");
   const [parseError, setParseError] = useState("");
   const [isParsingFile, setIsParsingFile] = useState(false);
+  const [ocrProgress, setOcrProgress] = useState<PdfOcrProgress | null>(null);
+  const pdfAbortControllerRef = useRef<AbortController | null>(null);
   const [pdfAudit, setPdfAudit] = useState<PdfImportAudit | null>(null);
   const [pdfReviewLineId, setPdfReviewLineId] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -712,6 +718,22 @@ export default function ImportarPage() {
           effectiveSelectedCard.closingDay,
         )
       : getMonthStartFromReference(getLocalTodayDateOnly()));
+  const ocrProgressPercent = ocrProgress?.totalPages
+    ? Math.round(
+        ((ocrProgress.page -
+          1 +
+          (ocrProgress.stage === "recognizing" ? ocrProgress.progress : 0)) /
+          ocrProgress.totalPages) *
+          100,
+      )
+    : 0;
+  const ocrProgressLabel = ocrProgress
+    ? ocrProgress.stage === "loading"
+      ? "Preparando reconhecimento de texto..."
+      : ocrProgress.stage === "rendering"
+        ? `Preparando página ${ocrProgress.page} de ${ocrProgress.totalPages}...`
+        : `Reconhecendo página ${ocrProgress.page} de ${ocrProgress.totalPages}...`
+    : "Lendo sua fatura...";
 
   const onDrop = useCallback(
     async (acceptedFiles: File[]) => {
@@ -730,9 +752,18 @@ export default function ImportarPage() {
 
       if (isPdf) {
         setIsParsingFile(true);
+        const abortController = new AbortController();
+        pdfAbortControllerRef.current = abortController;
 
         try {
-          const result = await extractPdfInvoice(file, effectiveReferenceMonth);
+          const result = await extractPdfInvoice(
+            file,
+            effectiveReferenceMonth,
+            {
+              onProgress: setOcrProgress,
+              signal: abortController.signal,
+            },
+          );
           const rows = result.transactions
             .map((transaction) =>
               mapPdfTransaction(transaction, historicalCategoryMap),
@@ -744,6 +775,7 @@ export default function ImportarPage() {
           setParsedData(rows);
           setPdfAudit({
             bank: result.bank,
+            ocrConfidence: result.ocrConfidence,
             recognizedCount: rows.length,
             rejectedLines: result.rejectedLines.map((line, index) => ({
               ...line,
@@ -752,9 +784,10 @@ export default function ImportarPage() {
               id: `${index}-${line.raw}`,
             })),
             totalPages: result.totalPages,
+            usedOcr: result.usedOcr,
           });
 
-          if (!rows.length) {
+          if (!rows.length && !result.rejectedLines.length) {
             setParseError(
               "O PDF foi lido, mas não encontramos transações. Confira o mês da fatura ou tente o CSV do banco.",
             );
@@ -762,12 +795,16 @@ export default function ImportarPage() {
         } catch (error) {
           setParsedData([]);
           setParseError(
-            error instanceof Error
-              ? error.message
-              : "Não foi possível ler o PDF. Verifique o arquivo e tente novamente.",
+            error instanceof DOMException && error.name === "AbortError"
+              ? "Leitura do PDF cancelada."
+              : error instanceof Error
+                ? error.message
+                : "Não foi possível ler o PDF. Verifique o arquivo e tente novamente.",
           );
         } finally {
           setIsParsingFile(false);
+          setOcrProgress(null);
+          pdfAbortControllerRef.current = null;
         }
 
         return;
@@ -1718,6 +1755,9 @@ export default function ImportarPage() {
                 {pdfAudit.rejectedLines.length
                   ? `${pdfAudit.rejectedLines.length} pendência(s) aguardando revisão`
                   : "PDF processado sem pendências"}
+                {pdfAudit.usedOcr
+                  ? ` · OCR local${pdfAudit.ocrConfidence !== null ? ` com ${Math.round(pdfAudit.ocrConfidence)}% de confiança` : ""}`
+                  : ""}
               </p>
             </div>
           </div>
@@ -1800,8 +1840,8 @@ export default function ImportarPage() {
 
               <div className="rounded-xl border border-zinc-800 bg-zinc-900/40 p-3 text-xs leading-5 text-zinc-500">
                 Valores negativos do CSV ou PDF serão tratados como
-                Crédito/Estorno e abaterão a fatura no preview. PDFs escaneados
-                ainda não são compatíveis.
+                Crédito/Estorno e abaterão a fatura no preview. PDFs sem texto
+                serão processados localmente por OCR.
               </div>
             </CardContent>
           </Card>
@@ -1810,8 +1850,8 @@ export default function ImportarPage() {
             {...getRootProps()}
             className={cn(
               "cursor-pointer border-dashed border-zinc-700 bg-zinc-900/50 shadow-none transition-colors hover:border-emerald-500/70 hover:bg-zinc-900/70",
-              (!effectiveSelectedCardId || isParsingFile) &&
-                "pointer-events-none opacity-50",
+              !effectiveSelectedCardId && "pointer-events-none opacity-50",
+              isParsingFile && "cursor-wait",
               isDragActive && "border-emerald-500 bg-emerald-500/5",
               isDragReject && "border-red-500 bg-red-500/5",
             )}
@@ -1823,20 +1863,44 @@ export default function ImportarPage() {
               </div>
               <h2 className="mt-6 text-xl font-semibold text-zinc-50">
                 {isParsingFile
-                  ? "Lendo sua fatura..."
+                  ? ocrProgressLabel
                   : "Arraste sua fatura CSV ou PDF aqui"}
               </h2>
               <p className="mt-2 max-w-md text-sm leading-6 text-zinc-400">
                 {effectiveSelectedCardId
-                  ? "PDFs digitais do Nubank e Inter, além de CSVs de bancos e planilhas."
+                  ? "PDFs digitais ou escaneados do Bradesco, Nubank e Inter, além de arquivos CSV."
                   : "Cadastre ou selecione um cartão para liberar o upload."}
               </p>
-              <Button
-                type="button"
-                className="mt-8 bg-emerald-600 text-white hover:bg-emerald-700"
-              >
-                {isParsingFile ? "Processando..." : "Selecionar arquivo"}
-              </Button>
+              {isParsingFile ? (
+                <div className="mt-7 w-full max-w-sm space-y-3">
+                  {ocrProgress ? (
+                    <div className="h-1.5 overflow-hidden rounded-full bg-zinc-800">
+                      <div
+                        className="h-full rounded-full bg-emerald-500 transition-[width] duration-300"
+                        style={{ width: `${Math.max(ocrProgressPercent, 2)}%` }}
+                      />
+                    </div>
+                  ) : null}
+                  <Button
+                    type="button"
+                    variant="outline"
+                    className="border-zinc-700 bg-zinc-950 text-zinc-300"
+                    onClick={(event) => {
+                      event.stopPropagation();
+                      pdfAbortControllerRef.current?.abort();
+                    }}
+                  >
+                    Cancelar leitura
+                  </Button>
+                </div>
+              ) : (
+                <Button
+                  type="button"
+                  className="mt-8 bg-emerald-600 text-white hover:bg-emerald-700"
+                >
+                  Selecionar arquivo
+                </Button>
+              )}
               {parseError ? (
                 <p className="mt-4 text-sm text-red-300">{parseError}</p>
               ) : null}

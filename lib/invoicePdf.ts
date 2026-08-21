@@ -1,4 +1,11 @@
-export type PdfInvoiceBank = "nubank" | "inter" | "generic";
+export type PdfInvoiceBank = "nubank" | "inter" | "bradesco" | "generic";
+
+export type PdfOcrProgress = {
+  page: number;
+  progress: number;
+  stage: "loading" | "rendering" | "recognizing";
+  totalPages: number;
+};
 
 export type PdfInvoiceTransaction = {
   amount: number;
@@ -9,9 +16,11 @@ export type PdfInvoiceTransaction = {
 
 export type PdfInvoiceResult = {
   bank: PdfInvoiceBank;
+  ocrConfidence: number | null;
   rejectedLines: PdfRejectedInvoiceLine[];
   totalPages: number;
   transactions: PdfInvoiceTransaction[];
+  usedOcr: boolean;
 };
 
 export type PdfRejectedInvoiceLine = {
@@ -28,6 +37,23 @@ type PositionedTextItem = {
   x: number;
   y: number;
 };
+
+let pdfJsPromise: Promise<typeof import("pdfjs-dist")> | null = null;
+
+async function getPdfJs() {
+  pdfJsPromise ??= import("pdfjs-dist").then((pdfjs) => {
+    if (!pdfjs.GlobalWorkerOptions.workerPort) {
+      pdfjs.GlobalWorkerOptions.workerPort = new Worker(
+        new URL("pdfjs-dist/build/pdf.worker.mjs", import.meta.url),
+        { type: "module" },
+      );
+    }
+
+    return pdfjs;
+  });
+
+  return pdfJsPromise;
+}
 
 const monthNumbers: Record<string, number> = {
   jan: 1,
@@ -89,6 +115,13 @@ function normalizeText(value: string) {
 
 function detectBank(text: string): PdfInvoiceBank {
   const normalized = normalizeText(text);
+
+  if (
+    normalized.includes("bradesco") ||
+    normalized.includes("banco bradesco")
+  ) {
+    return "bradesco";
+  }
 
   if (normalized.includes("nubank") || normalized.includes("nu pagamentos")) {
     return "nubank";
@@ -303,32 +336,250 @@ function groupItemsIntoLines(pages: PositionedTextItem[][]) {
   });
 }
 
-export async function extractPdfInvoice(
-  file: File,
-  referenceMonth: string,
-): Promise<PdfInvoiceResult> {
-  const { extractTextItems, getDocumentProxy } = await import("unpdf");
-  const data = new Uint8Array(await file.arrayBuffer());
-  const pdf = await getDocumentProxy(data);
-  const { items, totalPages } = await extractTextItems(pdf);
-  const lines = groupItemsIntoLines(items);
-  const text = lines.join("\n");
+async function extractPositionedTextPages(
+  pdf: import("pdfjs-dist").PDFDocumentProxy,
+) {
+  const pages: PositionedTextItem[][] = [];
 
-  if (normalizeText(text).length < 30) {
-    throw new Error(
-      "Este PDF não possui texto selecionável. Nesta primeira versão, use o CSV do banco ou um PDF digital (não escaneado).",
+  for (let pageNumber = 1; pageNumber <= pdf.numPages; pageNumber += 1) {
+    const page = await pdf.getPage(pageNumber);
+    const content = await page.getTextContent();
+    pages.push(
+      content.items.flatMap((item) =>
+        "str" in item
+          ? [
+              {
+                str: item.str,
+                x: item.transform[4],
+                y: item.transform[5],
+              },
+            ]
+          : [],
+      ),
     );
   }
 
-  const { rejectedLines, transactions } = analyzePdfInvoiceLines(
-    lines,
-    referenceMonth,
-  );
+  return pages;
+}
 
-  return {
-    bank: detectBank(text),
-    rejectedLines,
-    totalPages,
-    transactions,
-  };
+async function renderPdfPageAsDataUrl(
+  pdf: import("pdfjs-dist").PDFDocumentProxy,
+  pageNumber: number,
+) {
+  const page = await pdf.getPage(pageNumber);
+  const viewport = page.getViewport({ scale: 2 });
+  const canvas = document.createElement("canvas");
+  const context = canvas.getContext("2d", { alpha: false });
+
+  if (!context) {
+    throw new Error("O navegador não conseguiu preparar a página para OCR.");
+  }
+
+  canvas.width = Math.ceil(viewport.width);
+  canvas.height = Math.ceil(viewport.height);
+  await page.render({ canvas, canvasContext: context, viewport }).promise;
+
+  return canvas.toDataURL("image/png");
+}
+
+function throwIfCancelled(signal?: AbortSignal) {
+  if (signal?.aborted) {
+    throw new DOMException("Processamento cancelado.", "AbortError");
+  }
+}
+
+function mergeOcrLines(text: string) {
+  const sourceLines = text
+    .split(/\r?\n/)
+    .map((line) => line.replace(/\s+/g, " ").trim())
+    .filter(Boolean);
+  const lines: string[] = [];
+  let current = "";
+
+  for (const line of sourceLines) {
+    if (dateAtStartPattern.test(line)) {
+      if (current) lines.push(current);
+      current = line;
+    } else if (current) {
+      current = `${current} ${line}`;
+    } else {
+      lines.push(line);
+    }
+
+    if (current && amountAtEndPattern.test(current)) {
+      lines.push(current);
+      current = "";
+    }
+  }
+
+  if (current) lines.push(current);
+  return lines;
+}
+
+export function parseOcrInvoiceText(text: string, referenceMonth: string) {
+  return analyzePdfInvoiceLines(mergeOcrLines(text), referenceMonth);
+}
+
+async function extractPdfInvoiceWithOcr(
+  data: Uint8Array,
+  referenceMonth: string,
+  options?: {
+    onProgress?: (progress: PdfOcrProgress) => void;
+    signal?: AbortSignal;
+  },
+): Promise<PdfInvoiceResult> {
+  const { createWorker } = await import("tesseract.js");
+  const pdfjs = await getPdfJs();
+
+  throwIfCancelled(options?.signal);
+  options?.onProgress?.({
+    page: 0,
+    progress: 0,
+    stage: "loading",
+    totalPages: 0,
+  });
+
+  const loadingTask = pdfjs.getDocument({
+    data: data.slice(),
+    useSystemFonts: true,
+  });
+  const pdf = await loadingTask.promise;
+
+  if (pdf.numPages > 15) {
+    throw new Error(
+      "O PDF possui mais de 15 páginas. Para proteger o desempenho do aparelho, use o CSV ou divida o arquivo.",
+    );
+  }
+
+  let activePage = 1;
+  const worker = await createWorker("por", undefined, {
+    logger: (message) => {
+      if (message.status === "recognizing text") {
+        options?.onProgress?.({
+          page: activePage,
+          progress: message.progress,
+          stage: "recognizing",
+          totalPages: pdf.numPages,
+        });
+      }
+    },
+  });
+  const cancelWorker = () => void worker.terminate();
+  options?.signal?.addEventListener("abort", cancelWorker, { once: true });
+
+  try {
+    const pageTexts: string[] = [];
+    const confidences: number[] = [];
+
+    for (let page = 1; page <= pdf.numPages; page += 1) {
+      throwIfCancelled(options?.signal);
+      activePage = page;
+      options?.onProgress?.({
+        page,
+        progress: 0,
+        stage: "rendering",
+        totalPages: pdf.numPages,
+      });
+      const image = await renderPdfPageAsDataUrl(pdf, page);
+      throwIfCancelled(options?.signal);
+      const result = await worker.recognize(image);
+      pageTexts.push(result.data.text);
+      confidences.push(result.data.confidence);
+    }
+
+    const text = pageTexts.join("\n");
+    const { rejectedLines, transactions } = parseOcrInvoiceText(
+      text,
+      referenceMonth,
+    );
+
+    if (!transactions.length && !rejectedLines.length) {
+      throw new Error(
+        "O OCR leu o PDF, mas não encontrou lançamentos reconhecíveis. Tente exportar a fatura em CSV.",
+      );
+    }
+
+    return {
+      bank: detectBank(text),
+      ocrConfidence: confidences.length
+        ? confidences.reduce((total, confidence) => total + confidence, 0) /
+          confidences.length
+        : null,
+      rejectedLines,
+      totalPages: pdf.numPages,
+      transactions,
+      usedOcr: true,
+    };
+  } catch (error) {
+    if (options?.signal?.aborted) {
+      throw new DOMException("Processamento cancelado.", "AbortError");
+    }
+    throw error;
+  } finally {
+    options?.signal?.removeEventListener("abort", cancelWorker);
+    await worker.terminate().catch(() => undefined);
+    await loadingTask.destroy().catch(() => undefined);
+  }
+}
+
+export async function extractPdfInvoice(
+  file: File,
+  referenceMonth: string,
+  options?: {
+    onProgress?: (progress: PdfOcrProgress) => void;
+    signal?: AbortSignal;
+  },
+): Promise<PdfInvoiceResult> {
+  const pdfjs = await getPdfJs();
+  const data = new Uint8Array(await file.arrayBuffer());
+  let pdf: import("pdfjs-dist").PDFDocumentProxy;
+  const loadingTask = pdfjs.getDocument({
+    data: data.slice(),
+    useSystemFonts: true,
+  });
+
+  try {
+    pdf = await loadingTask.promise;
+  } catch (error) {
+    const message = error instanceof Error ? error.message.toLowerCase() : "";
+    const name = error instanceof Error ? error.name.toLowerCase() : "";
+
+    if (message.includes("password") || name.includes("password")) {
+      throw new Error(
+        "Este PDF é protegido por senha. Remova a senha ao exportar a fatura e tente novamente.",
+      );
+    }
+
+    throw error;
+  }
+
+  let pdfDestroyed = false;
+
+  try {
+    const items = await extractPositionedTextPages(pdf);
+    const lines = groupItemsIntoLines(items);
+    const text = lines.join("\n");
+
+    if (normalizeText(text).length < 30) {
+      await loadingTask.destroy();
+      pdfDestroyed = true;
+      return await extractPdfInvoiceWithOcr(data, referenceMonth, options);
+    }
+
+    const { rejectedLines, transactions } = analyzePdfInvoiceLines(
+      lines,
+      referenceMonth,
+    );
+
+    return {
+      bank: detectBank(text),
+      ocrConfidence: null,
+      rejectedLines,
+      totalPages: pdf.numPages,
+      transactions,
+      usedOcr: false,
+    };
+  } finally {
+    if (!pdfDestroyed) await loadingTask.destroy().catch(() => undefined);
+  }
 }

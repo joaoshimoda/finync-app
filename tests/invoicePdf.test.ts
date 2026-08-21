@@ -3,6 +3,7 @@ import test from "node:test";
 
 import {
   analyzePdfInvoiceLines,
+  parseOcrInvoiceText,
   parsePdfInvoiceLines,
 } from "../lib/invoicePdf.ts";
 
@@ -84,4 +85,21 @@ test("separa uma linha incompleta para correção manual", () => {
       reason: "Não foi possível identificar: valor.",
     },
   ]);
+});
+
+test("recompõe uma transação quebrada em várias linhas pelo OCR", () => {
+  const result = parseOcrInvoiceText(
+    "12/08/2026 LOJA BRADESCO\nPARCELA 02/05\nR$ 129,90",
+    "2026-08-01",
+  );
+
+  assert.deepEqual(result.transactions, [
+    {
+      amount: 129.9,
+      date: "2026-08-12",
+      description: "LOJA BRADESCO PARCELA 02/05",
+      isCredit: false,
+    },
+  ]);
+  assert.equal(result.rejectedLines.length, 0);
 });
