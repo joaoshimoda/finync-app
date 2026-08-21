@@ -9,8 +9,18 @@ export type PdfInvoiceTransaction = {
 
 export type PdfInvoiceResult = {
   bank: PdfInvoiceBank;
+  rejectedLines: PdfRejectedInvoiceLine[];
   totalPages: number;
   transactions: PdfInvoiceTransaction[];
+};
+
+export type PdfRejectedInvoiceLine = {
+  amount: number | null;
+  date: string | null;
+  description: string;
+  isCredit: boolean;
+  raw: string;
+  reason: string;
 };
 
 type PositionedTextItem = {
@@ -189,11 +199,80 @@ function parseTransactionLine(
   };
 }
 
+function isIgnoredInvoiceLine(line: string) {
+  const normalized = normalizeText(line);
+  return ignoredLineIndicators.some((indicator) =>
+    normalized.includes(indicator),
+  );
+}
+
+function getRejectedLine(
+  line: string,
+  referenceMonth: string,
+): PdfRejectedInvoiceLine | null {
+  if (isIgnoredInvoiceLine(line)) return null;
+
+  const dateMatch = line.match(dateAtStartPattern);
+  const amountMatch = line.match(amountAtEndPattern);
+  if (!dateMatch && !amountMatch) return null;
+
+  const date = dateMatch ? resolveDate(dateMatch, referenceMonth) : null;
+  const parsedAmount = amountMatch
+    ? parseBrazilianAmount(amountMatch[1])
+    : { amount: Number.NaN, isNegative: false };
+  const amount =
+    Number.isFinite(parsedAmount.amount) && parsedAmount.amount > 0
+      ? Math.abs(parsedAmount.amount)
+      : null;
+  const descriptionStart = dateMatch?.[0].length ?? 0;
+  const descriptionEnd = amountMatch?.index ?? line.length;
+  const description = line
+    .slice(descriptionStart, descriptionEnd)
+    .replace(/\s+/g, " ")
+    .trim();
+  const missing = [
+    !date ? "data" : null,
+    !description ? "descrição" : null,
+    !amount ? "valor" : null,
+  ].filter(Boolean);
+
+  return {
+    amount,
+    date,
+    description,
+    isCredit:
+      parsedAmount.isNegative ||
+      /\b(estorno|credito|crédito|devolucao|devolução)\b/i.test(description),
+    raw: line,
+    reason: missing.length
+      ? `Não foi possível identificar: ${missing.join(", ")}.`
+      : "A linha não corresponde ao formato esperado da fatura.",
+  };
+}
+
 export function parsePdfInvoiceLines(lines: string[], referenceMonth: string) {
-  return lines.flatMap((line) => {
+  return analyzePdfInvoiceLines(lines, referenceMonth).transactions;
+}
+
+export function analyzePdfInvoiceLines(
+  lines: string[],
+  referenceMonth: string,
+) {
+  const transactions: PdfInvoiceTransaction[] = [];
+  const rejectedLines: PdfRejectedInvoiceLine[] = [];
+
+  for (const line of lines) {
     const transaction = parseTransactionLine(line, referenceMonth);
-    return transaction ? [transaction] : [];
-  });
+    if (transaction) {
+      transactions.push(transaction);
+      continue;
+    }
+
+    const rejected = getRejectedLine(line, referenceMonth);
+    if (rejected) rejectedLines.push(rejected);
+  }
+
+  return { rejectedLines, transactions };
 }
 
 function groupItemsIntoLines(pages: PositionedTextItem[][]) {
@@ -241,9 +320,15 @@ export async function extractPdfInvoice(
     );
   }
 
+  const { rejectedLines, transactions } = analyzePdfInvoiceLines(
+    lines,
+    referenceMonth,
+  );
+
   return {
     bank: detectBank(text),
+    rejectedLines,
     totalPages,
-    transactions: parsePdfInvoiceLines(lines, referenceMonth),
+    transactions,
   };
 }

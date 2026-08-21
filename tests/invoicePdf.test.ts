@@ -1,7 +1,10 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 
-import { parsePdfInvoiceLines } from "../lib/invoicePdf.ts";
+import {
+  analyzePdfInvoiceLines,
+  parsePdfInvoiceLines,
+} from "../lib/invoicePdf.ts";
 
 test("lê linhas comuns de uma fatura Nubank e identifica parcelas", () => {
   const transactions = parsePdfInvoiceLines(
@@ -62,4 +65,23 @@ test("infere o ano anterior quando a fatura de janeiro contém compra de dezembr
   );
 
   assert.equal(transactions[0]?.date, "2026-12-29");
+});
+
+test("separa uma linha incompleta para correção manual", () => {
+  const result = analyzePdfInvoiceLines(
+    ["12/08 COMPRA SEM VALOR", "Total da fatura R$ 100,00"],
+    "2026-08-01",
+  );
+
+  assert.equal(result.transactions.length, 0);
+  assert.deepEqual(result.rejectedLines, [
+    {
+      amount: null,
+      date: "2026-08-12",
+      description: "COMPRA SEM VALOR",
+      isCredit: false,
+      raw: "12/08 COMPRA SEM VALOR",
+      reason: "Não foi possível identificar: valor.",
+    },
+  ]);
 });

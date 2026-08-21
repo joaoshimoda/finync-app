@@ -70,7 +70,9 @@ import {
 } from "@/lib/importOccurrences";
 import {
   extractPdfInvoice,
+  type PdfInvoiceBank,
   type PdfInvoiceTransaction,
+  type PdfRejectedInvoiceLine,
 } from "@/lib/invoicePdf";
 import { cn } from "@/lib/utils";
 import { useFinanceStore } from "@/store/useFinanceStore";
@@ -94,6 +96,17 @@ type ParsedTransaction = {
 
 type CsvRow = Record<string, unknown>;
 type SplitMode = "mine" | "dependent" | "split";
+type PdfReviewLine = Omit<PdfRejectedInvoiceLine, "amount" | "date"> & {
+  amount: string;
+  date: string;
+  id: string;
+};
+type PdfImportAudit = {
+  bank: PdfInvoiceBank;
+  recognizedCount: number;
+  rejectedLines: PdfReviewLine[];
+  totalPages: number;
+};
 type ImportResultSummary = {
   cardName: string;
   creditsCount: number;
@@ -143,6 +156,11 @@ const brlFormatter = new Intl.NumberFormat("pt-BR", {
   style: "currency",
   currency: "BRL",
 });
+const pdfBankLabels: Record<PdfInvoiceBank, string> = {
+  generic: "Formato genérico",
+  inter: "Banco Inter",
+  nubank: "Nubank",
+};
 
 const ignoredPaymentIndicators = [
   "pagamento",
@@ -594,6 +612,8 @@ export default function ImportarPage() {
   const [fileName, setFileName] = useState("");
   const [parseError, setParseError] = useState("");
   const [isParsingFile, setIsParsingFile] = useState(false);
+  const [pdfAudit, setPdfAudit] = useState<PdfImportAudit | null>(null);
+  const [pdfReviewLineId, setPdfReviewLineId] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [splitDialogIndex, setSplitDialogIndex] = useState<number | null>(null);
   const [splitMode, setSplitMode] = useState<SplitMode>("mine");
@@ -702,6 +722,7 @@ export default function ImportarPage() {
       setParseError("");
       setLastImportSummary(null);
       setFileName(file.name);
+      setPdfAudit(null);
 
       const isPdf =
         file.type === "application/pdf" ||
@@ -721,6 +742,17 @@ export default function ImportarPage() {
             );
 
           setParsedData(rows);
+          setPdfAudit({
+            bank: result.bank,
+            recognizedCount: rows.length,
+            rejectedLines: result.rejectedLines.map((line, index) => ({
+              ...line,
+              amount: line.amount ? String(line.amount) : "",
+              date: line.date ?? "",
+              id: `${index}-${line.raw}`,
+            })),
+            totalPages: result.totalPages,
+          });
 
           if (!rows.length) {
             setParseError(
@@ -1159,6 +1191,13 @@ export default function ImportarPage() {
   }, [categories, historicalCategoryMap, parsedData]);
   const selectedSplitTransaction =
     splitDialogIndex === null ? null : (parsedData[splitDialogIndex] ?? null);
+  const selectedPdfReviewLine =
+    pdfAudit?.rejectedLines.find((line) => line.id === pdfReviewLineId) ?? null;
+  const selectedPdfReviewIndex = selectedPdfReviewLine
+    ? (pdfAudit?.rejectedLines.findIndex(
+        (line) => line.id === selectedPdfReviewLine.id,
+      ) ?? -1)
+    : -1;
   const selectedSplitDependent = dependents.find(
     (dependent) => dependent.id === splitDependentId,
   );
@@ -1311,12 +1350,81 @@ export default function ImportarPage() {
 
   function resetImport(options?: { keepSummary?: boolean }) {
     setParsedData([]);
+    setPdfAudit(null);
+    setPdfReviewLineId(null);
     setFileName("");
     setParseError("");
     setIsSubmitting(false);
     if (!options?.keepSummary) {
       setLastImportSummary(null);
     }
+  }
+
+  function updateRejectedPdfLine(
+    id: string,
+    field: "amount" | "date" | "description" | "isCredit",
+    value: string | boolean,
+  ) {
+    setPdfAudit((current) =>
+      current
+        ? {
+            ...current,
+            rejectedLines: current.rejectedLines.map((line) =>
+              line.id === id ? { ...line, [field]: value } : line,
+            ),
+          }
+        : current,
+    );
+  }
+
+  function discardRejectedPdfLine(id: string) {
+    setPdfAudit((current) =>
+      current
+        ? {
+            ...current,
+            rejectedLines: current.rejectedLines.filter(
+              (line) => line.id !== id,
+            ),
+          }
+        : current,
+    );
+  }
+
+  function moveAfterPdfReview(id: string) {
+    const lines = pdfAudit?.rejectedLines ?? [];
+    const currentIndex = lines.findIndex((line) => line.id === id);
+    const nextLine = lines[currentIndex + 1] ?? lines[currentIndex - 1];
+
+    setPdfReviewLineId(nextLine?.id ?? null);
+  }
+
+  function addCorrectedPdfLine(line: PdfReviewLine) {
+    const amount = Number(line.amount.replace(",", "."));
+
+    if (!line.date || !line.description.trim() || !(amount > 0)) {
+      toast.error("Preencha data, descrição e um valor maior que zero.");
+      return false;
+    }
+
+    const transaction = mapPdfTransaction(
+      {
+        amount,
+        date: normalizeDateOnly(line.date),
+        description: line.description.trim(),
+        isCredit: line.isCredit,
+      },
+      historicalCategoryMap,
+    );
+
+    if (!transaction) {
+      toast.error("Essa linha parece ser um pagamento da fatura.");
+      return false;
+    }
+
+    setParsedData((current) => [...current, transaction]);
+    discardRejectedPdfLine(line.id);
+    toast.success("Transação adicionada à prévia.");
+    return true;
   }
 
   function removePreviewRow(indexToRemove: number) {
@@ -1583,6 +1691,50 @@ export default function ImportarPage() {
             ))}
           </CardContent>
         </Card>
+      ) : null}
+
+      {pdfAudit ? (
+        <div
+          className={cn(
+            "flex flex-col gap-3 rounded-xl border px-4 py-3 sm:flex-row sm:items-center sm:justify-between",
+            pdfAudit.rejectedLines.length
+              ? "border-amber-500/25 bg-amber-500/5"
+              : "border-emerald-500/20 bg-emerald-500/5",
+          )}
+        >
+          <div className="flex min-w-0 items-center gap-3">
+            {pdfAudit.rejectedLines.length ? (
+              <AlertTriangle className="size-5 shrink-0 text-amber-300" />
+            ) : (
+              <CheckCircle2 className="size-5 shrink-0 text-emerald-300" />
+            )}
+            <div className="min-w-0">
+              <p className="text-sm font-medium text-zinc-100">
+                {pdfBankLabels[pdfAudit.bank]} · {pdfAudit.totalPages}{" "}
+                {pdfAudit.totalPages === 1 ? "página" : "páginas"} ·{" "}
+                {pdfAudit.recognizedCount} reconhecidas
+              </p>
+              <p className="mt-0.5 text-xs text-zinc-500">
+                {pdfAudit.rejectedLines.length
+                  ? `${pdfAudit.rejectedLines.length} pendência(s) aguardando revisão`
+                  : "PDF processado sem pendências"}
+              </p>
+            </div>
+          </div>
+
+          {pdfAudit.rejectedLines.length ? (
+            <Button
+              type="button"
+              variant="outline"
+              className="shrink-0 border-amber-500/30 bg-transparent text-amber-200 hover:bg-amber-500/10 hover:text-amber-100"
+              onClick={() =>
+                setPdfReviewLineId(pdfAudit.rejectedLines[0]?.id ?? null)
+              }
+            >
+              Revisar {pdfAudit.rejectedLines.length} pendência(s)
+            </Button>
+          ) : null}
+        </div>
       ) : null}
 
       {!parsedData.length ? (
@@ -2331,6 +2483,187 @@ export default function ImportarPage() {
           </CardContent>
         </Card>
       )}
+      <Dialog
+        open={pdfReviewLineId !== null}
+        onOpenChange={(open) => {
+          if (!open) setPdfReviewLineId(null);
+        }}
+      >
+        <DialogContent className="border border-zinc-800 bg-zinc-950 text-zinc-50 sm:max-w-xl">
+          <DialogHeader>
+            <DialogTitle>Revisar pendência do PDF</DialogTitle>
+            <DialogDescription>
+              {selectedPdfReviewLine && pdfAudit
+                ? `Pendência ${selectedPdfReviewIndex + 1} de ${pdfAudit.rejectedLines.length}`
+                : "Confira os dados antes de adicionar à prévia."}
+            </DialogDescription>
+          </DialogHeader>
+
+          {selectedPdfReviewLine ? (
+            <div className="space-y-4">
+              <div className="rounded-xl border border-zinc-800 bg-zinc-900/40 p-3">
+                <p className="text-[11px] font-medium uppercase tracking-wide text-zinc-500">
+                  Texto encontrado no PDF
+                </p>
+                <p className="mt-2 break-words font-mono text-xs leading-5 text-zinc-300">
+                  {selectedPdfReviewLine.raw}
+                </p>
+                <p className="mt-2 text-xs text-amber-300">
+                  {selectedPdfReviewLine.reason}
+                </p>
+              </div>
+
+              <div className="grid gap-4 sm:grid-cols-2">
+                <div className="space-y-2">
+                  <p className="text-xs font-medium text-zinc-400">Data</p>
+                  <Input
+                    type="date"
+                    value={selectedPdfReviewLine.date}
+                    onChange={(event) =>
+                      updateRejectedPdfLine(
+                        selectedPdfReviewLine.id,
+                        "date",
+                        event.target.value,
+                      )
+                    }
+                    className="border-zinc-700 bg-zinc-900"
+                  />
+                </div>
+                <div className="space-y-2">
+                  <p className="text-xs font-medium text-zinc-400">Valor</p>
+                  <Input
+                    inputMode="decimal"
+                    value={selectedPdfReviewLine.amount}
+                    onChange={(event) =>
+                      updateRejectedPdfLine(
+                        selectedPdfReviewLine.id,
+                        "amount",
+                        event.target.value,
+                      )
+                    }
+                    placeholder="0,00"
+                    className="border-zinc-700 bg-zinc-900"
+                  />
+                </div>
+              </div>
+
+              <div className="space-y-2">
+                <p className="text-xs font-medium text-zinc-400">Descrição</p>
+                <Input
+                  value={selectedPdfReviewLine.description}
+                  onChange={(event) =>
+                    updateRejectedPdfLine(
+                      selectedPdfReviewLine.id,
+                      "description",
+                      event.target.value,
+                    )
+                  }
+                  placeholder="Descrição da transação"
+                  className="border-zinc-700 bg-zinc-900"
+                />
+              </div>
+
+              <div className="space-y-2">
+                <p className="text-xs font-medium text-zinc-400">Tipo</p>
+                <Select
+                  value={selectedPdfReviewLine.isCredit ? "credit" : "expense"}
+                  onValueChange={(value) =>
+                    updateRejectedPdfLine(
+                      selectedPdfReviewLine.id,
+                      "isCredit",
+                      value === "credit",
+                    )
+                  }
+                >
+                  <SelectTrigger className="border-zinc-700 bg-zinc-900">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="expense">Despesa</SelectItem>
+                    <SelectItem value="credit">Crédito/Estorno</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+
+              {pdfAudit && pdfAudit.rejectedLines.length > 1 ? (
+                <div className="flex items-center justify-between border-t border-zinc-800 pt-3">
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    disabled={selectedPdfReviewIndex <= 0}
+                    onClick={() =>
+                      setPdfReviewLineId(
+                        pdfAudit.rejectedLines[selectedPdfReviewIndex - 1]
+                          ?.id ?? null,
+                      )
+                    }
+                  >
+                    Anterior
+                  </Button>
+                  <span className="text-xs text-zinc-500">
+                    {selectedPdfReviewIndex + 1} de{" "}
+                    {pdfAudit.rejectedLines.length}
+                  </span>
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    disabled={
+                      selectedPdfReviewIndex >=
+                      pdfAudit.rejectedLines.length - 1
+                    }
+                    onClick={() =>
+                      setPdfReviewLineId(
+                        pdfAudit.rejectedLines[selectedPdfReviewIndex + 1]
+                          ?.id ?? null,
+                      )
+                    }
+                  >
+                    Próxima
+                  </Button>
+                </div>
+              ) : null}
+            </div>
+          ) : null}
+
+          <DialogFooter className="border-zinc-800 bg-zinc-900/50 sm:justify-between">
+            <Button
+              type="button"
+              variant="ghost"
+              onClick={() => setPdfReviewLineId(null)}
+            >
+              Revisar depois
+            </Button>
+            <div className="flex gap-2">
+              <Button
+                type="button"
+                variant="outline"
+                disabled={!selectedPdfReviewLine}
+                onClick={() => {
+                  if (!selectedPdfReviewLine) return;
+                  moveAfterPdfReview(selectedPdfReviewLine.id);
+                  discardRejectedPdfLine(selectedPdfReviewLine.id);
+                }}
+              >
+                Ignorar
+              </Button>
+              <Button
+                type="button"
+                disabled={!selectedPdfReviewLine}
+                className="bg-emerald-600 text-white hover:bg-emerald-700"
+                onClick={() => {
+                  if (!selectedPdfReviewLine) return;
+                  if (addCorrectedPdfLine(selectedPdfReviewLine)) {
+                    moveAfterPdfReview(selectedPdfReviewLine.id);
+                  }
+                }}
+              >
+                Adicionar à prévia
+              </Button>
+            </div>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
       <Dialog
         open={splitDialogIndex !== null}
         onOpenChange={(open) => {
