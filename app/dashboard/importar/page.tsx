@@ -68,6 +68,10 @@ import {
   addOccurrenceSignatures,
   getOccurrenceSignatureSet,
 } from "@/lib/importOccurrences";
+import {
+  extractPdfInvoice,
+  type PdfInvoiceTransaction,
+} from "@/lib/invoicePdf";
 import { cn } from "@/lib/utils";
 import { useFinanceStore } from "@/store/useFinanceStore";
 
@@ -542,6 +546,40 @@ function mapCsvRow(
   ];
 }
 
+function mapPdfTransaction(
+  transaction: PdfInvoiceTransaction,
+  categoryDictionary: Record<string, string>,
+): ParsedTransaction | null {
+  if (shouldIgnoreImportedRow(transaction.description, transaction.isCredit)) {
+    return null;
+  }
+
+  const { cleanDescription, installmentNumber, installmentsTotal } =
+    parseInstallment(transaction.description);
+  const isCredit = transaction.isCredit;
+  const finalDescription = cleanDescription || "Sem descrição";
+
+  return {
+    date: transaction.date,
+    description: finalDescription,
+    amount: transaction.amount,
+    category: isCredit
+      ? CARD_CREDIT_ADJUSTMENT_CATEGORY
+      : normalizeImportedExpenseCategory(
+          findHistoricalCategory(finalDescription, categoryDictionary),
+        ),
+    dependentId: null,
+    type: isCredit ? "credit" : "expense",
+    projectFutureInstallments:
+      !isCredit && installmentNumber < installmentsTotal,
+    referenceMonthOffset: 0,
+    installmentNumber: isCredit ? 1 : installmentNumber,
+    installmentsTotal: isCredit ? 1 : installmentsTotal,
+    owner: "me",
+    requiresReview: isAmbiguousPaymentCredit(finalDescription, isCredit),
+  };
+}
+
 export default function ImportarPage() {
   const cards = useFinanceStore((state) => state.cards);
   const dependents = useFinanceStore((state) => state.dependents);
@@ -555,6 +593,7 @@ export default function ImportarPage() {
   >({});
   const [fileName, setFileName] = useState("");
   const [parseError, setParseError] = useState("");
+  const [isParsingFile, setIsParsingFile] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [splitDialogIndex, setSplitDialogIndex] = useState<number | null>(null);
   const [splitMode, setSplitMode] = useState<SplitMode>("mine");
@@ -655,7 +694,7 @@ export default function ImportarPage() {
       : getMonthStartFromReference(getLocalTodayDateOnly()));
 
   const onDrop = useCallback(
-    (acceptedFiles: File[]) => {
+    async (acceptedFiles: File[]) => {
       const file = acceptedFiles[0];
 
       if (!file) return;
@@ -663,6 +702,44 @@ export default function ImportarPage() {
       setParseError("");
       setLastImportSummary(null);
       setFileName(file.name);
+
+      const isPdf =
+        file.type === "application/pdf" ||
+        file.name.toLowerCase().endsWith(".pdf");
+
+      if (isPdf) {
+        setIsParsingFile(true);
+
+        try {
+          const result = await extractPdfInvoice(file, effectiveReferenceMonth);
+          const rows = result.transactions
+            .map((transaction) =>
+              mapPdfTransaction(transaction, historicalCategoryMap),
+            )
+            .filter((transaction): transaction is ParsedTransaction =>
+              Boolean(transaction),
+            );
+
+          setParsedData(rows);
+
+          if (!rows.length) {
+            setParseError(
+              "O PDF foi lido, mas não encontramos transações. Confira o mês da fatura ou tente o CSV do banco.",
+            );
+          }
+        } catch (error) {
+          setParsedData([]);
+          setParseError(
+            error instanceof Error
+              ? error.message
+              : "Não foi possível ler o PDF. Verifique o arquivo e tente novamente.",
+          );
+        } finally {
+          setIsParsingFile(false);
+        }
+
+        return;
+      }
 
       Papa.parse<CsvRow>(file, {
         header: true,
@@ -688,16 +765,17 @@ export default function ImportarPage() {
         },
       });
     },
-    [historicalCategoryMap],
+    [effectiveReferenceMonth, historicalCategoryMap],
   );
 
   const { getInputProps, getRootProps, isDragActive, isDragReject } =
     useDropzone({
       accept: {
+        "application/pdf": [".pdf"],
         "text/csv": [".csv"],
         "application/vnd.ms-excel": [".csv"],
       },
-      disabled: !effectiveSelectedCardId,
+      disabled: !effectiveSelectedCardId || isParsingFile,
       maxFiles: 1,
       multiple: false,
       onDrop,
@@ -1361,7 +1439,7 @@ export default function ImportarPage() {
       );
       resetImport({ keepSummary: true });
     } catch (error) {
-      console.error("Erro ao importar CSV:", error);
+      console.error("Erro ao importar fatura:", error);
       toast.error("Não foi possível importar as transações.");
     } finally {
       setIsSubmitting(false);
@@ -1375,8 +1453,8 @@ export default function ImportarPage() {
           Importar Fatura
         </h1>
         <p className="text-sm text-zinc-400">
-          Envie um CSV de cartão ou banco para revisar as transações antes de
-          importar.
+          Envie um CSV ou PDF de cartão ou banco para revisar as transações
+          antes de importar.
         </p>
       </header>
 
@@ -1388,7 +1466,7 @@ export default function ImportarPage() {
             active: parsedData.length > 0,
           },
           {
-            title: "Enviar CSV",
+            title: "Enviar arquivo",
             description: fileName || "Selecione o arquivo",
             active: Boolean(fileName),
           },
@@ -1569,8 +1647,9 @@ export default function ImportarPage() {
               </div>
 
               <div className="rounded-xl border border-zinc-800 bg-zinc-900/40 p-3 text-xs leading-5 text-zinc-500">
-                Valores negativos do CSV serão tratados como Crédito/Estorno e
-                abaterão a fatura no preview.
+                Valores negativos do CSV ou PDF serão tratados como
+                Crédito/Estorno e abaterão a fatura no preview. PDFs escaneados
+                ainda não são compatíveis.
               </div>
             </CardContent>
           </Card>
@@ -1579,7 +1658,8 @@ export default function ImportarPage() {
             {...getRootProps()}
             className={cn(
               "cursor-pointer border-dashed border-zinc-700 bg-zinc-900/50 shadow-none transition-colors hover:border-emerald-500/70 hover:bg-zinc-900/70",
-              !effectiveSelectedCardId && "pointer-events-none opacity-50",
+              (!effectiveSelectedCardId || isParsingFile) &&
+                "pointer-events-none opacity-50",
               isDragActive && "border-emerald-500 bg-emerald-500/5",
               isDragReject && "border-red-500 bg-red-500/5",
             )}
@@ -1590,18 +1670,20 @@ export default function ImportarPage() {
                 <UploadCloud className="size-8" />
               </div>
               <h2 className="mt-6 text-xl font-semibold text-zinc-50">
-                Arraste sua fatura CSV aqui
+                {isParsingFile
+                  ? "Lendo sua fatura..."
+                  : "Arraste sua fatura CSV ou PDF aqui"}
               </h2>
               <p className="mt-2 max-w-md text-sm leading-6 text-zinc-400">
                 {effectiveSelectedCardId
-                  ? "Suporta exportações do Nubank, Itaú, bancos digitais e planilhas CSV."
+                  ? "PDFs digitais do Nubank e Inter, além de CSVs de bancos e planilhas."
                   : "Cadastre ou selecione um cartão para liberar o upload."}
               </p>
               <Button
                 type="button"
                 className="mt-8 bg-emerald-600 text-white hover:bg-emerald-700"
               >
-                Selecionar arquivo
+                {isParsingFile ? "Processando..." : "Selecionar arquivo"}
               </Button>
               {parseError ? (
                 <p className="mt-4 text-sm text-red-300">{parseError}</p>
