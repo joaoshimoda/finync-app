@@ -11,6 +11,7 @@
     "test": "node --experimental-strip-types --test \"tests/**/*.test.ts\""
   },
   "dependencies": {
+    "@base-ui/react": "^1.7.0",
     "@radix-ui/react-alert-dialog": "^1.1.17",
     "@radix-ui/react-tabs": "^1.1.15",
     "@supabase/ssr": "^0.12.0",
