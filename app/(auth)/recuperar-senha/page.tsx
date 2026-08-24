@@ -2,7 +2,8 @@
 
 import { FormEvent, useState } from "react";
 import Link from "next/link";
-import { Landmark, Loader2 } from "lucide-react";
+import { Loader2 } from "lucide-react";
+import { FinyncLogo } from "@/components/branding/FinyncLogo";
 import { toast } from "sonner";
 
 import { Button } from "@/components/ui/button";
@@ -54,10 +55,7 @@ export default function RecoverPasswordPage() {
         <div className="pointer-events-none absolute inset-0 bg-[linear-gradient(rgba(255,255,255,0.035)_1px,transparent_1px),linear-gradient(90deg,rgba(255,255,255,0.035)_1px,transparent_1px)] bg-[size:72px_72px] opacity-40" />
 
         <Link href="/" className="relative flex w-fit items-center gap-3">
-          <span className="flex size-10 items-center justify-center rounded-lg bg-white text-zinc-950">
-            <Landmark className="size-5" strokeWidth={2.2} />
-          </span>
-          <span className="text-lg font-semibold tracking-tight">Finync</span>
+          <FinyncLogo eager className="w-32 brightness-125" />
         </Link>
 
         <div className="relative my-auto max-w-2xl py-16">
@@ -74,11 +72,11 @@ export default function RecoverPasswordPage() {
       </aside>
 
       <div className="flex min-h-svh flex-col bg-zinc-50 px-5 py-6 sm:px-10 lg:justify-center lg:px-16 xl:px-24">
-        <Link href="/" className="mb-12 flex w-fit items-center gap-2.5 lg:hidden">
-          <span className="flex size-9 items-center justify-center rounded-lg bg-zinc-950 text-white">
-            <Landmark className="size-4" strokeWidth={2.2} />
-          </span>
-          <span className="font-semibold tracking-tight">Finync</span>
+        <Link
+          href="/"
+          className="mb-12 flex w-fit items-center gap-2.5 lg:hidden"
+        >
+          <FinyncLogo eager className="w-28" />
         </Link>
 
         <section className="mx-auto w-full max-w-md">

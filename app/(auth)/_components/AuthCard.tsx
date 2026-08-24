@@ -6,11 +6,9 @@ import {
   InputOTPGroup,
   InputOTPSlot,
 } from "@/components/ui/input-otp";
-import {
-  configureAuthPersistence,
-  supabase,
-} from "@/lib/supabaseClient";
-import { Landmark, Loader2, ShieldCheck } from "lucide-react";
+import { configureAuthPersistence, supabase } from "@/lib/supabaseClient";
+import { Loader2, ShieldCheck } from "lucide-react";
+import { FinyncLogo } from "@/components/branding/FinyncLogo";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { FormEvent, useEffect, useState } from "react";
@@ -114,7 +112,9 @@ export function AuthCard({ mode }: AuthCardProps) {
       if (error) throw error;
 
       if (!data.session) {
-        throw new Error("A sessão não foi criada após a verificação do código.");
+        throw new Error(
+          "A sessão não foi criada após a verificação do código.",
+        );
       }
 
       const {
@@ -196,10 +196,7 @@ export function AuthCard({ mode }: AuthCardProps) {
         <div className="pointer-events-none absolute inset-0 opacity-[0.035] [background-image:url('data:image/svg+xml,%3Csvg_viewBox=%220_0_160_160%22_xmlns=%22http://www.w3.org/2000/svg%22%3E%3Cfilter_id=%22n%22%3E%3CfeTurbulence_type=%22fractalNoise%22_baseFrequency=%220.9%22_numOctaves=%224%22_stitchTiles=%22stitch%22/%3E%3C/filter%3E%3Crect_width=%22100%25%22_height=%22100%25%22_filter=%22url(%23n)%22_opacity=%221%22/%3E%3C/svg%3E')]" />
 
         <Link href="/" className="relative flex w-fit items-center gap-3">
-          <span className="flex size-10 items-center justify-center rounded-lg bg-white text-zinc-950">
-            <Landmark className="size-5" strokeWidth={2.2} />
-          </span>
-          <span className="text-lg font-semibold tracking-tight">Finync</span>
+          <FinyncLogo eager className="w-32 brightness-125" />
         </Link>
 
         <div className="relative my-auto max-w-2xl py-16">
@@ -222,11 +219,11 @@ export function AuthCard({ mode }: AuthCardProps) {
       </aside>
 
       <div className="flex min-h-svh flex-col bg-zinc-50 px-5 py-6 sm:px-10 lg:justify-center lg:px-16 xl:px-24">
-        <Link href="/" className="mb-12 flex w-fit items-center gap-2.5 lg:hidden">
-          <span className="flex size-9 items-center justify-center rounded-lg bg-zinc-950 text-white">
-            <Landmark className="size-4" strokeWidth={2.2} />
-          </span>
-          <span className="font-semibold tracking-tight">Finync</span>
+        <Link
+          href="/"
+          className="mb-12 flex w-fit items-center gap-2.5 lg:hidden"
+        >
+          <FinyncLogo eager className="w-28" />
         </Link>
 
         <section className="mx-auto w-full max-w-md">
@@ -241,7 +238,9 @@ export function AuthCard({ mode }: AuthCardProps) {
                 </h1>
                 <p className="mt-3 text-sm leading-6 text-zinc-600">
                   Código enviado para{" "}
-                  <span className="font-medium text-zinc-950">{email.trim()}</span>
+                  <span className="font-medium text-zinc-950">
+                    {email.trim()}
+                  </span>
                 </p>
               </div>
 
@@ -352,7 +351,9 @@ export function AuthCard({ mode }: AuthCardProps) {
                     value={password}
                     onChange={(event) => setPassword(event.target.value)}
                     type="password"
-                    autoComplete={isSignup ? "new-password" : "current-password"}
+                    autoComplete={
+                      isSignup ? "new-password" : "current-password"
+                    }
                     placeholder="••••••••"
                     className="h-12 w-full rounded-lg border border-zinc-300 bg-white px-4 text-sm text-zinc-950 outline-none transition placeholder:text-zinc-400 focus:border-emerald-600 focus:ring-2 focus:ring-emerald-600/15"
                     minLength={6}

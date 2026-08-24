@@ -13,7 +13,6 @@ import {
   CreditCard,
   Eye,
   EyeOff,
-  Landmark,
   LayoutDashboard,
   PlusCircle,
   Receipt,
@@ -22,6 +21,7 @@ import {
   ShieldCheck,
 } from "lucide-react";
 import { toast } from "sonner";
+import { FinyncLogo } from "@/components/branding/FinyncLogo";
 
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -248,11 +248,8 @@ export function DemoApp() {
       <div className="flex min-h-screen">
         <aside className="fixed inset-y-0 left-0 hidden w-64 border-r border-zinc-800 bg-zinc-950 p-4 md:flex md:flex-col">
           <div className="flex h-14 items-center gap-3 px-2">
-            <span className="flex size-9 items-center justify-center rounded-lg bg-emerald-500 text-zinc-950">
-              <Landmark className="size-5" />
-            </span>
             <div>
-              <p className="font-semibold">Finync</p>
+              <FinyncLogo eager className="w-24 brightness-125" />
               <p className="text-xs text-zinc-500">Painel demonstrativo</p>
             </div>
           </div>
@@ -293,8 +290,7 @@ export function DemoApp() {
         <div className="min-w-0 flex-1 md:ml-64">
           <header className="sticky top-0 z-40 flex h-16 items-center justify-between border-b border-zinc-800 bg-zinc-950/90 px-4 backdrop-blur-xl md:px-8">
             <div className="flex items-center gap-3 md:hidden">
-              <Landmark className="size-5 text-emerald-400" />
-              <span className="font-semibold">Finync Demo</span>
+              <FinyncLogo eager className="w-24 brightness-125" />
             </div>
             <div className="hidden items-center gap-2 text-xs text-zinc-500 md:flex">
               <ShieldCheck className="size-4 text-emerald-400" />

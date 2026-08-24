@@ -13,7 +13,6 @@ import {
   ChevronRight,
   CircleUserRound,
   FileSpreadsheet,
-  Landmark,
   LockKeyhole,
   MoveDownRight,
   ShieldCheck,
@@ -21,6 +20,7 @@ import {
 } from "lucide-react";
 import Link from "next/link";
 import type { MouseEvent, ReactNode } from "react";
+import { FinyncLogo } from "@/components/branding/FinyncLogo";
 
 const transactions = [
   ["Mercado São Luiz", "Alimentação", "− R$ 284,90"],
@@ -181,12 +181,7 @@ export function ModernLandingPage() {
             className="flex items-center gap-3"
             aria-label="Finync"
           >
-            <span className="flex size-9 items-center justify-center rounded-lg border border-white/10 bg-zinc-100 text-zinc-950">
-              <Landmark className="size-[18px]" strokeWidth={2.2} />
-            </span>
-            <span className="text-base font-semibold tracking-[-0.02em]">
-              Finync
-            </span>
+            <FinyncLogo eager className="w-24 brightness-125" />
           </Link>
           <nav className="hidden items-center gap-8 text-[13px] text-zinc-500 md:flex">
             <a
@@ -462,8 +457,7 @@ export function ModernLandingPage() {
       <footer className="border-t border-white/[0.07]">
         <div className="mx-auto flex w-full max-w-[1440px] flex-col gap-5 px-5 py-8 text-xs text-zinc-600 sm:flex-row sm:items-center sm:justify-between sm:px-8 lg:px-12">
           <div className="flex items-center gap-2.5 text-zinc-300">
-            <Landmark className="size-4 text-emerald-400" />
-            <span className="font-semibold">Finync</span>
+            <FinyncLogo className="w-20 brightness-125" />
           </div>
           <p>Controle financeiro pessoal, sem ruído.</p>
           <Link href="/login" className="transition-colors hover:text-white">

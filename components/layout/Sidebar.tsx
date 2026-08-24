@@ -2,7 +2,8 @@
 
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
-import { ChevronsUpDown, Landmark, LogOut, UserRound } from "lucide-react";
+import { ChevronsUpDown, LogOut, UserRound } from "lucide-react";
+import { FinyncLogo } from "@/components/branding/FinyncLogo";
 import { navigationItems } from "./navigationItems";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import {
@@ -35,13 +36,14 @@ export function Sidebar() {
   const metadataAvatarUrl = authUser?.user_metadata?.avatar_url;
   const avatarUrl =
     typeof metadataAvatarUrl === "string" ? metadataAvatarUrl : undefined;
-  const initials = displayName
-    .split(/\s+/)
-    .filter(Boolean)
-    .slice(0, 2)
-    .map((part) => part[0])
-    .join("")
-    .toUpperCase() || "US";
+  const initials =
+    displayName
+      .split(/\s+/)
+      .filter(Boolean)
+      .slice(0, 2)
+      .map((part) => part[0])
+      .join("")
+      .toUpperCase() || "US";
 
   async function handleSignOut() {
     const { error } = await supabase.auth.signOut();
@@ -59,14 +61,15 @@ export function Sidebar() {
 
   return (
     <aside className="hidden h-screen w-72 shrink-0 flex-col justify-between border-r border-white/[0.08] bg-white/[0.045] px-5 py-6 shadow-2xl shadow-black/20 backdrop-blur-2xl md:sticky md:top-0 md:flex">
-      <Link href="/dashboard" className="mb-10 flex items-center gap-3 px-2">
-        <div className="flex h-11 w-11 items-center justify-center rounded-2xl border border-brand-500/20 bg-brand-500/10 text-lg font-bold text-brand-100">
-          <Landmark className="h-5 w-5 text-brand-300" />
-        </div>
-        <div>
-          <p className="text-base font-semibold tracking-tight text-white">Finync</p>
-          <p className="text-xs text-zinc-400">Controle financeiro</p>
-        </div>
+      <Link
+        href="/dashboard"
+        className="mb-9 flex min-h-12 items-center gap-3 px-2"
+        aria-label="Finync — Controle financeiro"
+      >
+        <FinyncLogo eager className="w-24 shrink-0 brightness-125" />
+        <span className="whitespace-nowrap border-l border-white/[0.08] pl-3 text-xs text-zinc-500">
+          Controle financeiro
+        </span>
       </Link>
 
       <nav className="flex flex-1 flex-col gap-2">
@@ -88,7 +91,9 @@ export function Sidebar() {
               <Icon
                 className={[
                   "h-5 w-5 shrink-0 transition",
-                  active ? "text-brand-300" : "text-zinc-500 group-hover:text-zinc-200",
+                  active
+                    ? "text-brand-300"
+                    : "text-zinc-500 group-hover:text-zinc-200",
                 ].join(" ")}
               />
               {item.label}
