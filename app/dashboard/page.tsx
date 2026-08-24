@@ -94,6 +94,47 @@ const dashboardReveal = {
 const dashboardSurfaceClassName =
   "border border-white/[0.08] bg-zinc-900/55 shadow-[0_18px_55px_rgba(0,0,0,0.18)] backdrop-blur-xl transition-colors hover:border-white/[0.13]";
 
+function useCountUp(
+  targetValue: number,
+  resetKey: string,
+  reduceMotion: boolean,
+  duration = 2200,
+) {
+  const [animatedValue, setAnimatedValue] = useState(
+    reduceMotion ? targetValue : 0,
+  );
+
+  useEffect(() => {
+    if (reduceMotion) {
+      return;
+    }
+
+    const safeTarget = Number.isFinite(targetValue) ? targetValue : 0;
+    let animationFrame = 0;
+    let startedAt: number | null = null;
+
+    const animate = (timestamp: number) => {
+      startedAt ??= timestamp;
+      const elapsed = Math.max(timestamp - startedAt - 150, 0);
+      const progress = Math.min(elapsed / duration, 1);
+      const easedProgress =
+        progress < 0.5
+          ? 4 * progress * progress * progress
+          : 1 - Math.pow(-2 * progress + 2, 3) / 2;
+      setAnimatedValue(safeTarget * easedProgress);
+
+      if (progress < 1) {
+        animationFrame = requestAnimationFrame(animate);
+      }
+    };
+
+    animationFrame = requestAnimationFrame(animate);
+    return () => cancelAnimationFrame(animationFrame);
+  }, [duration, reduceMotion, resetKey, targetValue]);
+
+  return reduceMotion ? targetValue : animatedValue;
+}
+
 function formatSensitiveCurrency(value: number, hideValue: boolean) {
   return hideValue ? hiddenCurrencyLabel : brlFormatter.format(value);
 }
@@ -549,6 +590,24 @@ export default function DashboardPage() {
     todayDate,
   ]);
 
+  const kpiAnimationKey = `${displayYear}-${displayMonth}`;
+  const animatedProjectedBalance = useCountUp(
+    monthlyBalances.projectedBalance,
+    kpiAnimationKey,
+    Boolean(prefersReducedMotion),
+  );
+  const animatedPendingObligations = useCountUp(
+    monthlyBalances.totalPendingObligations,
+    kpiAnimationKey,
+    Boolean(prefersReducedMotion),
+  );
+  const animatedClosingProjection = useCountUp(
+    monthlyBalances.creditCardProjected,
+    kpiAnimationKey,
+    Boolean(prefersReducedMotion),
+  );
+  const isProjectedBalanceNegative = monthlyBalances.projectedBalance < 0;
+
   const recentTransactions = useMemo(
     () => [...monthlyTransactions].sort(sortByRecentDate).slice(0, 3),
     [monthlyTransactions],
@@ -966,7 +1025,10 @@ export default function DashboardPage() {
         <Card
           className={cn(
             dashboardSurfaceClassName,
-            "relative col-span-12 h-full min-h-0 overflow-hidden rounded-xl bg-emerald-400/[0.045] lg:col-span-4",
+            "relative col-span-12 h-full min-h-0 overflow-hidden rounded-xl lg:col-span-4",
+            isProjectedBalanceNegative
+              ? "bg-rose-400/[0.045]"
+              : "bg-emerald-400/[0.045]",
           )}
         >
           <div className="pointer-events-none absolute inset-x-0 bottom-0 h-24 opacity-70">
@@ -978,7 +1040,7 @@ export default function DashboardPage() {
               <path
                 d="M0 62 C28 66 38 47 62 55 S93 41 114 50 S143 32 166 42 S196 33 218 38 S251 17 274 29 S298 12 320 18"
                 fill="none"
-                stroke="#34d399"
+                stroke={isProjectedBalanceNegative ? "#fb7185" : "#34d399"}
                 strokeWidth="1.5"
               />
             </svg>
@@ -988,10 +1050,24 @@ export default function DashboardPage() {
               <p className="text-[11px] font-medium uppercase tracking-[0.16em] text-zinc-500">
                 Saldo projetado
               </p>
-              <span className="size-1.5 rounded-full bg-emerald-300 shadow-[0_0_12px_rgba(110,231,183,0.8)]" />
+              <span
+                className={cn(
+                  "size-1.5 rounded-full",
+                  isProjectedBalanceNegative
+                    ? "bg-rose-400 shadow-[0_0_12px_rgba(251,113,133,0.75)]"
+                    : "bg-emerald-300 shadow-[0_0_12px_rgba(110,231,183,0.8)]",
+                )}
+              />
             </div>
-            <strong className="mt-4 block text-2xl font-semibold tracking-tight text-emerald-300">
-              {formatPrivateCurrency(monthlyBalances.projectedBalance)}
+            <strong
+              className={cn(
+                "mt-4 block text-2xl font-semibold tracking-tight tabular-nums",
+                isProjectedBalanceNegative
+                  ? "text-rose-400"
+                  : "text-emerald-400",
+              )}
+            >
+              {formatPrivateCurrency(animatedProjectedBalance)}
             </strong>
             <p className="mt-1.5 text-[10px] text-zinc-500">
               Receitas: {formatPrivateCurrency(monthlyBalances.totalIncome)}
@@ -1012,8 +1088,8 @@ export default function DashboardPage() {
               </p>
               <ReceiptText className="size-4 text-zinc-600" />
             </div>
-            <strong className="mt-4 block text-2xl font-semibold tracking-tight text-zinc-100">
-              {formatPrivateCurrency(monthlyBalances.totalPendingObligations)}
+            <strong className="mt-4 block text-2xl font-semibold tracking-tight text-zinc-100 tabular-nums">
+              {formatPrivateCurrency(animatedPendingObligations)}
             </strong>
             <div className="mt-3 grid grid-cols-2 gap-3 text-[10px]">
               <div>
@@ -1047,8 +1123,8 @@ export default function DashboardPage() {
               </p>
               <TrendingUp className="size-4 text-emerald-300" />
             </div>
-            <strong className="mt-4 block text-2xl font-semibold tracking-tight text-zinc-100">
-              {formatPrivateCurrency(monthlyBalances.creditCardProjected)}
+            <strong className="mt-4 block text-2xl font-semibold tracking-tight text-zinc-100 tabular-nums">
+              {formatPrivateCurrency(animatedClosingProjection)}
             </strong>
             <div className="mt-3 flex items-center justify-between text-[10px]">
               <span className="text-zinc-500">Já lançado na fatura</span>
