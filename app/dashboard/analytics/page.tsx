@@ -1,13 +1,11 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
+import { motion, useReducedMotion } from "framer-motion";
 import {
-  Activity,
-  AlertTriangle,
   BadgePercent,
-  CircleDollarSign,
-  Info,
   ReceiptText,
+  TrendingDown,
   TrendingUp,
   Wallet,
   type LucideIcon,
@@ -17,6 +15,7 @@ import {
   AreaChart,
   Bar,
   BarChart,
+  CartesianGrid,
   Cell,
   Pie,
   PieChart,
@@ -33,9 +32,7 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
-import { Progress } from "@/components/ui/progress";
 import { Skeleton } from "@/components/ui/skeleton";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import {
   formatDateOnlyBR,
   getDateOnlyParts,
@@ -49,6 +46,13 @@ import { useFinanceStore } from "@/store/useFinanceStore";
 const brlFormatter = new Intl.NumberFormat("pt-BR", {
   style: "currency",
   currency: "BRL",
+});
+
+const compactBrlFormatter = new Intl.NumberFormat("pt-BR", {
+  style: "currency",
+  currency: "BRL",
+  notation: "compact",
+  maximumFractionDigits: 1,
 });
 
 type TopExpense = {
@@ -101,6 +105,15 @@ type AnalyticsData = {
   previousExpense: number;
 };
 
+type KpiCardProps = {
+  title: string;
+  value: number;
+  helper: string;
+  icon: LucideIcon;
+  tone: string;
+  format: (value: number) => string;
+};
+
 const categoryColors = [
   "#10b981",
   "#38bdf8",
@@ -109,6 +122,32 @@ const categoryColors = [
   "#f87171",
   "#c084fc",
 ];
+
+const containerVariants = {
+  hidden: {},
+  visible: {
+    transition: {
+      delayChildren: 0.04,
+      staggerChildren: 0.06,
+    },
+  },
+};
+
+const itemVariants = {
+  hidden: { opacity: 0, y: 12 },
+  visible: {
+    opacity: 1,
+    y: 0,
+    transition: { duration: 0.38, ease: "easeOut" as const },
+  },
+};
+
+const tooltipContentStyle = {
+  backgroundColor: "#18181b",
+  border: "1px solid #27272a",
+  borderRadius: "8px",
+  color: "#f4f4f5",
+};
 
 function toAmount(value: number | string | null | undefined) {
   const normalizedValue =
@@ -129,7 +168,20 @@ function addMonths(year: number, month: number, offset: number) {
 
 function getMonthLabel(monthStart: string) {
   const { month } = getDateOnlyParts(monthStart);
-  const labels = ["Jan", "Fev", "Mar", "Abr", "Mai", "Jun", "Jul", "Ago", "Set", "Out", "Nov", "Dez"];
+  const labels = [
+    "Jan",
+    "Fev",
+    "Mar",
+    "Abr",
+    "Mai",
+    "Jun",
+    "Jul",
+    "Ago",
+    "Set",
+    "Out",
+    "Nov",
+    "Dez",
+  ];
 
   return labels[month - 1] ?? monthStart.slice(5, 7);
 }
@@ -176,7 +228,9 @@ function buildAnalyticsData(
     return {
       id: row.id,
       type: row.type,
-      date: row.transaction_date ?? toDateOnly(period.year, period.month, row.day || 1),
+      date:
+        row.transaction_date ??
+        toDateOnly(period.year, period.month, row.day || 1),
       billingMonthStart: row.type === "card" ? row.month_start : undefined,
       amount: toAmount(row.amount),
       description: row.description,
@@ -261,7 +315,7 @@ function buildAnalyticsData(
       amount: expense.signedAmount,
       icon: ReceiptText,
     }));
-  const currentMonth = monthlyEvolution.find(
+  const currentMonthData = monthlyEvolution.find(
     (item) => item.monthStart === currentMonthStart,
   );
 
@@ -270,7 +324,7 @@ function buildAnalyticsData(
     categoryDistribution,
     expenseComposition,
     topExpenses,
-    totalIncome: Number(currentMonth?.receitas) || 0,
+    totalIncome: Number(currentMonthData?.receitas) || 0,
     totalExpense: Number(currentExpenses.total) || 0,
     previousExpense: Number(previousExpenses.total) || 0,
   };
@@ -280,28 +334,104 @@ function createEmptyAnalyticsData(month: number, year: number): AnalyticsData {
   return buildAnalyticsData([], month, year);
 }
 
+function useCountUp(target: number, duration = 900) {
+  const shouldReduceMotion = useReducedMotion();
+  const [value, setValue] = useState(shouldReduceMotion ? target : 0);
+
+  useEffect(() => {
+    if (shouldReduceMotion) {
+      return;
+    }
+
+    let animationFrame = 0;
+    const startedAt = performance.now();
+
+    const animate = (timestamp: number) => {
+      const progress = Math.min((timestamp - startedAt) / duration, 1);
+      const easedProgress = 1 - Math.pow(1 - progress, 3);
+
+      setValue(target * easedProgress);
+
+      if (progress < 1) {
+        animationFrame = requestAnimationFrame(animate);
+      }
+    };
+
+    animationFrame = requestAnimationFrame(animate);
+
+    return () => cancelAnimationFrame(animationFrame);
+  }, [duration, shouldReduceMotion, target]);
+
+  return shouldReduceMotion ? target : value;
+}
+
+function KpiCard({
+  title,
+  value,
+  helper,
+  icon: Icon,
+  tone,
+  format,
+}: KpiCardProps) {
+  const animatedValue = useCountUp(value);
+
+  return (
+    <motion.div variants={itemVariants} className="min-w-0 lg:col-span-3">
+      <Card className="h-full border-white/5 bg-zinc-900/60 shadow-none backdrop-blur">
+        <CardContent className="flex h-full items-center justify-between gap-3 p-4">
+          <div className="min-w-0">
+            <p className="truncate text-[11px] font-medium uppercase text-zinc-500">
+              {title}
+            </p>
+            <p
+              className={cn(
+                "mt-1 truncate text-xl font-semibold tracking-tight xl:text-2xl",
+                tone,
+              )}
+            >
+              {format(animatedValue)}
+            </p>
+            <p className="mt-1 truncate text-xs text-zinc-500">{helper}</p>
+          </div>
+          <span className="flex size-9 shrink-0 items-center justify-center rounded-lg border border-white/5 bg-zinc-950/70 text-zinc-400">
+            <Icon className="size-4" />
+          </span>
+        </CardContent>
+      </Card>
+    </motion.div>
+  );
+}
+
+function EmptyChart({ children }: { children: string }) {
+  return (
+    <div className="flex h-full items-center justify-center rounded-lg border border-dashed border-zinc-800 px-6 text-center text-sm text-zinc-500">
+      {children}
+    </div>
+  );
+}
+
 function AnalyticsSkeleton() {
   return (
-    <div className="space-y-4">
-      <div className="space-y-2">
-        <Skeleton className="h-8 w-72" />
-        <Skeleton className="h-4 w-96 max-w-full" />
+    <div className="flex w-full flex-col gap-3 lg:h-[calc(100dvh-4rem)] lg:overflow-hidden">
+      <div className="flex shrink-0 items-end justify-between gap-4">
+        <div className="space-y-2">
+          <Skeleton className="h-8 w-44" />
+          <Skeleton className="h-4 w-72 max-w-full" />
+        </div>
+        <Skeleton className="hidden h-9 w-36 sm:block" />
       </div>
 
-      <div className="grid grid-cols-1 gap-4 lg:grid-cols-3">
-        {Array.from({ length: 3 }).map((_, index) => (
-          <Skeleton key={index} className="h-28 rounded-2xl" />
+      <div className="grid min-h-0 flex-1 grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-12 lg:grid-rows-[auto_minmax(220px,1.2fr)_minmax(190px,0.9fr)]">
+        {Array.from({ length: 4 }).map((_, index) => (
+          <Skeleton
+            key={index}
+            className="h-24 rounded-xl lg:col-span-3 lg:h-auto"
+          />
         ))}
-      </div>
-
-      <div className="grid grid-cols-1 gap-4 lg:grid-cols-12">
-        <Skeleton className="h-[280px] rounded-2xl lg:col-span-8" />
-        <Skeleton className="h-[280px] rounded-2xl lg:col-span-4" />
-      </div>
-
-      <div className="grid grid-cols-1 gap-4 lg:grid-cols-12">
-        <Skeleton className="h-[280px] rounded-2xl lg:col-span-7" />
-        <Skeleton className="h-[280px] rounded-2xl lg:col-span-5" />
+        <Skeleton className="h-[280px] rounded-xl sm:col-span-2 lg:col-span-12 lg:h-auto" />
+        <Skeleton className="h-[230px] rounded-xl sm:col-span-2 lg:col-span-5 lg:h-auto" />
+        <Skeleton className="h-[230px] rounded-xl sm:col-span-1 lg:col-span-3 lg:h-auto" />
+        <Skeleton className="h-[230px] rounded-xl sm:col-span-1 lg:col-span-4 lg:h-auto" />
       </div>
     </div>
   );
@@ -310,6 +440,7 @@ function AnalyticsSkeleton() {
 export default function AnalyticsPage() {
   const currentMonth = useFinanceStore((state) => state.currentMonth);
   const currentYear = useFinanceStore((state) => state.currentYear);
+  const shouldReduceMotion = useReducedMotion();
   const [isLoading, setIsLoading] = useState(true);
   const [analyticsData, setAnalyticsData] = useState<AnalyticsData>(() =>
     createEmptyAnalyticsData(currentMonth, currentYear),
@@ -338,7 +469,9 @@ export default function AnalyticsPage() {
         );
         const { data, error } = await supabase
           .from("transactions")
-          .select("id, card_id, dependent_id, month_start, transaction_date, type, description, category, amount, day, notes")
+          .select(
+            "id, card_id, dependent_id, month_start, transaction_date, type, description, category, amount, day, notes",
+          )
           .eq("user_id", user.id)
           .is("dependent_id", null)
           .gte("month_start", startDate)
@@ -376,611 +509,454 @@ export default function AnalyticsPage() {
     totalExpense,
     previousExpense,
   } = analyticsData;
+  const projectedSavings = totalIncome - totalExpense;
+  const savingsRate =
+    totalIncome > 0 ? (projectedSavings / totalIncome) * 100 : 0;
   const expenseDelta =
     previousExpense > 0
       ? ((totalExpense - previousExpense) / previousExpense) * 100
       : 0;
-  const committedIncome =
-    totalIncome > 0 ? Math.round((totalExpense / totalIncome) * 100) : 0;
-  const projectedSavings = totalIncome - totalExpense;
-  const isCommittedIncomeHigh = committedIncome > 70;
-  const hasCategoryData = categoryDistribution.some(
-    (category) => category.value > 0,
+  const hasFinancialData = totalIncome > 0 || totalExpense > 0;
+  const topCategories = useMemo(
+    () => categoryDistribution.slice(0, 5),
+    [categoryDistribution],
   );
-  const hasTopExpenses = topExpenses.length > 0;
-  const savingsRate =
-    totalIncome > 0 ? (projectedSavings / totalIncome) * 100 : 0;
-  const balanceData = useMemo(
-    () => [
-      { name: "Receitas", value: Number(totalIncome) || 0, fill: "#10b981" },
-      { name: "Despesas", value: Number(totalExpense) || 0, fill: "#71717a" },
-    ],
-    [totalExpense, totalIncome],
-  );
-  const financialInsights = useMemo(() => {
-    const monthsWithExpenses = monthlyEvolution.filter((item) => item.gastos > 0);
-    const averageExpense =
-      monthsWithExpenses.length > 0
-        ? monthsWithExpenses.reduce((sum, item) => sum + item.gastos, 0) /
-          monthsWithExpenses.length
-        : 0;
-    const dominantCategory = categoryDistribution[0];
+  const expenseMix = useMemo(() => {
+    const currentComposition = expenseComposition.at(-1);
 
     return [
       {
-        title: "Taxa de poupança",
-        value: `${savingsRate.toFixed(1)}%`,
-        description:
-          savingsRate >= 20
-            ? "Boa margem entre receita e gastos pessoais."
-            : "Margem apertada para o mês selecionado.",
-        icon: BadgePercent,
-        tone: savingsRate >= 20 ? "text-emerald-300" : "text-amber-300",
+        name: "Contas fixas",
+        value: Number(currentComposition?.fixed) || 0,
+        color: "#38bdf8",
       },
       {
-        title: "Média de gastos",
-        value: brlFormatter.format(averageExpense),
-        description: "Média mensal dos últimos períodos carregados.",
-        icon: Activity,
-        tone: "text-zinc-100",
+        name: "Cartão",
+        value: Number(currentComposition?.variable) || 0,
+        color: "#a78bfa",
       },
-      {
-        title: "Categoria dominante",
-        value: dominantCategory?.name ?? "Sem dados",
-        description: dominantCategory
-          ? brlFormatter.format(dominantCategory.value)
-          : "Nenhuma despesa pessoal no período.",
-        icon: CircleDollarSign,
-        tone: "text-sky-300",
-      },
-    ];
-  }, [categoryDistribution, monthlyEvolution, savingsRate]);
-  const executiveAlerts = useMemo(() => {
-    const topExpense = topExpenses[0];
-    const deltaLabel =
-      previousExpense > 0
-        ? `${expenseDelta > 0 ? "+" : ""}${expenseDelta.toFixed(1)}% vs. mês anterior`
-        : "Sem base anterior";
+    ].filter((item) => item.value > 0);
+  }, [expenseComposition]);
+  const expenseMixTotal = useMemo(
+    () => expenseMix.reduce((sum, item) => sum + item.value, 0),
+    [expenseMix],
+  );
+  const selectedPeriodLabel = useMemo(() => {
+    const label = new Intl.DateTimeFormat("pt-BR", {
+      month: "long",
+      year: "numeric",
+    }).format(new Date(currentYear, currentMonth - 1, 1));
 
-    return [
-      {
-        title: "Pressão do mês",
-        value:
-          committedIncome > 0
-            ? `${committedIncome}% da renda`
-            : "Sem receita registrada",
-        description:
-          committedIncome > 70
-            ? "Renda comprometida acima da faixa saudável."
-            : "Comprometimento dentro de uma faixa controlada.",
-        icon: AlertTriangle,
-        tone: committedIncome > 70 ? "text-amber-300" : "text-emerald-300",
-      },
-      {
-        title: "Maior despesa",
-        value: topExpense?.name ?? "Sem dados",
-        description: topExpense
-          ? brlFormatter.format(topExpense.amount)
-          : "Nenhuma despesa pessoal no período.",
-        icon: ReceiptText,
-        tone: "text-zinc-100",
-      },
-      {
-        title: "Tendência",
-        value: deltaLabel,
-        description:
-          expenseDelta > 0
-            ? "Gastos pessoais subiram no comparativo."
-            : "Gastos pessoais estáveis ou menores.",
-        icon: TrendingUp,
-        tone: expenseDelta > 0 ? "text-amber-300" : "text-emerald-300",
-      },
-      {
-        title: "Sobra projetada",
-        value: brlFormatter.format(projectedSavings),
-        description:
-          projectedSavings >= 0
-            ? "Saldo pessoal positivo ao fim do mês."
-            : "Despesa pessoal acima da receita registrada.",
-        icon: Wallet,
-        tone: projectedSavings >= 0 ? "text-emerald-300" : "text-red-300",
-      },
-    ];
-  }, [
-    committedIncome,
-    expenseDelta,
-    previousExpense,
-    projectedSavings,
-    topExpenses,
-  ]);
-  const dominantCategory = categoryDistribution[0];
-  const hasAnyFinancialData = totalIncome > 0 || totalExpense > 0;
-  const executiveSummary = useMemo(() => {
-    if (!hasAnyFinancialData) {
-      return "Ainda não há dados pessoais suficientes para montar uma leitura financeira deste mês.";
-    }
-
-    const committedText =
-      totalIncome > 0
-        ? `Você comprometeu ${committedIncome}% da sua renda pessoal.`
-        : "Não há receita pessoal registrada neste mês.";
-    const categoryText = dominantCategory
-      ? `Maior concentração: ${dominantCategory.name}.`
-      : "Nenhuma categoria de despesa pessoal registrada.";
-    const balanceText =
-      projectedSavings >= 0
-        ? `Saldo projetado positivo em ${brlFormatter.format(projectedSavings)}.`
-        : `Saldo projetado negativo em ${brlFormatter.format(Math.abs(projectedSavings))}.`;
-
-    return `${committedText} ${categoryText} ${balanceText}`;
-  }, [
-    committedIncome,
-    dominantCategory,
-    hasAnyFinancialData,
-    projectedSavings,
-    totalIncome,
-  ]);
+    return label.charAt(0).toUpperCase() + label.slice(1);
+  }, [currentMonth, currentYear]);
+  const expenseHelper =
+    previousExpense > 0
+      ? (expenseDelta > 0 ? "+" : "") +
+        expenseDelta.toFixed(1) +
+        "% vs. mês anterior"
+      : "Sem base no mês anterior";
 
   if (isLoading) {
     return <AnalyticsSkeleton />;
   }
 
   return (
-    <div className="flex min-h-full w-full flex-col gap-6 md:gap-8">
-      <header>
-        <h1 className="text-2xl font-bold tracking-tight text-zinc-50 md:text-3xl">
-          Análise Financeira
-        </h1>
-        <p className="mt-2 text-sm text-zinc-400">
-          Diagnóstico pessoal do mês, sem gastos vinculados a dependentes.
-        </p>
+    <div className="flex w-full flex-col gap-3 overflow-x-hidden bg-zinc-950 lg:h-[calc(100dvh-4rem)] lg:overflow-hidden">
+      <header className="flex shrink-0 items-end justify-between gap-4">
+        <div className="min-w-0">
+          <p className="text-[11px] font-medium uppercase text-emerald-400">
+            Centro de comando
+          </p>
+          <h1 className="mt-1 text-2xl font-bold tracking-tight text-zinc-50 md:text-3xl">
+            Analytics
+          </h1>
+          <p className="mt-1 truncate text-sm text-zinc-500">
+            Leitura exclusiva da sua saúde financeira pessoal.
+          </p>
+        </div>
+        <div className="hidden shrink-0 rounded-lg border border-white/5 bg-zinc-900/60 px-3 py-2 text-right backdrop-blur sm:block">
+          <p className="text-[10px] uppercase text-zinc-600">Período</p>
+          <p className="text-sm font-medium text-zinc-200">
+            {selectedPeriodLabel}
+          </p>
+        </div>
       </header>
 
-      <section className="grid grid-cols-1 gap-4 lg:grid-cols-12">
-        <Card className="border-zinc-800 bg-zinc-950 shadow-none lg:col-span-8">
-          <CardHeader className="p-5">
-            <div className="flex items-start justify-between gap-4">
+      <motion.main
+        variants={containerVariants}
+        initial={shouldReduceMotion ? false : "hidden"}
+        animate="visible"
+        className="grid min-h-0 flex-1 grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-12 lg:grid-rows-[auto_minmax(220px,1.2fr)_minmax(190px,0.9fr)]"
+      >
+        <KpiCard
+          title="Entradas"
+          value={totalIncome}
+          helper="Receitas pessoais do mês"
+          icon={TrendingUp}
+          tone="text-emerald-400"
+          format={(value) => brlFormatter.format(value)}
+        />
+        <KpiCard
+          title="Saídas"
+          value={totalExpense}
+          helper={expenseHelper}
+          icon={TrendingDown}
+          tone="text-rose-400"
+          format={(value) => brlFormatter.format(value)}
+        />
+        <KpiCard
+          title="Balanço líquido"
+          value={projectedSavings}
+          helper="Entradas menos saídas"
+          icon={Wallet}
+          tone={projectedSavings >= 0 ? "text-zinc-50" : "text-rose-400"}
+          format={(value) => brlFormatter.format(value)}
+        />
+        <KpiCard
+          title="Taxa de poupança"
+          value={savingsRate}
+          helper="Percentual preservado da renda"
+          icon={BadgePercent}
+          tone={savingsRate >= 0 ? "text-emerald-400" : "text-rose-400"}
+          format={(value) => value.toFixed(1) + "%"}
+        />
+
+        <motion.div
+          variants={itemVariants}
+          className="min-h-0 sm:col-span-2 lg:col-span-12"
+        >
+          <Card className="flex h-[280px] min-h-0 flex-col overflow-hidden border-white/5 bg-zinc-900/60 shadow-none backdrop-blur lg:h-full">
+            <CardHeader className="flex shrink-0 flex-row items-start justify-between gap-4 p-4 pb-1">
               <div>
-                <CardDescription>Resumo do mês</CardDescription>
-                <CardTitle className="mt-2 text-2xl tracking-tight text-zinc-50 md:text-3xl">
-                  {projectedSavings >= 0 ? "Fluxo positivo" : "Fluxo pressionado"}
+                <CardTitle className="text-sm font-semibold text-zinc-100">
+                  Fluxo financeiro
                 </CardTitle>
+                <CardDescription className="mt-1 text-xs text-zinc-500">
+                  Entradas e saídas pessoais nos últimos seis períodos
+                </CardDescription>
               </div>
-              <span className="flex size-9 shrink-0 items-center justify-center rounded-xl border border-zinc-800 bg-zinc-900 text-zinc-400">
-                <Activity className="size-4" />
-              </span>
-            </div>
-            <p className="mt-4 max-w-3xl text-sm leading-6 text-zinc-400">
-              {executiveSummary}
-            </p>
-          </CardHeader>
-        </Card>
-
-        <Card className="border-zinc-800 bg-zinc-950 shadow-none lg:col-span-4">
-          <CardContent className="flex h-full items-start gap-3 p-5">
-            <span className="mt-0.5 flex size-8 shrink-0 items-center justify-center rounded-lg border border-zinc-800 bg-zinc-900 text-zinc-500">
-              <Info className="size-4" />
-            </span>
-            <div>
-              <p className="text-sm font-medium text-zinc-100">
-                Escopo dos dados
-              </p>
-              <p className="mt-2 text-sm leading-6 text-zinc-500">
-                Esta aba considera apenas transações pessoais. Valores de
-                dependentes seguem visíveis no Dashboard e em Cartões.
-              </p>
-            </div>
-          </CardContent>
-        </Card>
-      </section>
-
-      <section className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
-        {executiveAlerts.map((alert) => {
-          const Icon = alert.icon;
-
-          return (
-            <Card
-              key={alert.title}
-              className="border-zinc-800 bg-zinc-950 shadow-none"
-            >
-              <CardContent className="flex gap-3 p-4">
-                <span className="flex size-9 shrink-0 items-center justify-center rounded-xl border border-zinc-800 bg-zinc-900 text-zinc-400">
-                  <Icon className="size-4" />
+              <div className="flex shrink-0 items-center gap-3 text-[11px] text-zinc-500">
+                <span className="flex items-center gap-1.5">
+                  <span className="size-2 rounded-full bg-emerald-400" />
+                  Entradas
                 </span>
-                <div className="min-w-0">
-                  <p className="text-xs font-medium uppercase tracking-wide text-zinc-500">
-                    {alert.title}
-                  </p>
-                  <p className={cn("mt-1 truncate text-base font-semibold", alert.tone)}>
-                    {alert.value}
-                  </p>
-                  <p className="mt-1 line-clamp-2 text-xs leading-5 text-zinc-500">
-                    {alert.description}
-                  </p>
-                </div>
-              </CardContent>
-            </Card>
-          );
-        })}
-      </section>
-
-      <Tabs defaultValue="desempenho" className="min-h-0 w-full">
-        <TabsList className="grid w-full grid-cols-2 border border-zinc-800 bg-zinc-900 p-1 sm:w-[360px]">
-          <TabsTrigger value="desempenho">Desempenho</TabsTrigger>
-          <TabsTrigger value="raio-x">Raio-X</TabsTrigger>
-        </TabsList>
-
-        <TabsContent value="desempenho" className="mt-6 space-y-5">
-      <section className="grid grid-cols-2 gap-3 lg:grid-cols-4 lg:gap-4">
-        {[
-          {
-            label: "Receita",
-            value: brlFormatter.format(totalIncome),
-            helper: "Entradas pessoais",
-            tone: "text-emerald-300",
-          },
-          {
-            label: "Despesa pessoal",
-            value: brlFormatter.format(totalExpense),
-            helper: `${expenseDelta > 0 ? "+" : ""}${expenseDelta.toFixed(1)}% vs. mês anterior`,
-            tone: "text-zinc-50",
-          },
-          {
-            label: "Renda comprometida",
-            value: `${committedIncome}%`,
-            helper: "Meta saudável: até 70%",
-            tone: isCommittedIncomeHigh ? "text-amber-300" : "text-emerald-300",
-          },
-          {
-            label: "Poupança projetada",
-            value: brlFormatter.format(projectedSavings),
-            helper: "Estimativa ao fim do mês",
-            tone: projectedSavings >= 0 ? "text-emerald-300" : "text-red-300",
-          },
-        ].map((item) => (
-          <Card
-            key={item.label}
-            className="border-zinc-800 bg-zinc-950 shadow-none"
-          >
-            <CardContent className="p-4 md:p-5">
-              <p className="text-xs font-medium uppercase tracking-wide text-zinc-500">
-                {item.label}
-              </p>
-              <strong className={cn("mt-2 block text-xl font-semibold", item.tone)}>
-                {item.value}
-              </strong>
-              <p className="mt-1 text-xs text-zinc-500">{item.helper}</p>
-              {item.label === "Renda comprometida" ? (
-                <Progress
-                  value={committedIncome}
-                  className={cn(
-                    "mt-3 h-1.5 bg-zinc-800",
-                    isCommittedIncomeHigh
-                      ? "[&_[data-slot=progress-indicator]]:bg-amber-400"
-                      : "[&_[data-slot=progress-indicator]]:bg-emerald-400",
-                  )}
-                />
-              ) : null}
-            </CardContent>
-          </Card>
-        ))}
-      </section>
-
-      <section className="flex gap-2 overflow-x-auto rounded-xl border border-zinc-800 bg-zinc-950 p-2 [&::-webkit-scrollbar]:hidden [-ms-overflow-style:none] [scrollbar-width:none]">
-        {financialInsights.map((insight) => {
-          const Icon = insight.icon;
-
-          return (
-            <div
-              key={insight.title}
-              className="flex min-w-[240px] shrink-0 items-center gap-3 rounded-lg border border-zinc-800 bg-zinc-900/50 px-3 py-2"
-            >
-              <span className="flex size-8 shrink-0 items-center justify-center rounded-lg bg-zinc-950 text-zinc-400">
-                <Icon className="size-4" />
-              </span>
-              <div className="min-w-0">
-                <p className="truncate text-xs text-zinc-500">{insight.title}</p>
-                <p className={cn("truncate text-sm font-medium", insight.tone)}>
-                  {insight.value}
-                </p>
+                <span className="flex items-center gap-1.5">
+                  <span className="size-2 rounded-full bg-rose-400" />
+                  Saídas
+                </span>
               </div>
-            </div>
-          );
-        })}
-      </section>
-
-      <section className="grid grid-cols-1 gap-4 lg:grid-cols-12">
-        <Card className="border-zinc-800 bg-zinc-950 shadow-none lg:col-span-8">
-          <CardHeader className="p-4 pb-2">
-            <CardTitle>Evolução de Gastos vs Receitas</CardTitle>
-            <CardDescription>
-              Comparativo mensal para leitura rápida de tendência.
-            </CardDescription>
-          </CardHeader>
-          <CardContent className="h-[300px] min-h-0 min-w-0 p-3 pt-0">
-            {hasAnyFinancialData ? (
-            <ResponsiveContainer width="100%" height="100%" minWidth={1} minHeight={1}>
-              <AreaChart data={monthlyEvolution}>
-                <defs>
-                  <linearGradient id="incomeGradient" x1="0" x2="0" y1="0" y2="1">
-                    <stop offset="5%" stopColor="#10b981" stopOpacity={0.28} />
-                    <stop offset="95%" stopColor="#10b981" stopOpacity={0} />
-                  </linearGradient>
-                  <linearGradient id="expenseGradient" x1="0" x2="0" y1="0" y2="1">
-                    <stop offset="5%" stopColor="#71717a" stopOpacity={0.22} />
-                    <stop offset="95%" stopColor="#71717a" stopOpacity={0} />
-                  </linearGradient>
-                </defs>
-                <XAxis
-                  dataKey="month"
-                  axisLine={false}
-                  tickLine={false}
-                  tick={{ fill: "#71717a", fontSize: 12 }}
-                />
-                <YAxis
-                  axisLine={false}
-                  tickLine={false}
-                  tick={{ fill: "#71717a", fontSize: 12 }}
-                  tickFormatter={(value) => `R$ ${(Number(value) / 1000).toFixed(0)}k`}
-                />
-                <Tooltip
-                  cursor={{ fill: "rgba(255, 255, 255, 0.04)" }}
-                  contentStyle={{
-                    backgroundColor: "#18181b",
-                    border: "1px solid #27272a",
-                    borderRadius: "8px",
-                    color: "#f4f4f5",
-                  }}
-                  itemStyle={{ color: "#f4f4f5" }}
-                  formatter={(value, name) => [
-                    brlFormatter.format(Number(value)),
-                    name,
-                  ]}
-                />
-                <Area
-                  type="monotone"
-                  dataKey="receitas"
-                  name="Receitas"
-                  stroke="#10b981"
-                  strokeWidth={2}
-                  fill="url(#incomeGradient)"
-                />
-                <Area
-                  type="monotone"
-                  dataKey="gastos"
-                  name="Gastos"
-                  stroke="#a1a1aa"
-                  strokeWidth={2}
-                  fill="url(#expenseGradient)"
-                />
-              </AreaChart>
-            </ResponsiveContainer>
-            ) : (
-              <div className="flex h-full items-center justify-center rounded-xl border border-dashed border-zinc-800 text-center text-sm text-zinc-500">
-                Registre receitas e despesas pessoais para visualizar a
-                evolução.
-              </div>
-            )}
-          </CardContent>
-        </Card>
-
-        <Card className="border-zinc-800 bg-zinc-950 shadow-none lg:col-span-4">
-          <CardHeader className="p-4 pb-2">
-            <CardTitle>Balanço do Mês</CardTitle>
-            <CardDescription>
-              Receita total contra despesa total no mês atual.
-            </CardDescription>
-          </CardHeader>
-          <CardContent className="h-[300px] min-h-0 min-w-0 p-3 pt-0">
-            {hasAnyFinancialData ? (
-            <ResponsiveContainer width="100%" height="100%" minWidth={1} minHeight={1}>
-              <BarChart data={balanceData}>
-                <XAxis
-                  dataKey="name"
-                  axisLine={false}
-                  tickLine={false}
-                  tick={{ fill: "#71717a", fontSize: 12 }}
-                />
-                <YAxis
-                  axisLine={false}
-                  tickLine={false}
-                  tick={{ fill: "#71717a", fontSize: 12 }}
-                  tickFormatter={(value) => `R$ ${(Number(value) / 1000).toFixed(0)}k`}
-                />
-                <Tooltip
-                  cursor={{ fill: "rgba(255, 255, 255, 0.04)" }}
-                  contentStyle={{
-                    backgroundColor: "#18181b",
-                    border: "1px solid #27272a",
-                    borderRadius: "8px",
-                    color: "#f4f4f5",
-                  }}
-                  itemStyle={{ color: "#f4f4f5" }}
-                  formatter={(value) => [
-                    brlFormatter.format(Number(value)),
-                    "Total",
-                  ]}
-                />
-                <Bar dataKey="value" radius={[8, 8, 0, 0]}>
-                  {balanceData.map((entry) => (
-                    <Cell key={entry.name} fill={entry.fill} />
-                  ))}
-                </Bar>
-              </BarChart>
-            </ResponsiveContainer>
-            ) : (
-              <div className="flex h-full items-center justify-center rounded-xl border border-dashed border-zinc-800 text-center text-sm text-zinc-500">
-                Sem receita ou despesa pessoal no mês selecionado.
-              </div>
-            )}
-          </CardContent>
-        </Card>
-      </section>
-        </TabsContent>
-
-        <TabsContent value="raio-x" className="mt-6">
-      <section className="grid grid-cols-1 gap-4 lg:grid-cols-12">
-        <Card className="border-zinc-800 bg-zinc-950 shadow-none lg:col-span-4">
-          <CardHeader className="p-4 pb-2">
-            <CardTitle>Distribuição por Categorias</CardTitle>
-            <CardDescription>
-              Participação das principais despesas do mês.
-            </CardDescription>
-          </CardHeader>
-          <CardContent className="h-[300px] min-h-0 min-w-0 p-3 pt-0">
-            {hasCategoryData ? (
-              <>
-                <ResponsiveContainer width="100%" height="72%" minWidth={1} minHeight={1}>
-                  <PieChart>
-                    <Pie
-                      data={categoryDistribution}
-                      dataKey="value"
-                      nameKey="name"
-                      innerRadius={72}
-                      outerRadius={104}
-                      paddingAngle={4}
-                      stroke="rgba(9,9,11,0.9)"
-                      strokeWidth={4}
-                    >
-                      {categoryDistribution.map((entry) => (
-                        <Cell key={entry.name} fill={entry.color} />
-                      ))}
-                    </Pie>
+            </CardHeader>
+            <CardContent className="min-h-0 min-w-0 flex-1 p-2 pt-0">
+              {hasFinancialData ? (
+                <ResponsiveContainer
+                  width="100%"
+                  height="100%"
+                  minWidth={1}
+                  minHeight={1}
+                >
+                  <AreaChart
+                    data={monthlyEvolution}
+                    margin={{ top: 14, right: 12, bottom: 0, left: 0 }}
+                  >
+                    <defs>
+                      <linearGradient
+                        id="analyticsIncomeGradient"
+                        x1="0"
+                        x2="0"
+                        y1="0"
+                        y2="1"
+                      >
+                        <stop
+                          offset="5%"
+                          stopColor="#10b981"
+                          stopOpacity={0.34}
+                        />
+                        <stop
+                          offset="95%"
+                          stopColor="#10b981"
+                          stopOpacity={0}
+                        />
+                      </linearGradient>
+                      <linearGradient
+                        id="analyticsExpenseGradient"
+                        x1="0"
+                        x2="0"
+                        y1="0"
+                        y2="1"
+                      >
+                        <stop
+                          offset="5%"
+                          stopColor="#fb7185"
+                          stopOpacity={0.24}
+                        />
+                        <stop
+                          offset="95%"
+                          stopColor="#fb7185"
+                          stopOpacity={0}
+                        />
+                      </linearGradient>
+                    </defs>
+                    <CartesianGrid
+                      vertical={false}
+                      stroke="#27272a"
+                      strokeDasharray="3 6"
+                    />
+                    <XAxis
+                      dataKey="month"
+                      axisLine={false}
+                      tickLine={false}
+                      tick={{ fill: "#71717a", fontSize: 11 }}
+                    />
+                    <YAxis
+                      axisLine={false}
+                      tickLine={false}
+                      width={62}
+                      tick={{ fill: "#71717a", fontSize: 11 }}
+                      tickFormatter={(value) =>
+                        compactBrlFormatter.format(Number(value))
+                      }
+                    />
                     <Tooltip
-                      contentStyle={{
-                        backgroundColor: "#18181b",
-                        border: "1px solid #27272a",
-                        borderRadius: "8px",
-                        color: "#f4f4f5",
-                      }}
+                      cursor={{ stroke: "#3f3f46", strokeDasharray: "4 4" }}
+                      contentStyle={tooltipContentStyle}
                       itemStyle={{ color: "#f4f4f5" }}
+                      labelStyle={{ color: "#a1a1aa" }}
                       formatter={(value, name) => [
                         brlFormatter.format(Number(value)),
                         name,
                       ]}
                     />
-                  </PieChart>
+                    <Area
+                      type="monotone"
+                      dataKey="receitas"
+                      name="Entradas"
+                      stroke="#34d399"
+                      strokeWidth={2}
+                      fill="url(#analyticsIncomeGradient)"
+                      activeDot={{ r: 4, strokeWidth: 0 }}
+                      isAnimationActive
+                      animationDuration={1200}
+                    />
+                    <Area
+                      type="monotone"
+                      dataKey="gastos"
+                      name="Saídas"
+                      stroke="#fb7185"
+                      strokeWidth={2}
+                      fill="url(#analyticsExpenseGradient)"
+                      activeDot={{ r: 4, strokeWidth: 0 }}
+                      isAnimationActive
+                      animationDuration={1200}
+                    />
+                  </AreaChart>
                 </ResponsiveContainer>
+              ) : (
+                <EmptyChart>
+                  Registre receitas e despesas para visualizar sua evolução.
+                </EmptyChart>
+              )}
+            </CardContent>
+          </Card>
+        </motion.div>
 
-                <div className="grid grid-cols-2 gap-2">
-                  {categoryDistribution.map((category) => (
-                    <div key={category.name} className="flex items-center gap-2 text-xs">
-                      <span
-                        className="size-2 rounded-full"
-                        style={{ backgroundColor: category.color }}
-                      />
-                      <span className="truncate text-zinc-400">{category.name}</span>
-                    </div>
-                  ))}
-                </div>
-              </>
-            ) : (
-              <div className="flex h-full items-center justify-center rounded-xl border border-dashed border-zinc-800/80 text-center text-sm text-zinc-500">
-                Nenhum dado registrado neste mês.
-              </div>
-            )}
-          </CardContent>
-        </Card>
-
-        <Card className="border-zinc-800 bg-zinc-950 shadow-none lg:col-span-4">
-          <CardHeader className="p-4 pb-2">
-            <CardTitle>Composição de Despesas</CardTitle>
-            <CardDescription>
-              Comparativo mensal entre contas fixas e gastos variáveis.
-            </CardDescription>
-          </CardHeader>
-          <CardContent className="h-[300px] min-h-0 min-w-0 p-3 pt-0">
-            <ResponsiveContainer width="100%" height="100%" minWidth={1} minHeight={1}>
-              <BarChart data={expenseComposition}>
-                <XAxis
-                  dataKey="month"
-                  axisLine={false}
-                  tickLine={false}
-                  tick={{ fill: "#71717a", fontSize: 12 }}
-                />
-                <YAxis
-                  axisLine={false}
-                  tickLine={false}
-                  tick={{ fill: "#71717a", fontSize: 12 }}
-                  tickFormatter={(value) => `R$ ${(Number(value) / 1000).toFixed(0)}k`}
-                />
-                <Tooltip
-                  cursor={{ fill: "rgba(255, 255, 255, 0.04)" }}
-                  contentStyle={{
-                    backgroundColor: "#18181b",
-                    border: "1px solid #27272a",
-                    borderRadius: "8px",
-                    color: "#f4f4f5",
-                  }}
-                  itemStyle={{ color: "#f4f4f5" }}
-                  formatter={(value, name) => [
-                    brlFormatter.format(Number(value)),
-                    name,
-                  ]}
-                />
-                <Bar
-                  dataKey="fixed"
-                  name="Contas Fixas"
-                  fill="#10b981"
-                  radius={[6, 6, 0, 0]}
-                />
-                <Bar
-                  dataKey="variable"
-                  name="Gastos Variáveis"
-                  fill="#71717a"
-                  radius={[6, 6, 0, 0]}
-                />
-              </BarChart>
-            </ResponsiveContainer>
-          </CardContent>
-        </Card>
-
-        <Card className="border-zinc-800 bg-zinc-950 shadow-none lg:col-span-4">
-          <CardHeader className="p-4 pb-2">
-            <CardTitle>Maiores Despesas do Mês</CardTitle>
-          <CardDescription>Top 5 transações individuais.</CardDescription>
-        </CardHeader>
-        <CardContent className="p-3 pt-0">
-            {hasTopExpenses ? (
-              <div className="space-y-2">
-                {topExpenses.map((expense) => {
-                  const Icon = expense.icon;
-
-                  return (
-                    <div
-                      key={expense.name}
-                      className="flex items-center justify-between gap-3 rounded-lg border border-zinc-800/70 bg-zinc-950/40 p-3"
+        <motion.div
+          variants={itemVariants}
+          className="min-h-0 sm:col-span-2 lg:col-span-5"
+        >
+          <Card className="flex h-[230px] min-h-0 flex-col overflow-hidden border-white/5 bg-zinc-900/60 shadow-none backdrop-blur lg:h-full">
+            <CardHeader className="shrink-0 p-4 pb-1">
+              <CardTitle className="text-sm font-semibold text-zinc-100">
+                Top categorias
+              </CardTitle>
+              <CardDescription className="text-xs text-zinc-500">
+                Maiores concentrações de gasto no período
+              </CardDescription>
+            </CardHeader>
+            <CardContent className="min-h-0 min-w-0 flex-1 p-2 pt-0">
+              {topCategories.length > 0 ? (
+                <ResponsiveContainer
+                  width="100%"
+                  height="100%"
+                  minWidth={1}
+                  minHeight={1}
+                >
+                  <BarChart
+                    data={topCategories}
+                    layout="vertical"
+                    margin={{ top: 6, right: 12, bottom: 2, left: 6 }}
+                  >
+                    <CartesianGrid
+                      horizontal={false}
+                      stroke="#27272a"
+                      strokeDasharray="3 6"
+                    />
+                    <XAxis type="number" hide />
+                    <YAxis
+                      type="category"
+                      dataKey="name"
+                      axisLine={false}
+                      tickLine={false}
+                      width={88}
+                      tick={{ fill: "#a1a1aa", fontSize: 11 }}
+                    />
+                    <Tooltip
+                      cursor={{ fill: "rgba(255, 255, 255, 0.03)" }}
+                      contentStyle={tooltipContentStyle}
+                      itemStyle={{ color: "#f4f4f5" }}
+                      formatter={(value) => [
+                        brlFormatter.format(Number(value)),
+                        "Total",
+                      ]}
+                    />
+                    <Bar
+                      dataKey="value"
+                      radius={[0, 5, 5, 0]}
+                      barSize={11}
+                      isAnimationActive
+                      animationDuration={1200}
                     >
-                      <div className="flex min-w-0 items-center gap-3">
-                        <span className="flex size-8 shrink-0 items-center justify-center rounded-lg bg-zinc-800/80 text-zinc-300">
-                          <Icon className="size-4" />
-                        </span>
-                        <div className="min-w-0">
-                          <p className="truncate text-xs font-medium text-zinc-100">
-                            {expense.name}
-                          </p>
-                          <p className="mt-1 text-xs text-zinc-500">
-                            {expense.date}
-                          </p>
-                        </div>
-                      </div>
-                      <p className="shrink-0 text-xs font-medium text-zinc-50">
-                        {brlFormatter.format(expense.amount)}
-                      </p>
+                      {topCategories.map((entry) => (
+                        <Cell key={entry.name} fill={entry.color} />
+                      ))}
+                    </Bar>
+                  </BarChart>
+                </ResponsiveContainer>
+              ) : (
+                <EmptyChart>Nenhuma categoria registrada no mês.</EmptyChart>
+              )}
+            </CardContent>
+          </Card>
+        </motion.div>
+
+        <motion.div
+          variants={itemVariants}
+          className="min-h-0 sm:col-span-1 lg:col-span-3"
+        >
+          <Card className="flex h-[230px] min-h-0 flex-col overflow-hidden border-white/5 bg-zinc-900/60 shadow-none backdrop-blur lg:h-full">
+            <CardHeader className="shrink-0 p-4 pb-0">
+              <CardTitle className="text-sm font-semibold text-zinc-100">
+                Composição
+              </CardTitle>
+              <CardDescription className="text-xs text-zinc-500">
+                Fixos e cartão
+              </CardDescription>
+            </CardHeader>
+            <CardContent className="flex min-h-0 min-w-0 flex-1 flex-col p-2 pt-0">
+              {expenseMix.length > 0 ? (
+                <>
+                  <div className="relative min-h-0 flex-1">
+                    <ResponsiveContainer
+                      width="100%"
+                      height="100%"
+                      minWidth={1}
+                      minHeight={1}
+                    >
+                      <PieChart>
+                        <Pie
+                          data={expenseMix}
+                          dataKey="value"
+                          nameKey="name"
+                          innerRadius="56%"
+                          outerRadius="78%"
+                          paddingAngle={4}
+                          stroke="#18181b"
+                          strokeWidth={3}
+                          isAnimationActive
+                          animationDuration={1200}
+                        >
+                          {expenseMix.map((entry) => (
+                            <Cell key={entry.name} fill={entry.color} />
+                          ))}
+                        </Pie>
+                        <Tooltip
+                          contentStyle={tooltipContentStyle}
+                          itemStyle={{ color: "#f4f4f5" }}
+                          formatter={(value, name) => [
+                            brlFormatter.format(Number(value)),
+                            name,
+                          ]}
+                        />
+                      </PieChart>
+                    </ResponsiveContainer>
+                    <div className="pointer-events-none absolute inset-0 flex flex-col items-center justify-center">
+                      <span className="text-[10px] uppercase text-zinc-600">
+                        Total
+                      </span>
+                      <strong className="text-sm font-semibold text-zinc-100">
+                        {compactBrlFormatter.format(expenseMixTotal)}
+                      </strong>
                     </div>
-                  );
-                })}
-              </div>
-            ) : (
-              <div className="flex h-[300px] items-center justify-center rounded-xl border border-dashed border-zinc-800/80 text-center text-sm text-zinc-500">
-                Nenhuma despesa registrada neste mês.
-              </div>
-            )}
-          </CardContent>
-        </Card>
-      </section>
-        </TabsContent>
-      </Tabs>
+                  </div>
+                  <div className="flex shrink-0 items-center justify-center gap-3 pb-1 text-[10px] text-zinc-500">
+                    {expenseMix.map((item) => (
+                      <span key={item.name} className="flex items-center gap-1.5">
+                        <span
+                          className="size-1.5 rounded-full"
+                          style={{ backgroundColor: item.color }}
+                        />
+                        {item.name}
+                      </span>
+                    ))}
+                  </div>
+                </>
+              ) : (
+                <EmptyChart>Sem composição de despesas.</EmptyChart>
+              )}
+            </CardContent>
+          </Card>
+        </motion.div>
+
+        <motion.div
+          variants={itemVariants}
+          className="min-h-0 sm:col-span-1 lg:col-span-4"
+        >
+          <Card className="flex h-[230px] min-h-0 flex-col overflow-hidden border-white/5 bg-zinc-900/60 shadow-none backdrop-blur lg:h-full">
+            <CardHeader className="shrink-0 p-4 pb-2">
+              <CardTitle className="text-sm font-semibold text-zinc-100">
+                Maiores despesas
+              </CardTitle>
+              <CardDescription className="text-xs text-zinc-500">
+                Lançamentos que mais pesaram no mês
+              </CardDescription>
+            </CardHeader>
+            <CardContent className="min-h-0 flex-1 overflow-y-auto p-3 pt-0 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+              {topExpenses.length > 0 ? (
+                <div className="divide-y divide-white/5">
+                  {topExpenses.slice(0, 4).map((expense, index) => {
+                    const Icon = expense.icon;
+
+                    return (
+                      <div
+                        key={expense.name + expense.date + index}
+                        className="flex items-center justify-between gap-3 py-2 first:pt-0"
+                      >
+                        <div className="flex min-w-0 items-center gap-2.5">
+                          <span className="flex size-8 shrink-0 items-center justify-center rounded-lg bg-zinc-950/70 text-zinc-500">
+                            <Icon className="size-3.5" />
+                          </span>
+                          <div className="min-w-0">
+                            <p className="truncate text-xs font-medium text-zinc-200">
+                              {expense.name}
+                            </p>
+                            <p className="mt-0.5 text-[10px] text-zinc-600">
+                              {expense.date}
+                            </p>
+                          </div>
+                        </div>
+                        <p className="shrink-0 text-xs font-medium text-rose-300">
+                          {brlFormatter.format(expense.amount)}
+                        </p>
+                      </div>
+                    );
+                  })}
+                </div>
+              ) : (
+                <EmptyChart>Nenhuma despesa registrada no mês.</EmptyChart>
+              )}
+            </CardContent>
+          </Card>
+        </motion.div>
+      </motion.main>
     </div>
   );
 }
