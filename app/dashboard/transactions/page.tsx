@@ -1,17 +1,22 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useState } from "react";
+import { motion, useReducedMotion } from "framer-motion";
 import {
   ArrowDownRight,
   ArrowUpRight,
   CalendarDays,
   ChevronLeft,
   ChevronRight,
+  CreditCard,
+  Landmark,
   MoreHorizontal,
   Pencil,
   PlusCircle,
   Search,
   SearchX,
+  SlidersHorizontal,
+  Tag,
   Trash2,
   Wallet,
 } from "lucide-react";
@@ -19,9 +24,9 @@ import { toast } from "sonner";
 
 import { RecurringDeleteDialog } from "@/components/finance/RecurringDeleteDialog";
 import { TransactionDescription } from "@/components/finance/TransactionDescription";
-import { MobileTransactionItem } from "@/components/finance/MobileTransactionItem";
 import { AddIncomeModal } from "@/components/modals/AddIncomeModal";
 import { AddTransactionModal } from "@/components/modals/AddTransactionModal";
+import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Dialog, DialogContent } from "@/components/ui/dialog";
@@ -55,6 +60,8 @@ import { isTransactionInSelectedCompetence } from "@/lib/transactionPeriod";
 import { useFinanceStore, type Transaction } from "@/store/useFinanceStore";
 
 type TypeFilter = "all" | "income" | "expense" | "fixed";
+type OriginFilter = "all" | "card" | "debit-pix";
+type TransactionOrigin = Exclude<OriginFilter, "all"> | "income";
 
 const brlFormatter = new Intl.NumberFormat("pt-BR", {
   style: "currency",
@@ -112,30 +119,57 @@ function getDependentId(transaction: Transaction) {
   );
 }
 
+function getTransactionCardId(transaction: Transaction) {
+  return (
+    (transaction as Transaction & { card_id?: string | null }).card_id ??
+    transaction.cardId ??
+    null
+  );
+}
+
 function getTransactionOrigin(
   transaction: Transaction,
   cards: ReturnType<typeof useFinanceStore.getState>["cards"],
 ) {
   if (transaction.type === "income") return "Receita";
-  if (
-    transaction.is_recurring &&
-    (transaction.type === "card" || Boolean(transaction.cardId))
-  ) {
-    return "Assinatura";
-  }
-  if (transaction.type === "fixed") {
-    return transaction.is_recurring ? "Gasto Fixo" : "Débito/PIX";
-  }
+  if (transaction.type === "fixed") return "Débito/PIX";
 
   return (
-    cards.find((card) => card.id === transaction.cardId)?.name ?? "Cartão"
+    cards.find((card) => card.id === getTransactionCardId(transaction))?.name ??
+    "Cartão de crédito"
   );
 }
 
+function getTransactionOriginFilter(
+  transaction: Transaction,
+): TransactionOrigin {
+  if (transaction.type === "income") return "income";
+  if (transaction.type === "card" || Boolean(getTransactionCardId(transaction))) {
+    return "card";
+  }
+
+  return "debit-pix";
+}
+
+function getOriginBadgeClassName(origin: TransactionOrigin) {
+  if (origin === "card") {
+    return "border-violet-400/15 bg-violet-400/10 text-violet-300";
+  }
+
+  if (origin === "income") {
+    return "border-emerald-400/15 bg-emerald-400/10 text-emerald-300";
+  }
+
+  return "border-sky-400/15 bg-sky-400/10 text-sky-300";
+}
+
 export default function TransactionsPage() {
+  const prefersReducedMotion = useReducedMotion();
   const [searchTerm, setSearchTerm] = useState("");
   const [categoryFilter, setCategoryFilter] = useState("all");
   const [typeFilter, setTypeFilter] = useState<TypeFilter>("all");
+  const [originFilter, setOriginFilter] = useState<OriginFilter>("all");
+  const [cardFilter, setCardFilter] = useState("all");
   const [isAddIncomeModalOpen, setIsAddIncomeModalOpen] = useState(false);
   const [isAddTransactionModalOpen, setIsAddTransactionModalOpen] =
     useState(false);
@@ -209,9 +243,12 @@ export default function TransactionsPage() {
     const normalizedSearch = searchTerm.trim().toLowerCase();
 
     return monthlyTransactions.filter((transaction) => {
+      const originLabel = getTransactionOrigin(transaction, cards);
       const matchesSearch =
         !normalizedSearch ||
-        transaction.description.toLowerCase().includes(normalizedSearch);
+        transaction.description.toLowerCase().includes(normalizedSearch) ||
+        transaction.category?.toLowerCase().includes(normalizedSearch) ||
+        originLabel.toLowerCase().includes(normalizedSearch);
       const matchesCategory =
         categoryFilter === "all" || transaction.category === categoryFilter;
       const matchesType =
@@ -219,10 +256,31 @@ export default function TransactionsPage() {
         (typeFilter === "income" && transaction.type === "income") ||
         (typeFilter === "expense" && transaction.type !== "income") ||
         (typeFilter === "fixed" && transaction.type === "fixed");
+      const matchesOrigin =
+        originFilter === "all" ||
+        getTransactionOriginFilter(transaction) === originFilter;
+      const matchesCard =
+        originFilter !== "card" ||
+        cardFilter === "all" ||
+        getTransactionCardId(transaction) === cardFilter;
 
-      return matchesSearch && matchesCategory && matchesType;
+      return (
+        matchesSearch &&
+        matchesCategory &&
+        matchesType &&
+        matchesOrigin &&
+        matchesCard
+      );
     });
-  }, [categoryFilter, monthlyTransactions, searchTerm, typeFilter]);
+  }, [
+    cardFilter,
+    cards,
+    categoryFilter,
+    monthlyTransactions,
+    originFilter,
+    searchTerm,
+    typeFilter,
+  ]);
 
   const visibleTransactionIds = useMemo(
     () => filteredTransactions.map((transaction) => transaction.id),
@@ -268,12 +326,15 @@ export default function TransactionsPage() {
   const hasActiveFilters =
     searchTerm.trim().length > 0 ||
     categoryFilter !== "all" ||
-    typeFilter !== "all";
+    typeFilter !== "all" ||
+    originFilter !== "all";
 
   const clearFilters = useCallback(() => {
     setSearchTerm("");
     setCategoryFilter("all");
     setTypeFilter("all");
+    setOriginFilter("all");
+    setCardFilter("all");
   }, []);
 
   const handleCloseIncomeModal = useCallback(() => {
@@ -396,15 +457,17 @@ export default function TransactionsPage() {
   }, [fetchTransactions, selectedIds, updateTransactionCategories]);
 
   return (
-    <div className="flex w-full flex-col gap-6 md:gap-8">
-      <div className="flex items-start justify-between gap-4">
+    <div className="flex w-full flex-col gap-5 pb-4 md:gap-6">
+      <div className="flex items-start justify-between gap-4 border-b border-white/[0.06] pb-5">
         <div>
-          <h1 className="text-2xl font-bold tracking-tight md:text-3xl">
+          <p className="mb-1.5 text-[10px] font-medium uppercase tracking-[0.18em] text-emerald-300">
+            Fluxo financeiro
+          </p>
+          <h1 className="text-2xl font-semibold tracking-[-0.035em] text-zinc-50 md:text-3xl">
             Transações
           </h1>
-          <p className="mt-2 text-sm text-muted-foreground">
-            Analise entradas, saídas, recorrências e compras parceladas do
-            período selecionado.
+          <p className="mt-1.5 max-w-2xl text-sm text-zinc-500">
+            Consulte, organize e ajuste todas as movimentações do período.
           </p>
         </div>
 
@@ -458,57 +521,81 @@ export default function TransactionsPage() {
         </DropdownMenu>
       </div>
 
-      <section className="grid grid-cols-2 gap-3 lg:grid-cols-3 lg:gap-4">
-        <div className="min-h-24 rounded-xl border border-border/50 bg-card p-4 shadow-none md:p-5">
+      <motion.section
+        initial={prefersReducedMotion ? false : { opacity: 0, y: 10 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ duration: prefersReducedMotion ? 0 : 0.35 }}
+        className="grid grid-cols-2 gap-3 lg:grid-cols-3 lg:gap-4"
+      >
+        <div className="min-h-28 rounded-xl border border-white/[0.07] bg-zinc-900/55 p-4 backdrop-blur-xl md:p-5">
           <div className="flex items-center justify-between gap-4">
-            <p className="text-sm text-muted-foreground">Entradas</p>
-            <ArrowUpRight className="size-4 text-emerald-400" />
+            <p className="text-xs font-medium uppercase tracking-[0.12em] text-zinc-500">
+              Entradas
+            </p>
+            <span className="flex size-8 items-center justify-center rounded-lg bg-emerald-400/10 text-emerald-300">
+              <ArrowUpRight className="size-4" />
+            </span>
           </div>
-          <strong className="mt-3 block text-xl font-semibold tracking-normal text-emerald-400 lg:text-2xl">
+          <strong className="mt-4 block text-xl font-semibold tracking-tight text-emerald-400 lg:text-2xl">
             {brlFormatter.format(summary.totalIncome)}
           </strong>
         </div>
 
-        <div className="min-h-24 rounded-xl border border-border/50 bg-card p-4 shadow-none md:p-5">
+        <div className="min-h-28 rounded-xl border border-white/[0.07] bg-zinc-900/55 p-4 backdrop-blur-xl md:p-5">
           <div className="flex items-center justify-between gap-4">
-            <p className="text-sm text-muted-foreground">Saídas</p>
-            <ArrowDownRight className="size-4 text-red-400" />
+            <p className="text-xs font-medium uppercase tracking-[0.12em] text-zinc-500">
+              Saídas
+            </p>
+            <span className="flex size-8 items-center justify-center rounded-lg bg-rose-400/10 text-rose-300">
+              <ArrowDownRight className="size-4" />
+            </span>
           </div>
-          <strong className="mt-3 block text-xl font-semibold tracking-normal text-red-300 lg:text-2xl">
+          <strong className="mt-4 block text-xl font-semibold tracking-tight text-rose-400 lg:text-2xl">
             {brlFormatter.format(summary.totalExpense)}
           </strong>
         </div>
 
-        <div className="col-span-2 min-h-24 rounded-xl border border-border/50 bg-card p-4 shadow-none md:p-5 lg:col-span-1">
+        <div className="col-span-2 min-h-28 rounded-xl border border-white/[0.07] bg-zinc-900/55 p-4 backdrop-blur-xl md:p-5 lg:col-span-1">
           <div className="flex items-center justify-between gap-4">
-            <p className="text-sm text-muted-foreground">Saldo Líquido</p>
-            <Wallet className="size-4 text-brand-300" />
+            <p className="text-xs font-medium uppercase tracking-[0.12em] text-zinc-500">
+              Saldo líquido
+            </p>
+            <span className="flex size-8 items-center justify-center rounded-lg bg-white/[0.05] text-zinc-300">
+              <Wallet className="size-4" />
+            </span>
           </div>
           <strong
             className={cn(
-              "mt-3 block text-xl font-semibold tracking-normal lg:text-2xl",
-              summary.netBalance >= 0 ? "text-foreground" : "text-red-300",
+              "mt-4 block text-xl font-semibold tracking-tight lg:text-2xl",
+              summary.netBalance >= 0 ? "text-zinc-100" : "text-rose-400",
             )}
           >
             {brlFormatter.format(summary.netBalance)}
           </strong>
         </div>
-      </section>
+      </motion.section>
 
-      <section className="flex flex-col gap-3 rounded-xl border border-border bg-card p-3.5 md:p-4 lg:flex-row lg:items-center lg:justify-between">
-        <div className="grid flex-1 grid-cols-2 gap-3 lg:grid-cols-4">
-          <div className="relative col-span-2 lg:col-span-2">
-            <Search className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
+      <section className="flex flex-col gap-4 rounded-xl border border-white/[0.07] bg-zinc-900/60 p-4 backdrop-blur-xl xl:flex-row xl:items-center xl:justify-between">
+        <div
+          className={cn(
+            "grid min-w-0 flex-1 grid-cols-1 gap-3 sm:grid-cols-2",
+            originFilter === "card"
+              ? "xl:grid-cols-[minmax(240px,1.4fr)_repeat(4,minmax(140px,0.7fr))]"
+              : "xl:grid-cols-[minmax(260px,1.5fr)_repeat(3,minmax(150px,0.7fr))]",
+          )}
+        >
+          <div className="relative sm:col-span-2 xl:col-span-1">
+            <Search className="pointer-events-none absolute left-3.5 top-1/2 size-4 -translate-y-1/2 text-zinc-500" />
             <Input
               value={searchTerm}
               onChange={(event) => setSearchTerm(event.target.value)}
-              placeholder="Buscar por descrição"
-              className="h-11 pl-9"
+              placeholder="Buscar descrição, categoria ou origem"
+              className="h-11 border-white/[0.08] bg-zinc-950/65 pl-10 text-zinc-100 placeholder:text-zinc-600"
             />
           </div>
 
           <Select value={categoryFilter} onValueChange={setCategoryFilter}>
-            <SelectTrigger className="h-11 w-full">
+            <SelectTrigger className="h-11 w-full border-white/[0.08] bg-zinc-950/65">
               <SelectValue placeholder="Categoria" />
             </SelectTrigger>
             <SelectContent>
@@ -525,7 +612,7 @@ export default function TransactionsPage() {
             value={typeFilter}
             onValueChange={(value) => setTypeFilter(value as TypeFilter)}
           >
-            <SelectTrigger className="h-11 w-full">
+            <SelectTrigger className="h-11 w-full border-white/[0.08] bg-zinc-950/65">
               <SelectValue placeholder="Tipo" />
             </SelectTrigger>
             <SelectContent>
@@ -535,21 +622,57 @@ export default function TransactionsPage() {
               <SelectItem value="fixed">Fixo</SelectItem>
             </SelectContent>
           </Select>
+
+          <Select
+            value={originFilter}
+            onValueChange={(value) => {
+              const nextOrigin = value as OriginFilter;
+
+              setOriginFilter(nextOrigin);
+              if (nextOrigin !== "card") setCardFilter("all");
+            }}
+          >
+            <SelectTrigger className="h-11 w-full border-white/[0.08] bg-zinc-950/65">
+              <SelectValue placeholder="Origem" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">Todas as origens</SelectItem>
+              <SelectItem value="card">Cartões</SelectItem>
+              <SelectItem value="debit-pix">Débito / Pix</SelectItem>
+            </SelectContent>
+          </Select>
+
+          {originFilter === "card" ? (
+            <Select value={cardFilter} onValueChange={setCardFilter}>
+              <SelectTrigger className="h-11 w-full border-violet-400/15 bg-violet-400/[0.06]">
+                <SelectValue placeholder="Selecionar cartão" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">Todos os cartões</SelectItem>
+                {cards.map((card) => (
+                  <SelectItem key={card.id} value={card.id}>
+                    {card.name}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          ) : null}
         </div>
 
-        <div className="flex flex-col gap-3 sm:flex-row lg:items-center">
+        <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
           {hasActiveFilters ? (
             <Button
               type="button"
               variant="ghost"
               onClick={clearFilters}
-              className="h-11 justify-center text-muted-foreground"
+              className="h-11 justify-center text-zinc-400 hover:bg-white/[0.05] hover:text-zinc-100"
             >
+              <SlidersHorizontal className="size-4" />
               Limpar filtros
             </Button>
           ) : null}
 
-        <div className="flex h-11 w-full items-center rounded-lg border border-border bg-background lg:w-auto">
+        <div className="flex h-11 w-full items-center rounded-lg border border-white/[0.08] bg-zinc-950/65 sm:w-auto">
           <Button
             type="button"
             variant="ghost"
@@ -578,9 +701,25 @@ export default function TransactionsPage() {
         </div>
       </section>
 
-      <section className="overflow-hidden rounded-xl border border-border bg-card">
+      <section className="overflow-hidden rounded-xl border border-white/[0.07] bg-zinc-900/45 backdrop-blur-xl">
+        <div className="flex items-center justify-between gap-4 border-b border-white/[0.06] px-4 py-3.5 md:px-5">
+          <div>
+            <h2 className="text-sm font-medium text-zinc-100 md:text-base">
+              Lançamentos
+            </h2>
+            <p className="mt-0.5 text-xs text-zinc-500">
+              {filteredTransactions.length} movimentações encontradas
+            </p>
+          </div>
+          <Badge
+            variant="outline"
+            className="border-white/[0.08] bg-zinc-950/50 text-zinc-400"
+          >
+            {formattedSelectedPeriodLabel}
+          </Badge>
+        </div>
         {selectedIds.length > 0 ? (
-          <div className="flex flex-col gap-3 border-b border-border bg-zinc-900/80 p-4 sm:flex-row sm:items-center sm:justify-between">
+          <div className="flex flex-col gap-3 border-b border-emerald-400/15 bg-emerald-400/[0.06] p-4 sm:flex-row sm:items-center sm:justify-between">
             <p className="text-sm font-medium text-zinc-100">
               {selectedIds.length} transações selecionadas
             </p>
@@ -622,16 +761,31 @@ export default function TransactionsPage() {
         ) : null}
         <div className="space-y-2 p-3 md:hidden">
           {filteredTransactions.length ? (
-            filteredTransactions.map((transaction) => {
+            filteredTransactions.map((transaction, index) => {
               const categoryLabel =
                 transaction.category || getTransactionFallbackLabel(transaction);
               const originLabel = getTransactionOrigin(transaction, cards);
+              const originKind = getTransactionOriginFilter(transaction);
               const isPositive =
                 transaction.type === "income" ||
                 isCardCreditAdjustment(transaction);
+              const dependentId = getDependentId(transaction);
+              const dependentName = dependentId
+                ? dependents.find((dependent) => dependent.id === dependentId)
+                    ?.name
+                : null;
 
               return (
-                <div key={transaction.id} className="flex items-center gap-2">
+                <motion.article
+                  key={transaction.id}
+                  initial={prefersReducedMotion ? false : { opacity: 0, y: 8 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  transition={{
+                    duration: prefersReducedMotion ? 0 : 0.28,
+                    delay: prefersReducedMotion ? 0 : Math.min(index * 0.035, 0.28),
+                  }}
+                  className="flex min-h-24 items-center gap-3 rounded-xl border border-white/[0.06] bg-zinc-950/45 p-3 transition-colors hover:bg-zinc-800/50"
+                >
                   <Checkbox
                     checked={selectedIds.includes(transaction.id)}
                     onCheckedChange={(checked) =>
@@ -640,47 +794,96 @@ export default function TransactionsPage() {
                     aria-label={`Selecionar ${transaction.description}`}
                     className="size-5 shrink-0 border-zinc-600"
                   />
-                  <MobileTransactionItem
-                    className="min-w-0 flex-1"
-                    title={<TransactionDescription transaction={transaction} />}
-                    category={`${categoryLabel} • ${originLabel}`}
-                    date={formatDateOnlyBR(transaction.date)}
-                    amount={`${isPositive ? "+" : "-"}${brlFormatter.format(transaction.amount)}`}
-                    positive={isPositive}
-                    trailing={
-                      <DropdownMenu>
-                        <DropdownMenuTrigger asChild>
-                          <Button
-                            type="button"
-                            variant="ghost"
-                            size="icon"
-                            className="size-10 rounded-xl"
-                            aria-label="Ações da transação"
-                          >
-                            <MoreHorizontal className="size-5" />
-                          </Button>
-                        </DropdownMenuTrigger>
-                        <DropdownMenuContent align="end" className="w-52 p-2">
-                          <DropdownMenuItem
-                            className="min-h-11 cursor-pointer rounded-lg"
-                            onClick={() => handleEditTransaction(transaction)}
-                          >
-                            <Pencil className="size-4" />
-                            Editar transação
-                          </DropdownMenuItem>
-                          <DropdownMenuItem
-                            variant="destructive"
-                            className="min-h-11 cursor-pointer rounded-lg"
-                            onClick={() => setDeleteTarget(transaction)}
-                          >
-                            <Trash2 className="size-4" />
-                            Excluir transação
-                          </DropdownMenuItem>
-                        </DropdownMenuContent>
-                      </DropdownMenu>
-                    }
-                  />
-                </div>
+                  <span
+                    className={cn(
+                      "flex size-10 shrink-0 items-center justify-center rounded-lg border",
+                      getOriginBadgeClassName(originKind),
+                    )}
+                  >
+                    {originKind === "card" ? (
+                      <CreditCard className="size-4" />
+                    ) : originKind === "income" ? (
+                      <ArrowUpRight className="size-4" />
+                    ) : (
+                      <Landmark className="size-4" />
+                    )}
+                  </span>
+                  <div className="min-w-0 flex-1">
+                    <div className="truncate text-sm font-medium text-zinc-100">
+                      <TransactionDescription transaction={transaction} />
+                    </div>
+                    <p className="mt-1 text-xs text-zinc-500">
+                      {formatDateOnlyBR(transaction.date)}
+                    </p>
+                    <div className="mt-2 flex min-w-0 flex-wrap gap-1.5">
+                      <Badge
+                        variant="outline"
+                        className="max-w-full border-white/[0.07] bg-white/[0.04] text-[10px] text-zinc-400"
+                      >
+                        <Tag className="size-3" />
+                        <span className="truncate">{categoryLabel}</span>
+                      </Badge>
+                      <Badge
+                        variant="outline"
+                        className={cn(
+                          "max-w-full text-[10px]",
+                          getOriginBadgeClassName(originKind),
+                        )}
+                      >
+                        <span className="truncate">{originLabel}</span>
+                      </Badge>
+                      {dependentName ? (
+                        <Badge
+                          variant="outline"
+                          className="border-amber-400/15 bg-amber-400/10 text-[10px] text-amber-300"
+                        >
+                          {dependentName}
+                        </Badge>
+                      ) : null}
+                    </div>
+                  </div>
+                  <div className="flex shrink-0 flex-col items-end gap-2">
+                    <strong
+                      className={cn(
+                        "text-sm font-semibold tabular-nums",
+                        isPositive ? "text-emerald-400" : "text-rose-400",
+                      )}
+                    >
+                      {isPositive ? "+" : "-"}
+                      {brlFormatter.format(transaction.amount)}
+                    </strong>
+                    <DropdownMenu>
+                      <DropdownMenuTrigger asChild>
+                        <Button
+                          type="button"
+                          variant="ghost"
+                          size="icon"
+                          className="size-9 rounded-lg text-zinc-500 hover:text-zinc-100"
+                          aria-label="Ações da transação"
+                        >
+                          <MoreHorizontal className="size-5" />
+                        </Button>
+                      </DropdownMenuTrigger>
+                      <DropdownMenuContent align="end" className="w-52 p-2">
+                        <DropdownMenuItem
+                          className="min-h-11 cursor-pointer rounded-lg"
+                          onClick={() => handleEditTransaction(transaction)}
+                        >
+                          <Pencil className="size-4" />
+                          Editar transação
+                        </DropdownMenuItem>
+                        <DropdownMenuItem
+                          variant="destructive"
+                          className="min-h-11 cursor-pointer rounded-lg"
+                          onClick={() => setDeleteTarget(transaction)}
+                        >
+                          <Trash2 className="size-4" />
+                          Excluir transação
+                        </DropdownMenuItem>
+                      </DropdownMenuContent>
+                    </DropdownMenu>
+                  </div>
+                </motion.article>
               );
             })
           ) : (
@@ -691,8 +894,8 @@ export default function TransactionsPage() {
           )}
         </div>
 
-        <Table className="hidden min-w-[760px] md:table lg:min-w-full">
-          <TableHeader className="bg-muted/30">
+        <Table className="hidden min-w-[820px] md:table lg:min-w-full">
+          <TableHeader className="bg-zinc-950/55 [&_th]:h-11 [&_th]:text-[10px] [&_th]:font-medium [&_th]:uppercase [&_th]:tracking-[0.14em] [&_th]:text-zinc-500">
             <TableRow className="hover:bg-transparent">
               <TableHead className="w-12">
                 <Checkbox
@@ -714,8 +917,9 @@ export default function TransactionsPage() {
           </TableHeader>
           <TableBody>
             {filteredTransactions.length ? (
-              filteredTransactions.map((transaction) => {
+              filteredTransactions.map((transaction, index) => {
                 const originLabel = getTransactionOrigin(transaction, cards);
+                const originKind = getTransactionOriginFilter(transaction);
                 const categoryLabel =
                   transaction.category || getTransactionFallbackLabel(transaction);
                 const dependentId = getDependentId(transaction);
@@ -724,8 +928,6 @@ export default function TransactionsPage() {
                       ?.name
                   : null;
                 const details = [
-                  categoryLabel,
-                  originLabel,
                   dependentName,
                   transaction.is_recurring
                     ? transaction.type === "card"
@@ -733,13 +935,26 @@ export default function TransactionsPage() {
                       : "Recorrente"
                     : null,
                 ].filter(Boolean);
+                const isPositive =
+                  transaction.type === "income" ||
+                  isCardCreditAdjustment(transaction);
 
                 return (
-                  <TableRow
+                  <motion.tr
                     key={transaction.id}
-                    className="transition-colors hover:bg-muted/30"
+                    initial={
+                      prefersReducedMotion ? false : { opacity: 0, y: 7 }
+                    }
+                    animate={{ opacity: 1, y: 0 }}
+                    transition={{
+                      duration: prefersReducedMotion ? 0 : 0.26,
+                      delay: prefersReducedMotion
+                        ? 0
+                        : Math.min(index * 0.028, 0.3),
+                    }}
+                    className="border-b border-white/[0.055] transition-colors hover:bg-zinc-800/50"
                   >
-                    <TableCell className="py-4">
+                    <TableCell className="py-4.5">
                       <Checkbox
                         checked={selectedIds.includes(transaction.id)}
                         onCheckedChange={(checked) =>
@@ -748,46 +963,66 @@ export default function TransactionsPage() {
                         aria-label="Selecionar transação"
                       />
                     </TableCell>
-                    <TableCell className="py-4 text-muted-foreground">
+                    <TableCell className="py-4.5 text-sm text-zinc-500">
                       {formatDateOnlyBR(transaction.date)}
                     </TableCell>
-                    <TableCell className="py-4">
-                      <div className="font-medium text-foreground">
+                    <TableCell className="py-4.5">
+                      <div className="font-medium text-zinc-100">
                         <TransactionDescription transaction={transaction} />
                       </div>
-                      <div className="mt-1 flex flex-wrap gap-x-2 gap-y-1 text-xs text-muted-foreground">
-                        {details.map((detail, index) => (
-                          <span key={`${transaction.id}-${index}-${detail}`}>
-                            {index > 0 ? "• " : ""}
-                            {detail}
-                          </span>
-                        ))}
-                      </div>
+                      {details.length ? (
+                        <div className="mt-1.5 flex flex-wrap gap-1.5">
+                          {details.map((detail, detailIndex) => (
+                            <Badge
+                              key={`${transaction.id}-${detailIndex}-${detail}`}
+                              variant="outline"
+                              className="border-white/[0.07] bg-white/[0.035] text-[10px] text-zinc-500"
+                            >
+                              {detail}
+                            </Badge>
+                          ))}
+                        </div>
+                      ) : null}
                     </TableCell>
-                    <TableCell className="hidden py-4 lg:table-cell">
-                      <span className="text-sm text-zinc-400">
+                    <TableCell className="hidden py-4.5 lg:table-cell">
+                      <Badge
+                        variant="outline"
+                        className="max-w-44 border-white/[0.07] bg-white/[0.04] text-zinc-400"
+                      >
+                        <Tag className="size-3" />
+                        <span className="truncate">
                         {categoryLabel}
-                      </span>
+                        </span>
+                      </Badge>
                     </TableCell>
-                    <TableCell className="hidden py-4 text-muted-foreground lg:table-cell">
-                      {originLabel}
+                    <TableCell className="hidden py-4.5 lg:table-cell">
+                      <Badge
+                        variant="outline"
+                        className={cn(
+                          "max-w-48",
+                          getOriginBadgeClassName(originKind),
+                        )}
+                      >
+                        {originKind === "card" ? (
+                          <CreditCard className="size-3" />
+                        ) : originKind === "income" ? (
+                          <ArrowUpRight className="size-3" />
+                        ) : (
+                          <Landmark className="size-3" />
+                        )}
+                        <span className="truncate">{originLabel}</span>
+                      </Badge>
                     </TableCell>
                     <TableCell
                       className={cn(
-                        "py-4 text-right font-medium",
-                        transaction.type === "income" ||
-                          isCardCreditAdjustment(transaction)
-                          ? "text-emerald-500"
-                          : "text-red-300",
+                        "py-4.5 text-right font-semibold tabular-nums",
+                        isPositive ? "text-emerald-400" : "text-rose-400",
                       )}
                     >
-                      {transaction.type === "income" ||
-                      isCardCreditAdjustment(transaction)
-                        ? "+"
-                        : "-"}
+                      {isPositive ? "+" : "-"}
                       {brlFormatter.format(transaction.amount)}
                     </TableCell>
-                    <TableCell className="py-4">
+                    <TableCell className="py-4.5">
                       <DropdownMenu>
                         <DropdownMenuTrigger asChild>
                           <Button
@@ -819,7 +1054,7 @@ export default function TransactionsPage() {
                         </DropdownMenuContent>
                       </DropdownMenu>
                     </TableCell>
-                  </TableRow>
+                  </motion.tr>
                 );
               })
             ) : (
