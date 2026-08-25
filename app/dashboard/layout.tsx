@@ -42,7 +42,7 @@ export default function DashboardLayout({
         <Sidebar />
         <MobileTopBar />
         <main className="h-screen min-w-0 flex-1 overflow-x-hidden overflow-y-auto px-4 pb-28 pt-20 sm:px-5 md:px-6 md:pb-8 md:pt-8 lg:px-8">
-          <div className="mx-auto w-full max-w-lg md:max-w-[1440px]">
+          <div className="mx-auto w-full max-w-lg md:max-w-none">
             {children}
           </div>
         </main>

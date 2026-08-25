@@ -92,7 +92,19 @@ const dashboardReveal = {
 };
 
 const dashboardSurfaceClassName =
-  "border border-white/[0.08] bg-zinc-900/55 shadow-[0_18px_55px_rgba(0,0,0,0.18)] backdrop-blur-xl transition-colors hover:border-white/[0.13]";
+  "gap-0 border border-white/[0.08] bg-zinc-900/55 py-0 shadow-[0_18px_55px_rgba(0,0,0,0.18)] backdrop-blur-xl transition-colors hover:border-white/[0.13]";
+
+const walletCardSizeClassName =
+  "aspect-[1.586/1] h-auto w-[min(82vw,20rem)] max-w-full shrink-0 sm:w-[19rem] lg:w-[17.25rem] xl:w-80 2xl:w-[21rem]";
+
+function getResponsiveTransactionLimit() {
+  if (typeof window === "undefined") return 3;
+
+  if (window.innerWidth >= 1920 || window.innerHeight >= 1000) return 6;
+  if (window.innerWidth >= 1440 || window.innerHeight >= 850) return 5;
+
+  return 3;
+}
 
 function useCountUp(
   targetValue: number,
@@ -297,7 +309,7 @@ function FlippableWalletCard({
   const cycleLabel = `${formatDateOnlyBR(cardSummary.cycleStartDate)} - ${formatDateOnlyBR(cardSummary.cycleEndDate)}`;
 
   return (
-    <div className="h-[158px] w-full perspective-[1000px] lg:w-[276px]">
+    <div className={cn(walletCardSizeClassName, "perspective-[1000px]")}>
       <div
         className={cn(
           "relative h-full w-full cursor-pointer transition-all duration-500 [transform-style:preserve-3d]",
@@ -306,13 +318,13 @@ function FlippableWalletCard({
       >
         <div
           className={cn(
-            "absolute inset-0 flex flex-col overflow-hidden rounded-xl border border-white/[0.1] p-5 text-zinc-100 shadow-xl shadow-black/30 [backface-visibility:hidden]",
+            "absolute inset-0 flex flex-col overflow-hidden rounded-xl border border-white/[0.1] p-4 text-zinc-100 shadow-xl shadow-black/30 sm:p-5 [backface-visibility:hidden]",
             getCardGradientClassName(cardSummary.name),
           )}
           onClick={() => setIsFlipped(true)}
         >
           <div className="relative flex items-center justify-between gap-4">
-            <p className="max-w-40 truncate text-xs font-medium text-white">
+            <p className="max-w-48 truncate text-sm font-medium text-white">
               {cardSummary.name}
             </p>
             <button
@@ -328,16 +340,16 @@ function FlippableWalletCard({
             </button>
           </div>
           <div className="relative mt-3 flex flex-1 flex-col justify-between">
-            <strong className="block text-xl font-bold tracking-tight text-white">
+            <strong className="block text-2xl font-bold leading-none tracking-tight text-white">
               {formatSensitiveCurrency(
                 cardSummary.current,
                 hideBalancesByDefault,
               )}
             </strong>
             <div>
-              <div className="flex items-center justify-between gap-3 text-xs text-zinc-400">
+              <div className="flex items-center justify-between gap-3 text-[11px] text-zinc-400 sm:text-xs">
                 <span className="whitespace-nowrap">Limite disponível</span>
-                <span className="shrink-0 text-[11px] text-zinc-300">
+                <span className="shrink-0 text-xs text-zinc-300">
                   {formatSensitiveCurrency(
                     cardSummary.limitAmount,
                     hideBalancesByDefault,
@@ -354,7 +366,7 @@ function FlippableWalletCard({
 
         <div
           className={cn(
-            "absolute inset-0 flex flex-col justify-between overflow-hidden rounded-xl border border-white/[0.1] bg-gradient-to-br from-zinc-800 via-zinc-950 to-black p-5 text-zinc-100 shadow-xl shadow-black/30 [backface-visibility:hidden] [transform:rotateY(180deg)]",
+            "absolute inset-0 flex flex-col justify-between overflow-hidden rounded-xl border border-white/[0.1] bg-gradient-to-br from-zinc-800 via-zinc-950 to-black p-4 text-zinc-100 shadow-xl shadow-black/30 sm:p-5 [backface-visibility:hidden] [transform:rotateY(180deg)]",
           )}
           onClick={() => setIsFlipped(false)}
         >
@@ -363,16 +375,16 @@ function FlippableWalletCard({
               <p className="truncate text-xs font-medium text-zinc-200">
                 {cardSummary.name}
               </p>
-              <span className="flex items-center gap-1 text-[9px] text-zinc-500">
+              <span className="flex items-center gap-1 text-[10px] text-zinc-500">
                 <RotateCcw className="size-3" /> Desvirar
               </span>
             </div>
             <div className="mt-2 flex items-end justify-between gap-3">
               <div>
-                <p className="text-[9px] uppercase tracking-wider text-zinc-500">
+                <p className="text-[10px] uppercase tracking-wider text-zinc-500">
                   Disponível
                 </p>
-                <strong className="block text-base font-semibold text-zinc-100">
+                <strong className="block text-lg font-semibold leading-tight text-zinc-100">
                   {formatSensitiveCurrency(
                     cardSummary.availableLimit,
                     hideBalancesByDefault,
@@ -380,10 +392,10 @@ function FlippableWalletCard({
                 </strong>
               </div>
               <div className="text-right">
-                <p className="text-[9px] uppercase tracking-wider text-zinc-500">
+                <p className="text-[10px] uppercase tracking-wider text-zinc-500">
                   Utilizado
                 </p>
-                <span className="text-xs font-medium text-zinc-300">
+                <span className="text-sm font-medium text-zinc-300">
                   {formatSensitiveCurrency(
                     cardSummary.debtTotal,
                     hideBalancesByDefault,
@@ -391,7 +403,7 @@ function FlippableWalletCard({
                 </span>
               </div>
             </div>
-            <div className="mt-2 flex items-center justify-between text-[9px] text-zinc-500">
+            <div className="mt-2 flex items-center justify-between gap-3 text-[10px] text-zinc-500">
               <span>{cycleLabel}</span>
               <span>
                 {cardSummary.dueDay
@@ -403,7 +415,7 @@ function FlippableWalletCard({
           <div className="relative grid gap-2">
             <Button
               type="button"
-              className="h-7 w-full bg-emerald-500 text-[11px] font-semibold text-zinc-950 hover:bg-emerald-400"
+              className="h-9 w-full bg-emerald-500 text-xs font-semibold text-zinc-950 hover:bg-emerald-400"
               onClick={(event) => {
                 event.stopPropagation();
                 onPayInvoice(cardSummary.id);
@@ -429,6 +441,7 @@ export default function DashboardPage() {
   const [variableIncomeValues, setVariableIncomeValues] = useState<
     Record<string, string>
   >({});
+  const [recentTransactionLimit, setRecentTransactionLimit] = useState(3);
 
   const cards = useFinanceStore((state) => state.cards);
   const dependents = useFinanceStore((state) => state.dependents);
@@ -609,8 +622,11 @@ export default function DashboardPage() {
   const isProjectedBalanceNegative = monthlyBalances.projectedBalance < 0;
 
   const recentTransactions = useMemo(
-    () => [...monthlyTransactions].sort(sortByRecentDate).slice(0, 3),
-    [monthlyTransactions],
+    () =>
+      [...monthlyTransactions]
+        .sort(sortByRecentDate)
+        .slice(0, recentTransactionLimit),
+    [monthlyTransactions, recentTransactionLimit],
   );
 
   const personalSpendingDistribution = useMemo(() => {
@@ -837,6 +853,26 @@ export default function DashboardPage() {
   );
 
   useEffect(() => {
+    let resizeFrame: number | null = null;
+
+    const updateResponsiveDensity = () => {
+      if (resizeFrame !== null) cancelAnimationFrame(resizeFrame);
+
+      resizeFrame = requestAnimationFrame(() => {
+        setRecentTransactionLimit(getResponsiveTransactionLimit());
+      });
+    };
+
+    updateResponsiveDensity();
+    window.addEventListener("resize", updateResponsiveDensity);
+
+    return () => {
+      if (resizeFrame !== null) cancelAnimationFrame(resizeFrame);
+      window.removeEventListener("resize", updateResponsiveDensity);
+    };
+  }, []);
+
+  useEffect(() => {
     void fetchTransactions();
   }, [currentMonth, currentYear, fetchTransactions]);
 
@@ -898,7 +934,7 @@ export default function DashboardPage() {
   );
 
   return (
-    <div className="relative flex w-full flex-col gap-6 overflow-hidden pb-1 xl:h-[calc(100vh-5.5rem)] xl:min-h-[680px]">
+    <div className="relative flex w-full flex-col gap-5 overflow-x-clip pb-2 sm:gap-6 md:min-h-[calc(100dvh-4rem)]">
       <div className="pointer-events-none absolute inset-x-0 -top-40 -z-10 mx-auto h-72 max-w-5xl rounded-full bg-emerald-500/[0.035] blur-3xl" />
 
       <motion.header
@@ -1031,7 +1067,7 @@ export default function DashboardPage() {
               : "bg-emerald-400/[0.045]",
           )}
         >
-          <div className="pointer-events-none absolute inset-x-0 bottom-0 h-24 opacity-70">
+          <div className="pointer-events-none absolute inset-x-0 bottom-7 z-0 h-16 opacity-55">
             <svg
               viewBox="0 0 320 80"
               preserveAspectRatio="none"
@@ -1045,7 +1081,7 @@ export default function DashboardPage() {
               />
             </svg>
           </div>
-          <CardContent className="relative p-4">
+          <CardContent className="relative z-10 flex min-h-36 flex-col p-4 sm:min-h-40 sm:p-5 2xl:min-h-44 2xl:p-6">
             <div className="flex items-center justify-between">
               <p className="text-[11px] font-medium uppercase tracking-[0.16em] text-zinc-500">
                 Saldo projetado
@@ -1061,7 +1097,7 @@ export default function DashboardPage() {
             </div>
             <strong
               className={cn(
-                "mt-4 block text-2xl font-semibold tracking-tight tabular-nums",
+                "mt-auto block pt-5 text-[clamp(1.5rem,2.1vw,2.25rem)] font-semibold leading-none tracking-tight tabular-nums",
                 isProjectedBalanceNegative
                   ? "text-rose-400"
                   : "text-emerald-400",
@@ -1069,7 +1105,7 @@ export default function DashboardPage() {
             >
               {formatPrivateCurrency(animatedProjectedBalance)}
             </strong>
-            <p className="mt-1.5 text-[10px] text-zinc-500">
+            <p className="mt-2 text-[11px] text-zinc-500 sm:text-xs">
               Receitas: {formatPrivateCurrency(monthlyBalances.totalIncome)}
             </p>
           </CardContent>
@@ -1081,17 +1117,17 @@ export default function DashboardPage() {
             "col-span-12 h-full min-h-0 rounded-xl lg:col-span-4",
           )}
         >
-          <CardContent className="p-4">
+          <CardContent className="flex min-h-36 flex-col p-4 sm:min-h-40 sm:p-5 2xl:min-h-44 2xl:p-6">
             <div className="flex items-center justify-between">
               <p className="text-[11px] font-medium uppercase tracking-[0.16em] text-zinc-500">
                 Compromissos do mês
               </p>
               <ReceiptText className="size-4 text-zinc-600" />
             </div>
-            <strong className="mt-4 block text-2xl font-semibold tracking-tight text-zinc-100 tabular-nums">
+            <strong className="mt-auto block pt-5 text-[clamp(1.5rem,2.1vw,2.25rem)] font-semibold leading-none tracking-tight text-zinc-100 tabular-nums">
               {formatPrivateCurrency(animatedPendingObligations)}
             </strong>
-            <div className="mt-3 grid grid-cols-2 gap-3 text-[10px]">
+            <div className="mt-4 grid grid-cols-2 gap-3 text-[11px] sm:text-xs">
               <div>
                 <p className="text-zinc-500">Faturas abertas</p>
                 <p className="mt-1 text-zinc-200">
@@ -1116,17 +1152,17 @@ export default function DashboardPage() {
             "col-span-12 h-full min-h-0 rounded-xl lg:col-span-4",
           )}
         >
-          <CardContent className="p-4">
+          <CardContent className="flex min-h-36 flex-col p-4 sm:min-h-40 sm:p-5 2xl:min-h-44 2xl:p-6">
             <div className="flex items-center justify-between">
               <p className="text-[11px] font-medium uppercase tracking-[0.16em] text-zinc-500">
                 Projeção de fechamento
               </p>
               <TrendingUp className="size-4 text-emerald-300" />
             </div>
-            <strong className="mt-4 block text-2xl font-semibold tracking-tight text-zinc-100 tabular-nums">
+            <strong className="mt-auto block pt-5 text-[clamp(1.5rem,2.1vw,2.25rem)] font-semibold leading-none tracking-tight text-zinc-100 tabular-nums">
               {formatPrivateCurrency(animatedClosingProjection)}
             </strong>
-            <div className="mt-3 flex items-center justify-between text-[10px]">
+            <div className="mt-4 flex items-center justify-between gap-3 text-[11px] sm:text-xs">
               <span className="text-zinc-500">Já lançado na fatura</span>
               <span className="text-emerald-300">
                 {formatPrivateCurrency(monthlyBalances.creditCardUntilToday)}
@@ -1225,7 +1261,7 @@ export default function DashboardPage() {
               "h-full overflow-hidden rounded-xl",
             )}
           >
-            <CardHeader className="flex flex-row items-center justify-between gap-3 border-b border-white/[0.06] p-3">
+            <CardHeader className="flex flex-col items-stretch justify-between gap-3 border-b border-white/[0.06] p-4 sm:flex-row sm:items-center">
               <div className="flex items-start gap-3">
                 <span className="flex size-7 items-center justify-center rounded-lg bg-emerald-400/10 text-emerald-300">
                   <Wallet className="size-4" />
@@ -1242,19 +1278,19 @@ export default function DashboardPage() {
               <Button
                 type="button"
                 onClick={() => setIsAddCardModalOpen(true)}
-                className="h-8 gap-1.5 bg-emerald-600 px-3 text-xs font-semibold text-white hover:bg-emerald-700"
+                className="h-10 w-full gap-2 bg-emerald-600 px-4 text-sm font-semibold text-white hover:bg-emerald-700 sm:w-auto"
               >
                 <PlusCircle className="size-4" />
                 Adicionar Cartão
               </Button>
             </CardHeader>
-            <CardContent className="p-3">
+            <CardContent className="p-3 sm:p-4">
               <Carousel opts={{ dragFree: true }} className="w-full">
                 <CarouselContent className="-ml-3 px-1 py-0.5">
                   {cardSpendingSummaries.map((cardSummary) => (
                     <CarouselItem
                       key={cardSummary.id}
-                      className="basis-full pl-3 lg:basis-auto"
+                      className="basis-auto pl-3"
                     >
                       <FlippableWalletCard
                         cardSummary={cardSummary}
@@ -1265,10 +1301,15 @@ export default function DashboardPage() {
                     </CarouselItem>
                   ))}
 
-                  <CarouselItem className="basis-full pl-3 lg:basis-auto">
-                    <div className="relative flex h-[158px] w-full shrink-0 flex-col overflow-hidden rounded-xl border border-white/[0.1] bg-gradient-to-br from-blue-950 via-zinc-950 to-black p-5 text-zinc-100 shadow-xl shadow-black/20 lg:w-[276px]">
+                  <CarouselItem className="basis-auto pl-3">
+                    <div
+                      className={cn(
+                        walletCardSizeClassName,
+                        "relative flex flex-col overflow-hidden rounded-xl border border-white/[0.1] bg-gradient-to-br from-blue-950 via-zinc-950 to-black p-4 text-zinc-100 shadow-xl shadow-black/20 sm:p-5",
+                      )}
+                    >
                       <div className="relative flex items-center justify-between gap-4">
-                        <p className="text-xs font-medium text-white">
+                        <p className="text-sm font-medium text-white">
                           Gastos Fixos
                         </p>
                         <span className="flex size-7 items-center justify-center rounded-full border border-white/10 bg-black/15">
@@ -1276,7 +1317,7 @@ export default function DashboardPage() {
                         </span>
                       </div>
                       <div className="relative mt-3 flex flex-1 flex-col justify-between">
-                        <strong className="block text-xl font-bold tracking-tight text-white">
+                        <strong className="block text-2xl font-bold leading-none tracking-tight text-white">
                           {formatPrivateCurrency(fixedSpendingTotal)}
                         </strong>
                         <div>
@@ -1292,10 +1333,15 @@ export default function DashboardPage() {
                     </div>
                   </CarouselItem>
 
-                  <CarouselItem className="basis-full pl-3 lg:basis-auto">
-                    <div className="relative flex h-[158px] w-full shrink-0 flex-col overflow-hidden rounded-xl border border-white/[0.1] bg-gradient-to-br from-emerald-950 via-zinc-950 to-black p-5 text-zinc-100 shadow-xl shadow-black/20 lg:w-[276px]">
+                  <CarouselItem className="basis-auto pl-3">
+                    <div
+                      className={cn(
+                        walletCardSizeClassName,
+                        "relative flex flex-col overflow-hidden rounded-xl border border-white/[0.1] bg-gradient-to-br from-emerald-950 via-zinc-950 to-black p-4 text-zinc-100 shadow-xl shadow-black/20 sm:p-5",
+                      )}
+                    >
                       <div className="relative flex items-center justify-between gap-4">
-                        <p className="text-xs font-medium text-white">
+                        <p className="text-sm font-medium text-white">
                           Débito / Pix
                         </p>
                         <span className="flex size-7 items-center justify-center rounded-full border border-white/10 bg-black/15">
@@ -1303,7 +1349,7 @@ export default function DashboardPage() {
                         </span>
                       </div>
                       <div className="relative mt-3 flex flex-1 flex-col justify-between">
-                        <strong className="block text-xl font-bold tracking-tight text-white">
+                        <strong className="block text-2xl font-bold leading-none tracking-tight text-white">
                           {formatPrivateCurrency(debitPixSpendingTotal)}
                         </strong>
                         <div>
@@ -1333,27 +1379,27 @@ export default function DashboardPage() {
               "h-full w-full rounded-xl",
             )}
           >
-            <CardHeader className="border-b border-border/50 p-3">
-              <CardDescription className="text-[10px]">
+            <CardHeader className="border-b border-border/50 p-3 2xl:p-4">
+              <CardDescription className="text-[10px] 2xl:text-xs">
                 Distribuição deste mês
               </CardDescription>
-              <CardTitle className="text-sm tracking-normal">
+              <CardTitle className="text-sm tracking-normal 2xl:text-base">
                 Gastos por Dependente
               </CardTitle>
             </CardHeader>
-            <CardContent className="p-2">
+            <CardContent className="flex flex-1 items-center p-2 2xl:p-4">
               {dependentSpendingSummaries.length ? (
-                <div className="space-y-2 p-2">
+                <div className="w-full space-y-2 p-2 2xl:space-y-4">
                   {dependentSpendingSummaries.map((dependent, index) => (
                     <div key={dependent.id} className="rounded-xl px-1 py-1">
                       <div className="mb-1 flex items-center justify-between gap-3">
-                        <span className="flex min-w-0 items-center gap-2 text-sm font-medium text-zinc-300">
+                        <span className="flex min-w-0 items-center gap-2 text-sm font-medium text-zinc-300 2xl:text-base">
                           <span className="flex size-5 shrink-0 items-center justify-center rounded-md bg-white/[0.04] text-zinc-500">
                             <UserRound className="size-4" />
                           </span>
                           <span className="truncate">{dependent.name}</span>
                         </span>
-                        <strong className="shrink-0 text-xs font-medium text-zinc-400">
+                        <strong className="shrink-0 text-xs font-medium text-zinc-400 2xl:text-sm">
                           {formatPrivateCurrency(dependent.total)}
                         </strong>
                       </div>
@@ -1404,16 +1450,16 @@ export default function DashboardPage() {
         <Card
           className={cn(
             dashboardSurfaceClassName,
-            "col-span-12 h-full min-w-0 overflow-hidden rounded-xl lg:col-span-8",
+            "col-span-12 h-full min-w-0 overflow-hidden rounded-xl lg:col-span-8 lg:min-h-[clamp(16.25rem,28vh,22rem)]",
           )}
         >
-          <CardHeader className="flex flex-row items-center justify-between gap-3 border-b border-border/50 p-3">
+          <CardHeader className="flex flex-row items-center justify-between gap-3 border-b border-border/50 p-3 2xl:p-5">
             <div>
-              <CardTitle className="text-sm font-medium tracking-normal text-foreground">
+              <CardTitle className="text-sm font-medium tracking-normal text-foreground 2xl:text-base">
                 Movimentações recentes
               </CardTitle>
-              <CardDescription className="mt-0.5 text-[10px]">
-                Suas últimas três transações.
+              <CardDescription className="mt-0.5 text-[10px] 2xl:text-xs">
+                Seus lançamentos mais recentes no período.
               </CardDescription>
             </div>
             <div className="flex items-center gap-2">
@@ -1465,11 +1511,11 @@ export default function DashboardPage() {
 
           <div
             className={cn(
-              "hidden overflow-x-auto transition-opacity md:block",
+              "hidden flex-1 overflow-x-auto transition-opacity md:block",
               isFetching && "pointer-events-none opacity-50",
             )}
           >
-            <Table className="w-full table-fixed text-xs [&_td]:h-11 [&_td]:py-1.5 [&_th]:h-8 [&_th]:py-1">
+            <Table className="h-full w-full table-fixed text-xs xl:text-sm [&_td]:h-11 [&_td]:py-1.5 xl:[&_td]:h-12 2xl:[&_td]:h-14 [&_th]:h-8 [&_th]:py-1 2xl:[&_th]:h-10">
               <TableHeader className="bg-muted/30">
                 <TableRow className="hover:bg-transparent">
                   <TableHead className="w-28">Data</TableHead>
@@ -1492,7 +1538,7 @@ export default function DashboardPage() {
                           <div className="truncate font-medium text-zinc-200">
                             <TransactionDescription transaction={transaction} />
                           </div>
-                          <div className="mt-0.5 truncate text-[10px] text-zinc-500">
+                          <div className="mt-0.5 truncate text-[10px] text-zinc-500 2xl:text-xs">
                             {transaction.category ||
                               getTransactionFallbackLabel(transaction)}
                           </div>
@@ -1536,23 +1582,23 @@ export default function DashboardPage() {
         <Card
           className={cn(
             dashboardSurfaceClassName,
-            "col-span-12 h-full rounded-xl lg:col-span-4",
+            "col-span-12 h-full rounded-xl lg:col-span-4 lg:min-h-[clamp(16.25rem,28vh,22rem)]",
           )}
         >
-          <CardHeader className="p-3 pb-1">
-            <CardDescription className="text-[10px]">
+          <CardHeader className="p-3 pb-1 2xl:p-5 2xl:pb-2">
+            <CardDescription className="text-[10px] 2xl:text-xs">
               Distribuição pessoal
             </CardDescription>
-            <CardTitle className="text-sm tracking-normal text-foreground">
+            <CardTitle className="text-sm tracking-normal text-foreground 2xl:text-base">
               Para onde foi seu dinheiro
             </CardTitle>
           </CardHeader>
-          <CardContent className="p-3">
+          <CardContent className="flex flex-1 items-center p-4 2xl:p-6">
             {personalSpendingDistribution.categories.length ? (
-              <div className="grid h-full grid-cols-[136px_minmax(0,1fr)] items-center gap-3">
+              <div className="grid w-full grid-cols-1 items-center gap-4 sm:grid-cols-[136px_minmax(0,1fr)] lg:grid-cols-1 xl:grid-cols-[136px_minmax(0,1fr)] 2xl:grid-cols-[minmax(12rem,0.9fr)_minmax(0,1.1fr)] 2xl:gap-8">
                 <div className="flex justify-center">
                   <div
-                    className="relative flex size-32 items-center justify-center"
+                    className="relative flex size-28 items-center justify-center sm:size-32 lg:size-28 xl:size-32 2xl:size-[clamp(12rem,10vw,18rem)]"
                     aria-label="Distribuição dos gastos pessoais"
                   >
                     <svg
@@ -1585,11 +1631,11 @@ export default function DashboardPage() {
                         />
                       ))}
                     </svg>
-                    <div className="relative flex size-20 flex-col items-center justify-center rounded-full bg-zinc-950 text-center shadow-inner">
-                      <span className="text-[10px] font-medium uppercase tracking-[0.16em] text-zinc-600">
+                    <div className="relative flex size-[62%] flex-col items-center justify-center rounded-full bg-zinc-950 text-center shadow-inner">
+                      <span className="text-[10px] font-medium uppercase tracking-[0.16em] text-zinc-600 2xl:text-xs">
                         Total
                       </span>
-                      <strong className="mt-0.5 max-w-[72px] truncate text-xs font-semibold text-zinc-100">
+                      <strong className="mt-0.5 max-w-[82%] truncate text-xs font-semibold text-zinc-100 2xl:text-[clamp(0.875rem,0.9vw,1.125rem)]">
                         {formatPrivateCurrency(
                           personalSpendingDistribution.total,
                         )}
@@ -1597,15 +1643,15 @@ export default function DashboardPage() {
                     </div>
                   </div>
                 </div>
-                <div className="min-w-0 space-y-2.5">
+                <div className="min-w-0 space-y-2.5 px-1 sm:px-0 2xl:space-y-4">
                   {personalSpendingDistribution.categories.map((category) => (
                     <div
                       key={category.label}
-                      className="flex items-center justify-between gap-2 text-[10px]"
+                      className="flex items-center justify-between gap-2 text-[11px] xl:text-xs 2xl:text-sm"
                     >
                       <span className="flex min-w-0 items-center gap-2 text-zinc-400">
                         <span
-                          className="size-1.5 shrink-0 rounded-full"
+                          className="size-1.5 shrink-0 rounded-full 2xl:size-2"
                           style={{ backgroundColor: category.hex }}
                         />
                         <span className="truncate">{category.label}</span>
@@ -1615,7 +1661,7 @@ export default function DashboardPage() {
                       </span>
                     </div>
                   ))}
-                  <div className="border-t border-white/[0.06] pt-2 text-[10px] text-zinc-500">
+                  <div className="border-t border-white/[0.06] pt-2 text-[11px] text-zinc-500 xl:text-xs 2xl:pt-3 2xl:text-sm">
                     Economia{" "}
                     <strong className="float-right font-medium text-emerald-300">
                       {personalSpendingDistribution.savingsRate.toFixed(1)}%
