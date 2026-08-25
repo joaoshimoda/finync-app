@@ -856,11 +856,12 @@ export default function AnalyticsPage() {
                           data={expenseMix}
                           dataKey="value"
                           nameKey="name"
-                          innerRadius="56%"
-                          outerRadius="78%"
-                          paddingAngle={4}
+                          innerRadius="60%"
+                          outerRadius="80%"
+                          paddingAngle={2}
+                          cornerRadius={4}
                           stroke="#18181b"
-                          strokeWidth={3}
+                          strokeWidth={2}
                           isAnimationActive
                           animationDuration={1200}
                         >

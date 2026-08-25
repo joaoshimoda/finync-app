@@ -21,6 +21,13 @@ import {
 } from "lucide-react";
 import { motion, useReducedMotion } from "framer-motion";
 import { useCallback, useEffect, useMemo, useState } from "react";
+import {
+  Cell,
+  Pie,
+  PieChart,
+  ResponsiveContainer,
+  Tooltip,
+} from "recharts";
 
 import { AnimatedMonthSelector } from "@/components/finance/AnimatedMonthSelector";
 import { AddCardModal } from "@/components/modals/AddCardModal";
@@ -706,20 +713,6 @@ export default function DashboardPage() {
     monthlyTransactions,
     todayDate,
   ]);
-
-  const spendingDonutSegments = useMemo(() => {
-    return personalSpendingDistribution.categories.map(
-      (category, index, categories) => ({
-        ...category,
-        offset: categories
-          .slice(0, index)
-          .reduce(
-            (total, previousCategory) => total + previousCategory.percentage,
-            0,
-          ),
-      }),
-    );
-  }, [personalSpendingDistribution.categories]);
 
   const pendingVariableIncomes = useMemo(
     () => monthlyTransactions.filter(isPendingVariableIncome),
@@ -1601,36 +1594,52 @@ export default function DashboardPage() {
                     className="relative flex size-28 items-center justify-center sm:size-32 lg:size-28 xl:size-32 2xl:size-[clamp(12rem,10vw,18rem)]"
                     aria-label="Distribuição dos gastos pessoais"
                   >
-                    <svg
-                      viewBox="0 0 120 120"
-                      className="absolute inset-0 size-full -rotate-90 overflow-visible"
-                      aria-hidden="true"
-                    >
-                      <circle
-                        cx="60"
-                        cy="60"
-                        r="43"
-                        fill="none"
-                        stroke="#27272a"
-                        strokeWidth="14"
-                        strokeLinecap="butt"
-                      />
-                      {spendingDonutSegments.map((category) => (
-                        <circle
-                          key={category.label}
-                          cx="60"
-                          cy="60"
-                          r="43"
-                          fill="none"
-                          stroke={category.hex}
-                          strokeWidth="14"
-                          strokeLinecap="round"
-                          pathLength="100"
-                          strokeDasharray={`${Math.max(category.percentage - 1.5, 0)} ${100 - Math.max(category.percentage - 1.5, 0)}`}
-                          strokeDashoffset={-category.offset}
-                        />
-                      ))}
-                    </svg>
+                    <div className="absolute inset-0 min-h-0 min-w-0">
+                      <ResponsiveContainer
+                        width="100%"
+                        height="100%"
+                        minWidth={1}
+                        minHeight={1}
+                      >
+                        <PieChart>
+                          <Pie
+                            data={personalSpendingDistribution.categories}
+                            dataKey="amount"
+                            nameKey="label"
+                            innerRadius="60%"
+                            outerRadius="80%"
+                            paddingAngle={2}
+                            cornerRadius={4}
+                            stroke="#18181b"
+                            strokeWidth={2}
+                            isAnimationActive
+                            animationDuration={1200}
+                          >
+                            {personalSpendingDistribution.categories.map(
+                              (category) => (
+                                <Cell
+                                  key={category.label}
+                                  fill={category.hex}
+                                />
+                              ),
+                            )}
+                          </Pie>
+                          <Tooltip
+                            contentStyle={{
+                              backgroundColor: "#18181b",
+                              border: "1px solid #27272a",
+                              borderRadius: "8px",
+                              color: "#f4f4f5",
+                            }}
+                            itemStyle={{ color: "#f4f4f5" }}
+                            formatter={(value, name) => [
+                              formatPrivateCurrency(Number(value)),
+                              name,
+                            ]}
+                          />
+                        </PieChart>
+                      </ResponsiveContainer>
+                    </div>
                     <div className="relative flex size-[62%] flex-col items-center justify-center rounded-full bg-zinc-950 text-center shadow-inner">
                       <span className="text-[10px] font-medium uppercase tracking-[0.16em] text-zinc-600 2xl:text-xs">
                         Total
