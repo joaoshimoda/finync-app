@@ -3,10 +3,11 @@ import { cookies } from "next/headers";
 import { redirect } from "next/navigation";
 
 import { ModernLandingPage } from "@/components/landing/ModernLandingPage";
+import type { Database } from "@/lib/database.types";
 
 async function getAuthenticatedUser() {
   const cookieStore = await cookies();
-  const supabase = createServerClient(
+  const supabase = createServerClient<Database>(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
     process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
     {

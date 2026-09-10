@@ -3,7 +3,7 @@ import {
   getLocalTodayDateOnly,
   normalizeDateOnly,
   toDateOnly,
-} from "@/lib/dateUtils";
+} from "./dateUtils.ts";
 
 export function getCardInvoiceMonthStart(date: string, closingDay?: number) {
   const normalizedDate = normalizeDateOnly(date);
@@ -38,13 +38,18 @@ export function getCurrentFinancialMonthStart(
   referenceDate = getLocalTodayDateOnly(),
 ) {
   const invoiceMonths = cards
-    .map((card) => getCardInvoiceMonthStart(referenceDate, card.closingDay ?? undefined))
+    .map((card) =>
+      getCardInvoiceMonthStart(referenceDate, card.closingDay ?? undefined),
+    )
     .sort();
 
-  return invoiceMonths.at(-1) ?? toDateOnly(
-    getDateOnlyParts(referenceDate).year,
-    getDateOnlyParts(referenceDate).month,
-    1,
+  return (
+    invoiceMonths.at(-1) ??
+    toDateOnly(
+      getDateOnlyParts(referenceDate).year,
+      getDateOnlyParts(referenceDate).month,
+      1,
+    )
   );
 }
 
@@ -52,7 +57,7 @@ function addMonthsToMonthStart(monthStart: string, offset: number) {
   const { month, year } = getDateOnlyParts(monthStart);
   const monthIndex = month - 1 + offset;
   const nextYear = year + Math.floor(monthIndex / 12);
-  const nextMonth = ((monthIndex % 12) + 12) % 12 + 1;
+  const nextMonth = (((monthIndex % 12) + 12) % 12) + 1;
 
   return toDateOnly(nextYear, nextMonth, 1);
 }
@@ -74,19 +79,14 @@ export function getCardInvoiceCycle(
   const previousMonthStart = addMonthsToMonthStart(normalizedInvoiceMonth, -1);
   const invoiceParts = getDateOnlyParts(normalizedInvoiceMonth);
   const previousParts = getDateOnlyParts(previousMonthStart);
-  const endParts =
-    safeClosingDay === 1 ? previousParts : invoiceParts;
+  const endParts = safeClosingDay === 1 ? previousParts : invoiceParts;
   const endDay =
     safeClosingDay === 1
       ? getLastDayOfMonth(previousParts.year, previousParts.month)
       : safeClosingDay - 1;
 
   return {
-    endDate: toClampedDateOnly(
-      endParts.year,
-      endParts.month,
-      endDay,
-    ),
+    endDate: toClampedDateOnly(endParts.year, endParts.month, endDay),
     startDate: toClampedDateOnly(
       previousParts.year,
       previousParts.month,

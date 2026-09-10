@@ -1,4 +1,4 @@
-import { getLocalTodayDateOnly, normalizeDateOnly } from "@/lib/dateUtils";
+import { getLocalTodayDateOnly, normalizeDateOnly } from "./dateUtils.ts";
 
 export const CARD_CREDIT_ADJUSTMENT_NOTE = "[card_credit_adjustment]";
 export const CARD_CREDIT_ADJUSTMENT_CATEGORY = "Crédito / Estorno";
@@ -29,9 +29,9 @@ export function isCardCreditAdjustment(transaction: CardCreditCandidate) {
   );
 }
 
-export function getCardSignedAmount<T extends CardCreditCandidate & { amount: number }>(
-  transaction: T,
-) {
+export function getCardSignedAmount<
+  T extends CardCreditCandidate & { amount: number },
+>(transaction: T) {
   return isCardCreditAdjustment(transaction)
     ? -transaction.amount
     : transaction.amount;

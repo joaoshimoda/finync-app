@@ -20,6 +20,7 @@ import {
   isEssentialCategory,
   type CategoryKind,
 } from "@/lib/categories";
+import type { Tables, TablesUpdate } from "@/lib/database.types";
 
 export type TransactionType = "income" | "fixed" | "card";
 export type TransactionStatus = "pending" | "confirmed" | "paid";
@@ -87,58 +88,10 @@ export type UpdateCardInput = Partial<CreateCardInput>;
 export type CreateDependentInput = Pick<Dependent, "name">;
 export type CreateCategoryInput = Pick<Category, "label" | "kind" | "icon">;
 
-interface CardRow {
-  id: string;
-  legacy_key: string;
-  name: string;
-  color: string | null;
-  emoji: string | null;
-  closing_day: number | null;
-  due_day: number | null;
-  limit_amount: number | null;
-  created_at: string;
-  updated_at: string;
-}
-
-interface TransactionRow {
-  id: string;
-  card_id: string | null;
-  dependent_id: string | null;
-  group_id: string | null;
-  month_start: string;
-  month_label: string | null;
-  transaction_date: string | null;
-  type: string | null;
-  description: string;
-  category: string | null;
-  amount: number | string | null;
-  day: number;
-  status: DbTransactionStatus;
-  owner: string | null;
-  import_signature: string | null;
-  installment_number: number | null;
-  installments_total: number | null;
-  recurring: boolean | null;
-  notes: string | null;
-  split_with: string[] | null;
-  created_at: string;
-  updated_at: string;
-}
-
-interface DependentRow {
-  id: string;
-  name: string;
-  created_at: string;
-}
-
-interface CategoryRow {
-  id: string;
-  name: string | null;
-  label: string;
-  kind: CategoryKind;
-  icon: string;
-  created_at: string;
-}
+type CardRow = Tables<"cards">;
+type TransactionRow = Tables<"transactions">;
+type DependentRow = Tables<"dependents">;
+type CategoryRow = Tables<"categories">;
 
 interface FinanceState {
   cards: Card[];
@@ -252,7 +205,7 @@ function getSelectedMonthRange(month: number, year: number) {
 function addMonthsToMonthStart(month: number, year: number, offset: number) {
   const monthIndex = month - 1 + offset;
   const nextYear = year + Math.floor(monthIndex / 12);
-  const nextMonth = ((monthIndex % 12) + 12) % 12 + 1;
+  const nextMonth = (((monthIndex % 12) + 12) % 12) + 1;
 
   return toDateOnly(nextYear, nextMonth, 1);
 }
@@ -362,7 +315,7 @@ function toTransactionInsertPayload(
 
   return {
     user_id: userId,
-    card_id: transaction.type === "card" ? transaction.cardId ?? null : null,
+    card_id: transaction.type === "card" ? (transaction.cardId ?? null) : null,
     dependent_id: transaction.dependentId ?? null,
     group_id: transaction.groupId ?? null,
     month_start: monthStart,
@@ -386,7 +339,11 @@ function toTransactionInsertPayload(
   };
 }
 
-function isTransactionInSelectedRange(transaction: Transaction, month: number, year: number) {
+function isTransactionInSelectedRange(
+  transaction: Transaction,
+  month: number,
+  year: number,
+) {
   return isTransactionInSelectedCompetence(transaction, month, year);
 }
 
@@ -481,10 +438,7 @@ export const useFinanceStore = create<FinanceState>()((set, get) => ({
 
   setHideBalancesByDefault: (hideBalances) => {
     if (typeof window !== "undefined") {
-      window.localStorage.setItem(
-        hideBalancesStorageKey,
-        String(hideBalances),
-      );
+      window.localStorage.setItem(hideBalancesStorageKey, String(hideBalances));
     }
 
     set({ hideBalancesByDefault: hideBalances });
@@ -543,7 +497,12 @@ export const useFinanceStore = create<FinanceState>()((set, get) => ({
 
       if (
         user &&
-        ["INITIAL_SESSION", "SIGNED_IN", "TOKEN_REFRESHED", "USER_UPDATED"].includes(event)
+        [
+          "INITIAL_SESSION",
+          "SIGNED_IN",
+          "TOKEN_REFRESHED",
+          "USER_UPDATED",
+        ].includes(event)
       ) {
         set({
           authUser: user,
@@ -854,7 +813,7 @@ export const useFinanceStore = create<FinanceState>()((set, get) => ({
       const user = await getCurrentUser();
       if (!user) throw new Error("Usuário não autenticado.");
 
-      const updatePayload: Record<string, string | number | null> = {};
+      const updatePayload: TablesUpdate<"cards"> = {};
 
       if (card.name !== undefined) {
         updatePayload.name = card.name;
@@ -863,9 +822,11 @@ export const useFinanceStore = create<FinanceState>()((set, get) => ({
 
       if (card.color !== undefined) updatePayload.color = card.color;
       if (card.emoji !== undefined) updatePayload.emoji = card.emoji;
-      if (card.closingDay !== undefined) updatePayload.closing_day = card.closingDay;
+      if (card.closingDay !== undefined)
+        updatePayload.closing_day = card.closingDay;
       if (card.dueDay !== undefined) updatePayload.due_day = card.dueDay;
-      if (card.limitAmount !== undefined) updatePayload.limit_amount = card.limitAmount;
+      if (card.limitAmount !== undefined)
+        updatePayload.limit_amount = card.limitAmount;
 
       const { data, error } = await supabase
         .from("cards")
@@ -1074,10 +1035,7 @@ export const useFinanceStore = create<FinanceState>()((set, get) => ({
           (transaction.cardId ?? null) !==
             (currentTransaction?.cardId ?? null));
 
-      const updatePayload: Record<
-        string,
-        string | number | boolean | string[] | null
-      > = {};
+      const updatePayload: TablesUpdate<"transactions"> = {};
 
       if (transaction.description !== undefined) {
         updatePayload.description = transaction.description;
@@ -1129,7 +1087,7 @@ export const useFinanceStore = create<FinanceState>()((set, get) => ({
       if (transaction.type !== undefined) {
         updatePayload.type = transaction.type;
         updatePayload.card_id =
-          transaction.type === "card" ? transaction.cardId ?? null : null;
+          transaction.type === "card" ? (transaction.cardId ?? null) : null;
       } else if (transaction.cardId !== undefined) {
         updatePayload.card_id = transaction.cardId;
       }
@@ -1183,7 +1141,8 @@ export const useFinanceStore = create<FinanceState>()((set, get) => ({
         .single();
 
       if (error) throw error;
-      if (!data) throw new Error("Supabase não retornou a transação atualizada.");
+      if (!data)
+        throw new Error("Supabase não retornou a transação atualizada.");
 
       const updatedTransaction = mapTransaction(data as TransactionRow);
 
@@ -1198,16 +1157,23 @@ export const useFinanceStore = create<FinanceState>()((set, get) => ({
     }
   },
 
-  updateTransactionGroup: async (groupId, fromDate, transaction, scope = "future") => {
+  updateTransactionGroup: async (
+    groupId,
+    fromDate,
+    transaction,
+    scope = "future",
+  ) => {
     try {
       const user = await getCurrentUser();
       if (!user) throw new Error("Usuário não autenticado.");
 
       const normalizedFromDate = normalizeDateOnly(fromDate);
       const sourceDay =
-        transaction.date !== undefined ? getDayFromDate(transaction.date) : null;
-      const groupTransactions = get().transactions
-        .filter(
+        transaction.date !== undefined
+          ? getDayFromDate(transaction.date)
+          : null;
+      const groupTransactions = get()
+        .transactions.filter(
           (currentTransaction) =>
             currentTransaction.groupId === groupId &&
             (scope === "all" ||
@@ -1247,10 +1213,7 @@ export const useFinanceStore = create<FinanceState>()((set, get) => ({
             sourceDay === null
               ? normalizeDateOnly(currentTransaction.date)
               : replaceDateOnlyDay(currentTransaction.date, sourceDay);
-          const updatePayload: Record<
-            string,
-            string | number | boolean | string[] | null
-          > = {};
+          const updatePayload: TablesUpdate<"transactions"> = {};
 
           if (transaction.description !== undefined) {
             updatePayload.description = transaction.description;
@@ -1295,7 +1258,7 @@ export const useFinanceStore = create<FinanceState>()((set, get) => ({
           if (transaction.type !== undefined) {
             updatePayload.type = transaction.type;
             updatePayload.card_id =
-              transaction.type === "card" ? transaction.cardId ?? null : null;
+              transaction.type === "card" ? (transaction.cardId ?? null) : null;
           } else if (transaction.cardId !== undefined) {
             updatePayload.card_id = transaction.cardId;
           }
@@ -1451,8 +1414,9 @@ export const useFinanceStore = create<FinanceState>()((set, get) => ({
       );
 
       set((state) => ({
-        transactions: state.transactions.map((transaction) =>
-          paidTransactionById.get(transaction.id) ?? transaction,
+        transactions: state.transactions.map(
+          (transaction) =>
+            paidTransactionById.get(transaction.id) ?? transaction,
         ),
       }));
     } catch (error) {
@@ -1529,5 +1493,4 @@ export const useFinanceStore = create<FinanceState>()((set, get) => ({
       throw error;
     }
   },
-
 }));

@@ -1,4 +1,4 @@
-import { getDateOnlyParts } from "@/lib/dateUtils";
+import { getDateOnlyParts } from "./dateUtils.ts";
 
 type PeriodTransaction = {
   type: string;
@@ -8,7 +8,7 @@ type PeriodTransaction = {
 
 export function getTransactionCompetenceDate(transaction: PeriodTransaction) {
   return transaction.type === "card"
-    ? transaction.billingMonthStart ?? transaction.date
+    ? (transaction.billingMonthStart ?? transaction.date)
     : transaction.date;
 }
 

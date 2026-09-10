@@ -1,5 +1,5 @@
-import { getCardSignedAmount } from "@/lib/cardCredits";
-import { isTransactionInSelectedCompetence } from "@/lib/transactionPeriod";
+import { getCardSignedAmount } from "./cardCredits.ts";
+import { isTransactionInSelectedCompetence } from "./transactionPeriod.ts";
 
 export type ExpenseAggregationEntry = {
   id: string;

@@ -1,21 +1,15 @@
 ﻿"use client";
 
 import { FormEvent, useEffect, useMemo, useState } from "react";
-import {
-  CalendarDays,
-  CreditCard,
-  ReceiptText,
-  UserRound,
-} from "lucide-react";
+import { CalendarDays, CreditCard, ReceiptText, UserRound } from "lucide-react";
 import { toast } from "sonner";
 
-import {
-  getDateOnlyParts,
-  getLocalTodayDateOnly,
-  normalizeDateOnly,
-  toDateOnly,
-} from "@/lib/dateUtils";
+import { getLocalTodayDateOnly, normalizeDateOnly } from "@/lib/dateUtils";
 import { getInstallmentInvoiceMonthStart } from "@/lib/cardBilling";
+import {
+  addMonthsToDateOnly,
+  splitAmountIntoInstallments,
+} from "@/lib/transactionProjection";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -48,28 +42,6 @@ interface AddTransactionModalProps {
 
 type ExpenseTransactionType = "fixed" | "card";
 type GroupEditScope = "single" | "future" | "all";
-
-function addMonthsToDateOnly(date: string, monthsToAdd: number) {
-  const { day, month, year } = getDateOnlyParts(date);
-  const monthIndex = month - 1 + monthsToAdd;
-  const nextYear = year + Math.floor(monthIndex / 12);
-  const nextMonth = (monthIndex % 12) + 1;
-  const lastDayOfNextMonth = new Date(nextYear, nextMonth, 0).getDate();
-
-  return toDateOnly(nextYear, nextMonth, Math.min(day, lastDayOfNextMonth));
-}
-
-function splitAmountIntoInstallments(totalAmount: number, installments: number) {
-  const totalCents = Math.round(totalAmount * 100);
-  const baseCents = Math.floor(totalCents / installments);
-  const remainder = totalCents % installments;
-
-  return Array.from({ length: installments }, (_, index) => {
-    const cents = baseCents + (index < remainder ? 1 : 0);
-
-    return Number((cents / 100).toFixed(2));
-  });
-}
 
 export function AddTransactionModal({
   isOpen,
@@ -120,7 +92,9 @@ function TransactionModalContent({
     editingTransaction?.description ?? "",
   );
   const [amount, setAmount] = useState(
-    editingTransaction ? String(editingTransaction.amount).replace(".", ",") : "",
+    editingTransaction
+      ? String(editingTransaction.amount).replace(".", ",")
+      : "",
   );
   const [date, setDate] = useState(
     editingTransaction?.date
@@ -143,7 +117,7 @@ function TransactionModalContent({
   const [isInstallmentPurchase, setIsInstallmentPurchase] = useState(false);
   const [installmentCount, setInstallmentCount] = useState("2");
   const [isRecurring, setIsRecurring] = useState(
-    isFixedMode ? true : editingTransaction?.is_recurring ?? false,
+    isFixedMode ? true : (editingTransaction?.is_recurring ?? false),
   );
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [pendingRecurringUpdate, setPendingRecurringUpdate] =
@@ -199,7 +173,7 @@ function TransactionModalContent({
           ? "Grupo inteiro atualizado."
           : scope === "future"
             ? "Lançamentos atualizados deste mês em diante."
-          : "Lançamento deste mês atualizado.",
+            : "Lançamento deste mês atualizado.",
       );
       onClose();
     } catch (error) {
@@ -401,212 +375,214 @@ function TransactionModalContent({
           disabled={Boolean(pendingRecurringUpdate)}
           className="space-y-6 disabled:opacity-70"
         >
-        <section className="space-y-2 text-center">
-          <div className="relative mx-auto max-w-sm rounded-lg border border-zinc-800/80 bg-zinc-900/30">
-            <span className="pointer-events-none absolute left-5 top-1/2 -translate-y-1/2 text-xl font-semibold text-zinc-400">
-              R$
-            </span>
-            <Input
-              id="transaction-amount"
-              value={amount}
-              onChange={(event) => setAmount(event.target.value)}
-              type="text"
-              inputMode="decimal"
-              placeholder="0,00"
-              className="h-16 border-none bg-transparent px-12 text-center text-4xl font-semibold tracking-tight text-white shadow-none ring-0 placeholder:text-zinc-500 focus-visible:ring-0 focus-visible:ring-offset-0"
-              required
-            />
-          </div>
-
-          <Input
-            id="transaction-description"
-            value={description}
-            onChange={(event) => setDescription(event.target.value)}
-            type="text"
-            placeholder="Descrição da transação"
-            className="mx-auto h-10 max-w-md rounded-lg border border-zinc-800/80 bg-zinc-900/30 text-center text-lg text-zinc-100 shadow-none ring-0 placeholder:text-zinc-400 focus:outline-none focus:ring-0 focus-visible:ring-0 focus-visible:ring-offset-0"
-            required
-          />
-        </section>
-
-        <section className="mt-6 grid grid-cols-2 gap-6">
-          <div className="space-y-3">
-            <div className="space-y-2">
-              <div className="flex items-center gap-2 text-xs font-medium uppercase tracking-wide text-zinc-400">
-                <CalendarDays className="size-3.5" />
-                Data
-              </div>
+          <section className="space-y-2 text-center">
+            <div className="relative mx-auto max-w-sm rounded-lg border border-zinc-800/80 bg-zinc-900/30">
+              <span className="pointer-events-none absolute left-5 top-1/2 -translate-y-1/2 text-xl font-semibold text-zinc-400">
+                R$
+              </span>
               <Input
-                id="transaction-date"
-                value={date}
-                onChange={(event) => setDate(event.target.value)}
-                type="date"
-                className="flex h-10 items-center border border-zinc-700 bg-zinc-900 text-sm text-zinc-200 shadow-none transition-colors [color-scheme:dark] hover:border-zinc-600 focus:border-emerald-500 focus-visible:ring-1 focus-visible:ring-emerald-500 focus-visible:ring-offset-0"
+                id="transaction-amount"
+                value={amount}
+                onChange={(event) => setAmount(event.target.value)}
+                type="text"
+                inputMode="decimal"
+                placeholder="0,00"
+                className="h-16 border-none bg-transparent px-12 text-center text-4xl font-semibold tracking-tight text-white shadow-none ring-0 placeholder:text-zinc-500 focus-visible:ring-0 focus-visible:ring-offset-0"
                 required
               />
             </div>
 
-            <div className="space-y-2">
-              <div className="flex items-center gap-2 text-xs font-medium uppercase tracking-wide text-zinc-400">
-                <CreditCard className="size-3.5" />
-                {isFixedMode ? "Método" : "Tipo"}
+            <Input
+              id="transaction-description"
+              value={description}
+              onChange={(event) => setDescription(event.target.value)}
+              type="text"
+              placeholder="Descrição da transação"
+              className="mx-auto h-10 max-w-md rounded-lg border border-zinc-800/80 bg-zinc-900/30 text-center text-lg text-zinc-100 shadow-none ring-0 placeholder:text-zinc-400 focus:outline-none focus:ring-0 focus-visible:ring-0 focus-visible:ring-offset-0"
+              required
+            />
+          </section>
+
+          <section className="mt-6 grid grid-cols-2 gap-6">
+            <div className="space-y-3">
+              <div className="space-y-2">
+                <div className="flex items-center gap-2 text-xs font-medium uppercase tracking-wide text-zinc-400">
+                  <CalendarDays className="size-3.5" />
+                  Data
+                </div>
+                <Input
+                  id="transaction-date"
+                  value={date}
+                  onChange={(event) => setDate(event.target.value)}
+                  type="date"
+                  className="flex h-10 items-center border border-zinc-700 bg-zinc-900 text-sm text-zinc-200 shadow-none transition-colors [color-scheme:dark] hover:border-zinc-600 focus:border-emerald-500 focus-visible:ring-1 focus-visible:ring-emerald-500 focus-visible:ring-offset-0"
+                  required
+                />
               </div>
-              <Select
-                value={transactionType}
-                onValueChange={(value) => {
-                  const nextType = value as ExpenseTransactionType;
 
-                  setTransactionType(nextType);
-                  if (nextType !== "card") {
-                    setSelectedCardId("");
-                    setIsInstallmentPurchase(false);
-                  }
-                }}
-              >
-                <SelectTrigger className="flex h-10 items-center border border-zinc-700 bg-zinc-900 text-sm text-zinc-200 shadow-none transition-colors hover:border-zinc-600 focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500 focus:ring-offset-0">
-                  <SelectValue placeholder="Tipo" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="fixed">Débito/PIX</SelectItem>
-                  <SelectItem value="card">Cartão de Crédito</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
-
-            {transactionType === "card" ? (
               <div className="space-y-2">
                 <div className="flex items-center gap-2 text-xs font-medium uppercase tracking-wide text-zinc-400">
                   <CreditCard className="size-3.5" />
-                  Cartão
+                  {isFixedMode ? "Método" : "Tipo"}
                 </div>
                 <Select
-                  value={selectedCardId}
-                  onValueChange={setSelectedCardId}
-                  disabled={!cards.length}
+                  value={transactionType}
+                  onValueChange={(value) => {
+                    const nextType = value as ExpenseTransactionType;
+
+                    setTransactionType(nextType);
+                    if (nextType !== "card") {
+                      setSelectedCardId("");
+                      setIsInstallmentPurchase(false);
+                    }
+                  }}
                 >
                   <SelectTrigger className="flex h-10 items-center border border-zinc-700 bg-zinc-900 text-sm text-zinc-200 shadow-none transition-colors hover:border-zinc-600 focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500 focus:ring-offset-0">
-                    <SelectValue placeholder="Selecionar cartão" />
+                    <SelectValue placeholder="Tipo" />
                   </SelectTrigger>
                   <SelectContent>
-                    {cards.map((card) => (
-                      <SelectItem key={card.id} value={card.id}>
-                        {card.name}
+                    <SelectItem value="fixed">Débito/PIX</SelectItem>
+                    <SelectItem value="card">Cartão de Crédito</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+
+              {transactionType === "card" ? (
+                <div className="space-y-2">
+                  <div className="flex items-center gap-2 text-xs font-medium uppercase tracking-wide text-zinc-400">
+                    <CreditCard className="size-3.5" />
+                    Cartão
+                  </div>
+                  <Select
+                    value={selectedCardId}
+                    onValueChange={setSelectedCardId}
+                    disabled={!cards.length}
+                  >
+                    <SelectTrigger className="flex h-10 items-center border border-zinc-700 bg-zinc-900 text-sm text-zinc-200 shadow-none transition-colors hover:border-zinc-600 focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500 focus:ring-offset-0">
+                      <SelectValue placeholder="Selecionar cartão" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {cards.map((card) => (
+                        <SelectItem key={card.id} value={card.id}>
+                          {card.name}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+              ) : null}
+            </div>
+
+            <div className="space-y-3">
+              <div className="space-y-2">
+                <div className="flex items-center gap-2 text-xs font-medium uppercase tracking-wide text-zinc-400">
+                  <ReceiptText className="size-3.5" />
+                  Categoria
+                </div>
+                <Select value={category} onValueChange={setCategory}>
+                  <SelectTrigger className="flex h-10 items-center border border-zinc-700 bg-zinc-900 text-sm text-zinc-200 shadow-none transition-colors hover:border-zinc-600 focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500 focus:ring-offset-0">
+                    <SelectValue placeholder="Categoria" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {expenseCategories.map((item) => (
+                      <SelectItem key={item.id} value={item.label}>
+                        {item.label}
                       </SelectItem>
                     ))}
                   </SelectContent>
                 </Select>
               </div>
-            ) : null}
-          </div>
 
-          <div className="space-y-3">
-            <div className="space-y-2">
-              <div className="flex items-center gap-2 text-xs font-medium uppercase tracking-wide text-zinc-400">
-                <ReceiptText className="size-3.5" />
-                Categoria
-              </div>
-              <Select value={category} onValueChange={setCategory}>
-                <SelectTrigger className="flex h-10 items-center border border-zinc-700 bg-zinc-900 text-sm text-zinc-200 shadow-none transition-colors hover:border-zinc-600 focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500 focus:ring-offset-0">
-                  <SelectValue placeholder="Categoria" />
-                </SelectTrigger>
-                <SelectContent>
-                  {expenseCategories.map((item) => (
-                    <SelectItem key={item.id} value={item.label}>
-                      {item.label}
+              <div className="space-y-2">
+                <div className="flex items-center gap-2 text-xs font-medium uppercase tracking-wide text-zinc-400">
+                  <UserRound className="size-3.5" />
+                  Dependente
+                </div>
+                <Select
+                  value={selectedDependentId || "__no_dependent__"}
+                  onValueChange={(nextValue) =>
+                    setSelectedDependentId(
+                      nextValue === "__no_dependent__" ? "" : nextValue,
+                    )
+                  }
+                >
+                  <SelectTrigger className="flex h-10 items-center border border-zinc-700 bg-zinc-900 text-sm text-zinc-200 shadow-none transition-colors hover:border-zinc-600 focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500 focus:ring-offset-0">
+                    <SelectValue placeholder="Sem dependente" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="__no_dependent__">
+                      Sem dependente
                     </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-
-            <div className="space-y-2">
-              <div className="flex items-center gap-2 text-xs font-medium uppercase tracking-wide text-zinc-400">
-                <UserRound className="size-3.5" />
-                Dependente
+                    {dependents.map((dependent) => (
+                      <SelectItem key={dependent.id} value={dependent.id}>
+                        {dependent.name}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
               </div>
-              <Select
-                value={selectedDependentId || "__no_dependent__"}
-                onValueChange={(nextValue) =>
-                  setSelectedDependentId(
-                    nextValue === "__no_dependent__" ? "" : nextValue,
-                  )
-                }
-              >
-                <SelectTrigger className="flex h-10 items-center border border-zinc-700 bg-zinc-900 text-sm text-zinc-200 shadow-none transition-colors hover:border-zinc-600 focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500 focus:ring-offset-0">
-                  <SelectValue placeholder="Sem dependente" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="__no_dependent__">Sem dependente</SelectItem>
-                  {dependents.map((dependent) => (
-                    <SelectItem key={dependent.id} value={dependent.id}>
-                      {dependent.name}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
             </div>
-          </div>
-        </section>
-
-        {!isFixedMode ? (
-          <section className="flex items-center justify-between gap-6 rounded-xl border border-zinc-700 bg-zinc-900/50 p-4">
-            <div>
-              <p className="text-sm font-medium text-zinc-200">
-                {transactionType === "card"
-                  ? "Assinatura mensal"
-                  : "Gasto fixo recorrente"}
-              </p>
-              <p className="mt-1 text-xs text-zinc-500">
-                Repete automaticamente nos próximos meses.
-              </p>
-            </div>
-            <Switch
-              id="recurring-toggle"
-              checked={isRecurring}
-              onCheckedChange={(checked) => {
-                setIsRecurring(checked);
-                if (checked) {
-                  setIsInstallmentPurchase(false);
-                }
-              }}
-            />
           </section>
-        ) : null}
 
-        {transactionType === "card" && !isFixedMode && !editingTransaction ? (
-          <section className="flex items-center justify-between gap-6 rounded-xl border border-zinc-700 bg-zinc-900/50 p-4">
-            <div>
-              <p className="text-sm font-medium text-zinc-200">
-                Compra parcelada?
-              </p>
-              <p className="mt-1 text-xs text-zinc-500">
-                Divida o lançamento em parcelas mensais.
-              </p>
-            </div>
-            <Switch
-              checked={isInstallmentPurchase}
-              onCheckedChange={(checked) => {
-                setIsInstallmentPurchase(checked);
-                if (checked) {
-                  setIsRecurring(false);
-                }
-              }}
+          {!isFixedMode ? (
+            <section className="flex items-center justify-between gap-6 rounded-xl border border-zinc-700 bg-zinc-900/50 p-4">
+              <div>
+                <p className="text-sm font-medium text-zinc-200">
+                  {transactionType === "card"
+                    ? "Assinatura mensal"
+                    : "Gasto fixo recorrente"}
+                </p>
+                <p className="mt-1 text-xs text-zinc-500">
+                  Repete automaticamente nos próximos meses.
+                </p>
+              </div>
+              <Switch
+                id="recurring-toggle"
+                checked={isRecurring}
+                onCheckedChange={(checked) => {
+                  setIsRecurring(checked);
+                  if (checked) {
+                    setIsInstallmentPurchase(false);
+                  }
+                }}
+              />
+            </section>
+          ) : null}
+
+          {transactionType === "card" && !isFixedMode && !editingTransaction ? (
+            <section className="flex items-center justify-between gap-6 rounded-xl border border-zinc-700 bg-zinc-900/50 p-4">
+              <div>
+                <p className="text-sm font-medium text-zinc-200">
+                  Compra parcelada?
+                </p>
+                <p className="mt-1 text-xs text-zinc-500">
+                  Divida o lançamento em parcelas mensais.
+                </p>
+              </div>
+              <Switch
+                checked={isInstallmentPurchase}
+                onCheckedChange={(checked) => {
+                  setIsInstallmentPurchase(checked);
+                  if (checked) {
+                    setIsRecurring(false);
+                  }
+                }}
+              />
+            </section>
+          ) : null}
+
+          {transactionType === "card" && isInstallmentPurchase ? (
+            <Input
+              id="installments"
+              value={installmentCount}
+              onChange={(event) => setInstallmentCount(event.target.value)}
+              type="number"
+              min={2}
+              step={1}
+              placeholder="Quantidade de parcelas"
+              className="h-11 border border-zinc-700 bg-zinc-900 transition-colors hover:border-zinc-600 focus-visible:border-emerald-500"
             />
-          </section>
-        ) : null}
-
-        {transactionType === "card" && isInstallmentPurchase ? (
-          <Input
-            id="installments"
-            value={installmentCount}
-            onChange={(event) => setInstallmentCount(event.target.value)}
-            type="number"
-            min={2}
-            step={1}
-            placeholder="Quantidade de parcelas"
-            className="h-11 border border-zinc-700 bg-zinc-900 transition-colors hover:border-zinc-600 focus-visible:border-emerald-500"
-          />
-        ) : null}
+          ) : null}
         </fieldset>
 
         {pendingRecurringUpdate ? (

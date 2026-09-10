@@ -1,6 +1,7 @@
 import { createServerClient, type CookieOptions } from "@supabase/ssr";
 import { NextResponse, type NextRequest } from "next/server";
 import { getSafeInternalRedirect } from "@/lib/safeRedirect";
+import type { Database } from "@/lib/database.types";
 
 const thirtyDaysInSeconds = 30 * 24 * 60 * 60;
 
@@ -34,7 +35,7 @@ export async function GET(request: NextRequest) {
     return NextResponse.redirect(new URL("/recuperar-senha", request.url));
   }
 
-  const supabase = createServerClient(
+  const supabase = createServerClient<Database>(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
     process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
     {

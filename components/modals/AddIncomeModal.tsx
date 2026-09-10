@@ -20,12 +20,8 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import {
-  getDateOnlyParts,
-  getLocalTodayDateOnly,
-  normalizeDateOnly,
-  toDateOnly,
-} from "@/lib/dateUtils";
+import { getLocalTodayDateOnly, normalizeDateOnly } from "@/lib/dateUtils";
+import { addMonthsToDateOnly } from "@/lib/transactionProjection";
 import {
   RECURRING_INCOME_NOTE,
   VARIABLE_INCOME_NOTE,
@@ -45,16 +41,6 @@ interface AddIncomeModalProps {
 }
 
 type GroupEditScope = "single" | "future" | "all";
-
-function addMonthsToDateOnly(date: string, monthsToAdd: number) {
-  const { day, month, year } = getDateOnlyParts(date);
-  const monthIndex = month - 1 + monthsToAdd;
-  const nextYear = year + Math.floor(monthIndex / 12);
-  const nextMonth = (monthIndex % 12) + 1;
-  const lastDayOfNextMonth = new Date(nextYear, nextMonth, 0).getDate();
-
-  return toDateOnly(nextYear, nextMonth, Math.min(day, lastDayOfNextMonth));
-}
 
 export function AddIncomeModal({
   isOpen,
@@ -93,7 +79,9 @@ function IncomeModalContent({
   );
 
   const [amount, setAmount] = useState(
-    editingTransaction ? String(editingTransaction.amount).replace(".", ",") : "",
+    editingTransaction
+      ? String(editingTransaction.amount).replace(".", ",")
+      : "",
   );
   const [date, setDate] = useState(
     editingTransaction?.date
@@ -346,7 +334,6 @@ function IncomeModalContent({
                 required
               />
             </div>
-
           </div>
 
           <div className="space-y-3">
@@ -371,8 +358,6 @@ function IncomeModalContent({
                 </SelectContent>
               </Select>
             </div>
-
-
           </div>
         </section>
 

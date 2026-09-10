@@ -1280,17 +1280,24 @@ export default function ImportarPage() {
   }
 
   function getRowsForImport(transaction: ParsedTransaction) {
+    if (transaction.type === "credit") {
+      return [transaction];
+    }
+
+    const groupId =
+      transaction.installmentsTotal > 1
+        ? (transaction.groupId ?? crypto.randomUUID())
+        : transaction.groupId;
+
     if (
-      transaction.type === "credit" ||
       !transaction.projectFutureInstallments ||
       transaction.installmentNumber >= transaction.installmentsTotal
     ) {
-      return [transaction];
+      return [{ ...transaction, groupId }];
     }
 
     const remainingInstallments =
       transaction.installmentsTotal - transaction.installmentNumber + 1;
-    const groupId = transaction.groupId ?? crypto.randomUUID();
     const baseDescription = transaction.description.replace(
       /\s*\(\d{1,2}\/\d{1,2}\)$/,
       "",
