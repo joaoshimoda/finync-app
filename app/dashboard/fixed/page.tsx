@@ -39,7 +39,6 @@ import {
 } from "@/lib/dateUtils";
 import {
   getTransactionStatusPresentation,
-  isFutureCardSubscription,
 } from "@/lib/transactionStatus";
 import { isTransactionInSelectedCompetence } from "@/lib/transactionPeriod";
 import { cn } from "@/lib/utils";
@@ -58,8 +57,6 @@ function getDayDifference(dateOnly: string) {
 }
 
 function getSubscriptionChargeLabel(transaction: Transaction) {
-  if (transaction.status === "paid") return "Fatura liquidada";
-
   const dayDifference = getDayDifference(transaction.date);
 
   if (dayDifference > 0) {
@@ -92,8 +89,8 @@ interface SubscriptionGroup {
   transactions: Transaction[];
   nextCharge: Transaction;
   projectedTotal: number;
-  paidCount: number;
-  openCount: number;
+  postedCount: number;
+  scheduledCount: number;
 }
 
 function isInSelectedMonth(
@@ -183,11 +180,8 @@ export default function FixedExpensesPage() {
         const nextCharge =
           sortedTransactions.find(
             (transaction) =>
-              transaction.status !== "paid" &&
               normalizeDateOnly(transaction.date) >= getLocalTodayDateOnly(),
-          ) ??
-          sortedTransactions.find((transaction) => transaction.status !== "paid") ??
-          representative;
+          ) ?? representative;
 
         return {
           id: groupId,
@@ -198,11 +192,11 @@ export default function FixedExpensesPage() {
             (total, transaction) => total + transaction.amount,
             0,
           ),
-          paidCount: sortedTransactions.filter(
-            (transaction) => transaction.status === "paid",
+          postedCount: sortedTransactions.filter(
+            (transaction) => transaction.status === "confirmed",
           ).length,
-          openCount: sortedTransactions.filter(
-            (transaction) => transaction.status !== "paid",
+          scheduledCount: sortedTransactions.filter(
+            (transaction) => transaction.status === "pending",
           ).length,
         };
       })
@@ -213,18 +207,12 @@ export default function FixedExpensesPage() {
       );
   }, [currentMonth, currentYear, subscriptionTransactions, transactions]);
 
-  const activeTransactions = useMemo(
-    () => (activeTab === "fixed" ? fixedTransactions : subscriptionTransactions),
-    [activeTab, fixedTransactions, subscriptionTransactions],
-  );
   const pendingTransactions = useMemo(
     () =>
-      activeTransactions.filter(
-        (transaction) =>
-          transaction.status !== "paid" &&
-          !isFutureCardSubscription(transaction),
+      fixedTransactions.filter(
+        (transaction) => transaction.status !== "paid",
       ),
-    [activeTransactions],
+    [fixedTransactions],
   );
   const activePendingIds = useMemo(
     () => new Set(pendingTransactions.map((transaction) => transaction.id)),
@@ -333,17 +321,13 @@ export default function FixedExpensesPage() {
   ]);
 
   const togglePaymentStatus = useCallback(async (transaction: Transaction) => {
-    if (isFutureCardSubscription(transaction)) {
-      toast.error("Essa assinatura ainda não caiu na fatura.");
+    if (transaction.type !== "fixed") {
+      toast.error("Assinaturas são liquidadas pelo pagamento da fatura.");
       return;
     }
 
     const nextStatus =
-      transaction.status === "paid"
-        ? transaction.type === "card"
-          ? "confirmed"
-          : "pending"
-        : "paid";
+      transaction.status === "paid" ? "pending" : "paid";
 
     try {
       await updateTransaction(transaction.id, { status: nextStatus });
@@ -651,8 +635,6 @@ export default function FixedExpensesPage() {
           {groups.length ? (
             groups.map((group) => {
               const transaction = group.representative;
-              const isPaid = group.nextCharge.status === "paid";
-              const isFutureSubscription = isFutureCardSubscription(group.nextCharge);
               const statusPresentation =
                 getTransactionStatusPresentation(group.nextCharge);
 
@@ -684,7 +666,7 @@ export default function FixedExpensesPage() {
                     <div>
                       <p className="text-zinc-500">Cobranças</p>
                       <p className="mt-1 font-medium text-zinc-200">
-                        {group.openCount} abertas • {group.paidCount} pagas
+                        {group.postedCount} lançadas • {group.scheduledCount} agendadas
                       </p>
                     </div>
                   </div>
@@ -702,13 +684,6 @@ export default function FixedExpensesPage() {
                       </p>
                     </div>
                     <div className="flex items-center gap-1">
-                      <Checkbox
-                        aria-label={`Selecionar ${transaction.description}`}
-                        checked={effectiveSelectedIds.includes(transaction.id)}
-                        disabled={isPaid || isFutureSubscription}
-                        onCheckedChange={() => toggleSelection(transaction.id)}
-                        className="mr-2 size-5 border-zinc-600"
-                      />
                       <Button
                         type="button"
                         variant="ghost"
@@ -751,15 +726,6 @@ export default function FixedExpensesPage() {
         <Table className="hidden min-w-[820px] md:table">
           <TableHeader>
             <TableRow className="border-zinc-800 bg-zinc-900/60 hover:bg-zinc-900/60">
-              <TableHead className="w-12 px-4">
-                <Checkbox
-                  aria-label="Selecionar todas as assinaturas cobradas"
-                  checked={allPendingSelected}
-                  disabled={!pendingTransactions.length}
-                  onCheckedChange={toggleAllPending}
-                  className="border-zinc-600"
-                />
-              </TableHead>
               <TableHead>Assinatura</TableHead>
               <TableHead>Cartão</TableHead>
               <TableHead>Próxima cobrança</TableHead>
@@ -773,8 +739,6 @@ export default function FixedExpensesPage() {
             {groups.length ? (
               groups.map((group) => {
                 const transaction = group.representative;
-                const isPaid = group.nextCharge.status === "paid";
-                const isFutureSubscription = isFutureCardSubscription(group.nextCharge);
                 const statusPresentation =
                   getTransactionStatusPresentation(group.nextCharge);
 
@@ -783,15 +747,6 @@ export default function FixedExpensesPage() {
                     key={group.id}
                     className="border-zinc-800 transition-colors hover:bg-zinc-900/50"
                   >
-                    <TableCell className="px-4">
-                      <Checkbox
-                        aria-label={`Selecionar ${transaction.description}`}
-                        checked={effectiveSelectedIds.includes(transaction.id)}
-                        disabled={isPaid || isFutureSubscription}
-                        onCheckedChange={() => toggleSelection(transaction.id)}
-                        className="border-zinc-600"
-                      />
-                    </TableCell>
                     <TableCell>
                       <div className="font-medium text-zinc-100">
                         <TransactionDescription transaction={transaction} />
@@ -827,7 +782,7 @@ export default function FixedExpensesPage() {
                         {brlFormatter.format(group.projectedTotal)}
                       </p>
                       <p className="mt-1 text-xs text-zinc-500">
-                        {group.openCount} abertas • {group.paidCount} pagas
+                        {group.postedCount} lançadas • {group.scheduledCount} agendadas
                       </p>
                     </TableCell>
                     <TableCell>
@@ -867,7 +822,7 @@ export default function FixedExpensesPage() {
               })
             ) : (
               <TableRow className="border-zinc-800 hover:bg-transparent">
-                <TableCell colSpan={8} className="h-48 text-center">
+                <TableCell colSpan={7} className="h-48 text-center">
                   <div className="flex flex-col items-center justify-center gap-3 text-zinc-500">
                     <CreditCard className="size-7" strokeWidth={1.6} />
                     <span>Nenhuma assinatura neste período.</span>

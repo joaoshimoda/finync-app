@@ -652,6 +652,10 @@ export type Database = {
           title: string;
         }[];
       };
+      finync_sync_due_transaction_statuses: {
+        Args: Record<PropertyKey, never>;
+        Returns: number;
+      };
     };
     Enums: Record<string, never>;
     CompositeTypes: Record<string, never>;

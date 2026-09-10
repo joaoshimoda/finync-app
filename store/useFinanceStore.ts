@@ -21,10 +21,15 @@ import {
   type CategoryKind,
 } from "@/lib/categories";
 import type { Tables, TablesUpdate } from "@/lib/database.types";
+import {
+  fromDbTransactionStatus,
+  getCanonicalTransactionStatus,
+  toDbTransactionStatus,
+  type TransactionStatus,
+} from "@/lib/transactionStatus";
 
 export type TransactionType = "income" | "fixed" | "card";
-export type TransactionStatus = "pending" | "confirmed" | "paid";
-type DbTransactionStatus = "PAGO" | "PENDENTE" | "CONFIRMADO";
+export type { TransactionStatus } from "@/lib/transactionStatus";
 export type CardInvoiceStatus =
   | "open"
   | "closed"
@@ -292,33 +297,6 @@ function slugify(value: string) {
     .replace(/[^a-z0-9_]/g, "");
 }
 
-function toDbStatus(status?: TransactionStatus): DbTransactionStatus {
-  if (status === "paid") return "PAGO";
-  if (status === "pending") return "PENDENTE";
-  return "CONFIRMADO";
-}
-
-function fromDbStatus(status: DbTransactionStatus): TransactionStatus {
-  if (status === "PAGO") return "paid";
-  if (status === "PENDENTE") return "pending";
-  return "confirmed";
-}
-
-function getInitialTransactionStatus(
-  transaction: CreateTransactionInput,
-): TransactionStatus | undefined {
-  if (
-    transaction.type === "card" &&
-    transaction.is_recurring === true &&
-    transaction.status === "pending" &&
-    normalizeDateOnly(transaction.date) <= getLocalTodayDateOnly()
-  ) {
-    return "confirmed";
-  }
-
-  return transaction.status;
-}
-
 function getMonthStart(date: string) {
   const { month, year } = getDateOnlyParts(date);
 
@@ -461,7 +439,7 @@ function mapTransaction(row: TransactionRow): Transaction {
     date: row.transaction_date ?? toDateOnly(year, month, row.day || 1),
     category: row.category ?? "",
     type: toTransactionType(row.type),
-    status: fromDbStatus(row.status),
+    status: fromDbTransactionStatus(row.status),
     cardId: row.card_id,
     invoiceId: row.invoice_id ?? null,
     dependentId: row.dependent_id,
@@ -513,7 +491,7 @@ function toTransactionInsertPayload(
     category: transaction.category,
     amount: transaction.amount,
     day: getDayFromDate(normalizedDate),
-    status: toDbStatus(getInitialTransactionStatus(transaction)),
+    status: toDbTransactionStatus(getCanonicalTransactionStatus(transaction)),
     owner: transaction.owner ?? "eu",
     installment_number:
       transaction.current_installment ?? transaction.installmentNumber ?? 1,
@@ -1550,17 +1528,9 @@ export const useFinanceStore = create<FinanceState>()((set, get) => ({
         selectedMonth,
         selectedYear,
       );
-      const todayDate = getLocalTodayDateOnly();
-      const { error: statusSyncError } = await supabase
-        .from("transactions")
-        .update({ status: toDbStatus("confirmed") })
-        .eq("user_id", user.id)
-        .eq("type", "card")
-        .eq("recurring", true)
-        .eq("status", toDbStatus("pending"))
-        .lte("transaction_date", todayDate)
-        .gte("month_start", startDate)
-        .lt("month_start", endDate);
+      const { error: statusSyncError } = await supabase.rpc(
+        "finync_sync_due_transaction_statuses",
+      );
 
       if (statusSyncError) throw statusSyncError;
 
@@ -1754,7 +1724,17 @@ export const useFinanceStore = create<FinanceState>()((set, get) => ({
       }
 
       if (transaction.status !== undefined) {
-        updatePayload.status = toDbStatus(transaction.status);
+        updatePayload.status = toDbTransactionStatus(
+          getCanonicalTransactionStatus({
+            type: nextType ?? "fixed",
+            status: transaction.status,
+            date: normalizedNextDate,
+            is_recurring:
+              transaction.is_recurring ?? currentTransaction?.is_recurring,
+            cardId: nextCardId,
+            notes: transaction.notes ?? currentTransaction?.notes,
+          }),
+        );
       }
 
       if (transaction.owner !== undefined) {
@@ -1926,7 +1906,17 @@ export const useFinanceStore = create<FinanceState>()((set, get) => ({
           }
 
           if (transaction.status !== undefined) {
-            updatePayload.status = toDbStatus(transaction.status);
+            updatePayload.status = toDbTransactionStatus(
+              getCanonicalTransactionStatus({
+                type: nextType,
+                status: transaction.status,
+                date: nextDate,
+                is_recurring:
+                  transaction.is_recurring ?? currentTransaction.is_recurring,
+                cardId: nextCardId,
+                notes: transaction.notes ?? currentTransaction.notes,
+              }),
+            );
           }
 
           if (transaction.owner !== undefined) {

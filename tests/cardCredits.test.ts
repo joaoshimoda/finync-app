@@ -52,7 +52,7 @@ test("parcelas nao usam a trava temporal exclusiva de assinaturas", () => {
   );
 });
 
-test("pagamentos saem da divida e estornos reduzem o total", () => {
+test("pagamentos da fatura e estornos reduzem o total sem alterar compras", () => {
   const transactions = [
     {
       type: "card",
@@ -66,7 +66,7 @@ test("pagamentos saem da divida e estornos reduzem o total", () => {
       type: "card",
       cardId: "card-1",
       amount: 100,
-      status: "paid",
+      status: "confirmed",
       date: "2026-08-10",
       notes: "",
     },
@@ -81,7 +81,7 @@ test("pagamentos saem da divida e estornos reduzem o total", () => {
   ];
 
   assert.equal(getCardSignedAmount(transactions[2]), -50);
-  assert.equal(calculateCardDebt(transactions, "card-1"), 250);
+  assert.equal(calculateCardDebt(transactions, "card-1", 100), 250);
 });
 
 test("pagamentos da fatura reduzem a divida sem alterar as compras", () => {

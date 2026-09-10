@@ -525,9 +525,7 @@ export default function CardsPage() {
       (sum, transaction) => sum + getCardSignedAmount(transaction),
       0,
     );
-    const paid = selectedCardTransactions
-      .filter((transaction) => transaction.status === "paid")
-      .reduce((sum, transaction) => sum + getCardSignedAmount(transaction), 0);
+    const paid = selectedInvoice?.paidAmount ?? 0;
     const open = Math.max(total - paid, 0);
     const dependentsTotal = selectedCardTransactions
       .filter((transaction) => transaction.dependentId)
@@ -553,7 +551,7 @@ export default function CardsPage() {
       open: selectedInvoice
         ? Math.max(selectedInvoice.totalAmount - selectedInvoice.paidAmount, 0)
         : open,
-      paid: selectedInvoice?.paidAmount ?? paid,
+      paid,
       personalTotal,
       posted: selectedInvoice?.postedAmount ?? posted,
       scheduled,
@@ -1124,9 +1122,7 @@ export default function CardsPage() {
                       key={transaction.id}
                       className={cn(
                         "hover:bg-muted/35",
-                        (transaction.status === "paid" ||
-                          isScheduledCharge) &&
-                          "opacity-70",
+                        isScheduledCharge && "opacity-70",
                         isLastInstallment &&
                           "bg-emerald-950/20 hover:bg-emerald-950/30",
                       )}

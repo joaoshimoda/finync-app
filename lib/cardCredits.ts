@@ -59,7 +59,6 @@ export function calculateCardDebt<
       (transaction) =>
         transaction.type === "card" &&
         transaction.cardId === cardId &&
-        transaction.status !== "paid" &&
         shouldCountCardCharge(transaction),
     )
     .reduce(

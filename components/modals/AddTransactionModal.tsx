@@ -211,7 +211,7 @@ function TransactionModalContent({
       (transactionType === "fixed"
         ? shouldCreateRecurringProjection
           ? "pending"
-          : "paid"
+          : "confirmed"
         : "confirmed");
     const transactionPayload: CreateTransactionInput = {
       description: description.trim(),

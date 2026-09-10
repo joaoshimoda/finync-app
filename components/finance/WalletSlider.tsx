@@ -71,10 +71,7 @@ export function WalletSlider({ cards = [], transactions = [] }: WalletSliderProp
               0,
             );
             const debt = calculateCardDebt(transactions, card.id);
-            const paid = chargeableCardTransactions
-              .filter((transaction) => transaction.status === "paid")
-              .reduce((sum, transaction) => sum + getCardSignedAmount(transaction), 0);
-            const pending = Math.max(total - paid, 0);
+            const pending = Math.max(total, 0);
             const limit = card.limitAmount || 0;
             const usage = limit > 0 ? Math.min((debt / limit) * 100, 100) : 0;
             const isNearLimit = usage >= 85;
@@ -168,9 +165,9 @@ export function WalletSlider({ cards = [], transactions = [] }: WalletSliderProp
                     </div>
                     <div className="grid grid-cols-2 gap-3">
                       <div className="rounded-2xl border border-white/[0.08] bg-black/15 p-3">
-                        <p className="text-xs text-zinc-400">Pago</p>
+                        <p className="text-xs text-zinc-400">Lançado</p>
                         <p className="mt-1 text-sm font-semibold text-emerald-300">
-                          {formatPrivateCurrency(paid)}
+                          {formatPrivateCurrency(total)}
                         </p>
                       </div>
                       <div className="rounded-2xl border border-white/[0.08] bg-black/15 p-3">
