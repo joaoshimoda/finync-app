@@ -13,6 +13,7 @@ import {
 import { toast } from "sonner";
 
 import { AddCardModal } from "@/components/modals/AddCardModal";
+import { PayInvoiceModal } from "@/components/modals/PayInvoiceModal";
 import { PRODUCT_TOUR_PREVIEW_EVENTS } from "@/components/onboarding/tourSteps";
 import { TransactionDescription } from "@/components/finance/TransactionDescription";
 import { MobileTransactionItem } from "@/components/finance/MobileTransactionItem";
@@ -214,7 +215,7 @@ function FlippableManagedCard({
   onKeyDown: (event: KeyboardEvent<HTMLDivElement>, cardId: string) => void;
   onEdit: (card: FinanceCard) => void;
   onDelete: (card: FinanceCard) => void;
-  onPayInvoice: (cardId: string) => void;
+  onPayInvoice: (invoice: CardInvoice, cardName: string) => void;
   invoiceMonthStart: string;
   invoice?: CardInvoice;
 }) {
@@ -368,9 +369,11 @@ function FlippableManagedCard({
               size="sm"
               className="h-8 flex-1 bg-white text-zinc-950 hover:bg-white/90"
               disabled={
-                !invoice || invoice.status === "paid" || invoiceTotal <= 0
+                !invoice ||
+                invoice.status === "paid" ||
+                invoice.totalAmount <= invoice.paidAmount
               }
-              onClick={() => onPayInvoice(card.id)}
+              onClick={() => invoice && onPayInvoice(invoice, card.name)}
             >
               {invoice?.status === "paid" ? "Fatura paga" : "Pagar Fatura"}
             </Button>
@@ -409,6 +412,10 @@ export default function CardsPage() {
   );
   const [isDeletingCard, setIsDeletingCard] = useState(false);
   const [selectedCardId, setSelectedCardId] = useState<string | null>(null);
+  const [paymentTarget, setPaymentTarget] = useState<{
+    invoice: CardInvoice;
+    cardName: string;
+  } | null>(null);
 
   const cards = useFinanceStore((state) => state.cards);
   const cardInvoices = useFinanceStore((state) => state.cardInvoices);
@@ -417,7 +424,6 @@ export default function CardsPage() {
   const fetchTransactions = useFinanceStore((state) => state.fetchTransactions);
   const fetchDependents = useFinanceStore((state) => state.fetchDependents);
   const deleteCard = useFinanceStore((state) => state.deleteCard);
-  const payCardInvoice = useFinanceStore((state) => state.payCardInvoice);
   const currentMonth = useFinanceStore((state) => state.currentMonth);
   const currentYear = useFinanceStore((state) => state.currentYear);
   const hideBalancesByDefault = useFinanceStore(
@@ -570,8 +576,23 @@ export default function CardsPage() {
   );
   const selectedLimit = selectedCard?.limitAmount ?? 0;
   const selectedDebtTotal = useMemo(
-    () => (selectedCard ? calculateCardDebt(transactions, selectedCard.id) : 0),
-    [selectedCard, transactions],
+    () =>
+      selectedCard
+        ? calculateCardDebt(
+            transactions,
+            selectedCard.id,
+            cardInvoices
+              .filter(
+                (invoice) =>
+                  invoice.cardId === selectedCard.id &&
+                  transactions.some(
+                    (transaction) => transaction.invoiceId === invoice.id,
+                  ),
+              )
+              .reduce((sum, invoice) => sum + invoice.paidAmount, 0),
+          )
+        : 0,
+    [cardInvoices, selectedCard, transactions],
   );
   const selectedUsage = useMemo(
     () =>
@@ -601,7 +622,19 @@ export default function CardsPage() {
           (total, transaction) => total + getCardSignedAmount(transaction),
           0,
         );
-        const debtTotal = calculateCardDebt(transactions, card.id);
+        const debtTotal = calculateCardDebt(
+          transactions,
+          card.id,
+          cardInvoices
+            .filter(
+              (invoice) =>
+                invoice.cardId === card.id &&
+                transactions.some(
+                  (transaction) => transaction.invoiceId === invoice.id,
+                ),
+            )
+            .reduce((sum, invoice) => sum + invoice.paidAmount, 0),
+        );
         const limitAmount = card.limitAmount ?? 0;
 
         return [
@@ -697,16 +730,12 @@ export default function CardsPage() {
     }
   }, [deleteCard, deleteTargetCard, isDeletingCard, selectedCardId]);
 
-  const handlePayInvoiceClick = useCallback(async (cardId: string) => {
-    try {
-      await payCardInvoice(cardId);
-      toast.success("Fatura liquidada!");
-      await fetchTransactions();
-    } catch (error) {
-      console.error("Erro ao liquidar fatura:", error);
-      toast.error("Não foi possível liquidar a fatura.");
-    }
-  }, [fetchTransactions, payCardInvoice]);
+  const handlePayInvoiceClick = useCallback(
+    (invoice: CardInvoice, cardName: string) => {
+      setPaymentTarget({ invoice, cardName });
+    },
+    [],
+  );
 
   return (
     <div className="flex w-full flex-col gap-6 md:gap-8">
@@ -764,7 +793,7 @@ export default function CardsPage() {
                     onKeyDown={handleCardKeyDown}
                     onEdit={openEditModal}
                     onDelete={setDeleteTargetCard}
-                    onPayInvoice={(cardId) => void handlePayInvoiceClick(cardId)}
+                    onPayInvoice={handlePayInvoiceClick}
                     invoiceMonthStart={toDateOnly(currentYear, currentMonth, 1)}
                     invoice={cardSummary.invoice}
                   />
@@ -890,11 +919,13 @@ export default function CardsPage() {
                 !selectedCard ||
                 !selectedInvoice ||
                 selectedInvoice.status === "paid" ||
-                selectedInvoice.totalAmount <= 0
+                selectedInvoice.totalAmount <= selectedInvoice.paidAmount
               }
-              onClick={() =>
-                selectedCard && void handlePayInvoiceClick(selectedCard.id)
-              }
+              onClick={() => {
+                if (selectedInvoice && selectedCard) {
+                  handlePayInvoiceClick(selectedInvoice, selectedCard.name);
+                }
+              }}
             >
               {selectedInvoice?.status === "paid"
                 ? "Fatura paga"
@@ -1193,6 +1224,15 @@ export default function CardsPage() {
         isOpen={isAddCardModalOpen}
         onClose={closeCardModal}
         editingCard={editingCard}
+      />
+
+      <PayInvoiceModal
+        open={Boolean(paymentTarget)}
+        invoice={paymentTarget?.invoice ?? null}
+        cardName={paymentTarget?.cardName}
+        onOpenChange={(open) => {
+          if (!open) setPaymentTarget(null);
+        }}
       />
 
       <AlertDialog

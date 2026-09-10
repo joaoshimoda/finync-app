@@ -30,6 +30,12 @@ export type CardInvoiceStatus =
   | "closed"
   | "partially_paid"
   | "paid";
+export type InvoicePaymentMethod =
+  | "PIX"
+  | "DEBIT"
+  | "TRANSFER"
+  | "CASH"
+  | "OTHER";
 
 export interface Card {
   id: string;
@@ -62,6 +68,25 @@ export interface CardInvoice {
   paidAmount: number;
   closedAt?: string | null;
   paidAt?: string | null;
+}
+
+export interface InvoicePayment {
+  id: string;
+  invoiceId: string;
+  amount: number;
+  paidAt: string;
+  method: InvoicePaymentMethod;
+  status: "confirmed" | "voided";
+  source: "manual" | "import" | "migration";
+  notes?: string | null;
+  createdAt: string;
+}
+
+export interface CreateInvoicePaymentInput {
+  amount?: number;
+  paidAt?: string;
+  method?: InvoicePaymentMethod;
+  notes?: string;
 }
 
 export interface Category {
@@ -111,6 +136,7 @@ export type CreateCategoryInput = Pick<Category, "label" | "kind" | "icon">;
 
 type CardRow = Tables<"cards">;
 type CardInvoiceRow = Tables<"card_invoices">;
+type InvoicePaymentRow = Tables<"invoice_payments">;
 type TransactionRow = Tables<"transactions">;
 type DependentRow = Tables<"dependents">;
 type CategoryRow = Tables<"categories">;
@@ -118,6 +144,7 @@ type CategoryRow = Tables<"categories">;
 interface FinanceState {
   cards: Card[];
   cardInvoices: CardInvoice[];
+  invoicePayments: InvoicePayment[];
   dependents: Dependent[];
   categories: Category[];
   transactions: Transaction[];
@@ -139,6 +166,7 @@ interface FinanceState {
   prevMonth: () => void;
   fetchCards: () => Promise<void>;
   fetchCardInvoices: () => Promise<void>;
+  fetchInvoicePayments: (invoiceIds?: string[]) => Promise<void>;
   fetchDependents: () => Promise<void>;
   fetchCategories: () => Promise<void>;
   addCategory: (category: CreateCategoryInput) => Promise<void>;
@@ -165,7 +193,10 @@ interface FinanceState {
     transactionIds: string[],
     category: string,
   ) => Promise<void>;
-  payCardInvoice: (cardId: string) => Promise<void>;
+  payCardInvoice: (
+    invoiceId: string,
+    payment?: CreateInvoicePaymentInput,
+  ) => Promise<InvoicePayment>;
   addIncome: (
     income: Pick<CreateTransactionInput, "amount" | "date" | "description">,
   ) => Promise<void>;
@@ -309,6 +340,20 @@ function mapCardInvoice(row: CardInvoiceRow): CardInvoice {
     paidAmount: toAmount(row.paid_amount),
     closedAt: row.closed_at,
     paidAt: row.paid_at,
+  };
+}
+
+function mapInvoicePayment(row: InvoicePaymentRow): InvoicePayment {
+  return {
+    id: row.id,
+    invoiceId: row.invoice_id,
+    amount: toAmount(row.amount),
+    paidAt: row.paid_at,
+    method: row.method,
+    status: row.status.toLowerCase() as InvoicePayment["status"],
+    source: row.source.toLowerCase() as InvoicePayment["source"],
+    notes: row.notes,
+    createdAt: row.created_at,
   };
 }
 
@@ -472,6 +517,7 @@ function getStoredHideBalancesPreference() {
 export const useFinanceStore = create<FinanceState>()((set, get) => ({
   cards: [],
   cardInvoices: [],
+  invoicePayments: [],
   dependents: [],
   categories: getEssentialCategories(),
   transactions: [],
@@ -581,6 +627,7 @@ export const useFinanceStore = create<FinanceState>()((set, get) => ({
           authUser: null,
           cards: [],
           cardInvoices: [],
+          invoicePayments: [],
           dependents: [],
           categories: getEssentialCategories(),
           transactions: [],
@@ -602,6 +649,7 @@ export const useFinanceStore = create<FinanceState>()((set, get) => ({
       authUser: null,
       cards: [],
       cardInvoices: [],
+      invoicePayments: [],
       dependents: [],
       categories: getEssentialCategories(),
       transactions: [],
@@ -819,23 +867,62 @@ export const useFinanceStore = create<FinanceState>()((set, get) => ({
       const user = await getCurrentUser();
       if (!user) return;
 
-      const { startDate, endDate } = getSelectedMonthRange(
-        get().currentMonth,
-        get().currentYear,
-      );
       const { data, error } = await supabase
         .from("card_invoices")
         .select("*")
         .eq("user_id", user.id)
-        .gte("billing_month", startDate)
-        .lt("billing_month", endDate)
-        .order("due_date", { ascending: true });
+        .order("billing_month", { ascending: false });
 
       if (error) throw error;
 
-      set({ cardInvoices: (data as CardInvoiceRow[]).map(mapCardInvoice) });
+      const cardInvoices = (data as CardInvoiceRow[]).map(mapCardInvoice);
+      const { startDate, endDate } = getSelectedMonthRange(
+        get().currentMonth,
+        get().currentYear,
+      );
+      const selectedInvoiceIds = cardInvoices
+        .filter(
+          (invoice) =>
+            invoice.billingMonthStart >= startDate &&
+            invoice.billingMonthStart < endDate,
+        )
+        .map((invoice) => invoice.id);
+
+      set({ cardInvoices });
+      await get().fetchInvoicePayments(selectedInvoiceIds);
     } catch (error) {
       console.error("Erro ao buscar faturas:", error);
+    }
+  },
+
+  fetchInvoicePayments: async (invoiceIds) => {
+    try {
+      const user = await getCurrentUser();
+      if (!user) return;
+
+      const selectedInvoiceIds =
+        invoiceIds ?? get().cardInvoices.map((invoice) => invoice.id);
+
+      if (!selectedInvoiceIds.length) {
+        set({ invoicePayments: [] });
+        return;
+      }
+
+      const { data, error } = await supabase
+        .from("invoice_payments")
+        .select("*")
+        .eq("user_id", user.id)
+        .in("invoice_id", selectedInvoiceIds)
+        .order("paid_at", { ascending: false });
+
+      if (error) throw error;
+
+      set({
+        invoicePayments: (data as InvoicePaymentRow[]).map(mapInvoicePayment),
+      });
+    } catch (error) {
+      console.error("Erro ao buscar pagamentos de fatura:", error);
+      throw error;
     }
   },
 
@@ -939,15 +1026,26 @@ export const useFinanceStore = create<FinanceState>()((set, get) => ({
 
       if (error) throw error;
 
-      set((state) => ({
-        cards: state.cards.filter((card) => card.id !== cardId),
-        cardInvoices: state.cardInvoices.filter(
-          (invoice) => invoice.cardId !== cardId,
-        ),
-        transactions: state.transactions.filter(
-          (transaction) => transaction.cardId !== cardId,
-        ),
-      }));
+      set((state) => {
+        const removedInvoiceIds = new Set(
+          state.cardInvoices
+            .filter((invoice) => invoice.cardId === cardId)
+            .map((invoice) => invoice.id),
+        );
+
+        return {
+          cards: state.cards.filter((card) => card.id !== cardId),
+          cardInvoices: state.cardInvoices.filter(
+            (invoice) => invoice.cardId !== cardId,
+          ),
+          invoicePayments: state.invoicePayments.filter(
+            (payment) => !removedInvoiceIds.has(payment.invoiceId),
+          ),
+          transactions: state.transactions.filter(
+            (transaction) => transaction.cardId !== cardId,
+          ),
+        };
+      });
     } catch (error) {
       console.error("Erro ao excluir cartão:", error);
       if (
@@ -1471,40 +1569,57 @@ export const useFinanceStore = create<FinanceState>()((set, get) => ({
     }
   },
 
-  payCardInvoice: async (cardId) => {
+  payCardInvoice: async (invoiceId, payment = {}) => {
     try {
       const user = await getCurrentUser();
       if (!user) throw new Error("Usuário não autenticado.");
 
-      const { startDate, endDate } = getSelectedMonthRange(
-        get().currentMonth,
-        get().currentYear,
+      const invoice = get().cardInvoices.find(
+        (currentInvoice) => currentInvoice.id === invoiceId,
       );
+
+      if (!invoice) throw new Error("Fatura não encontrada.");
+
+      const outstandingAmount = Math.max(
+        invoice.totalAmount - invoice.paidAmount,
+        0,
+      );
+      const paymentAmount = payment.amount ?? outstandingAmount;
+
+      if (!Number.isFinite(paymentAmount) || paymentAmount <= 0) {
+        throw new Error("Informe um valor de pagamento válido.");
+      }
+
+      if (paymentAmount > outstandingAmount) {
+        throw new Error("O pagamento não pode exceder o saldo da fatura.");
+      }
 
       const { data, error } = await supabase
-        .from("transactions")
-        .update({ status: toDbStatus("paid") })
-        .eq("user_id", user.id)
-        .eq("type", "card")
-        .eq("card_id", cardId)
-        .gte("month_start", startDate)
-        .lt("month_start", endDate)
-        .select("*");
+        .from("invoice_payments")
+        .insert({
+          user_id: user.id,
+          invoice_id: invoice.id,
+          amount: paymentAmount,
+          paid_at: payment.paidAt ?? new Date().toISOString(),
+          method: payment.method ?? "PIX",
+          status: "CONFIRMED",
+          source: "MANUAL",
+          idempotency_key: `manual:${crypto.randomUUID()}`,
+          notes: payment.notes?.trim() || null,
+        })
+        .select("*")
+        .single();
 
       if (error) throw error;
+      if (!data) throw new Error("Pagamento não retornado pelo Supabase.");
 
-      const paidTransactions = (data as TransactionRow[]).map(mapTransaction);
-      const paidTransactionById = new Map(
-        paidTransactions.map((transaction) => [transaction.id, transaction]),
-      );
+      const newPayment = mapInvoicePayment(data as InvoicePaymentRow);
 
       set((state) => ({
-        transactions: state.transactions.map(
-          (transaction) =>
-            paidTransactionById.get(transaction.id) ?? transaction,
-        ),
+        invoicePayments: [newPayment, ...state.invoicePayments],
       }));
       await get().fetchCardInvoices();
+      return newPayment;
     } catch (error) {
       console.error("Erro ao liquidar fatura:", error);
       throw error;

@@ -83,3 +83,18 @@ test("pagamentos saem da divida e estornos reduzem o total", () => {
   assert.equal(getCardSignedAmount(transactions[2]), -50);
   assert.equal(calculateCardDebt(transactions, "card-1"), 250);
 });
+
+test("pagamentos da fatura reduzem a divida sem alterar as compras", () => {
+  const transactions = [
+    {
+      type: "card",
+      cardId: "card-1",
+      amount: 300,
+      status: "confirmed",
+      date: "2026-08-10",
+      notes: "",
+    },
+  ];
+
+  assert.equal(calculateCardDebt(transactions, "card-1", 125), 175);
+});

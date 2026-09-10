@@ -33,6 +33,7 @@ import { AnimatedMonthSelector } from "@/components/finance/AnimatedMonthSelecto
 import { AddCardModal } from "@/components/modals/AddCardModal";
 import { AddIncomeModal } from "@/components/modals/AddIncomeModal";
 import { AddTransactionModal } from "@/components/modals/AddTransactionModal";
+import { PayInvoiceModal } from "@/components/modals/PayInvoiceModal";
 import { TransactionDescription } from "@/components/finance/TransactionDescription";
 import { MobileTransactionItem } from "@/components/finance/MobileTransactionItem";
 import { Badge } from "@/components/ui/badge";
@@ -89,6 +90,7 @@ import { aggregatePeriodExpenses } from "@/lib/financeAggregation";
 import { getCardInvoiceCycle } from "@/lib/cardBilling";
 import {
   useFinanceStore,
+  type CardInvoice,
   type CardInvoiceStatus,
   type Transaction,
 } from "@/store/useFinanceStore";
@@ -227,6 +229,7 @@ function hasDependent(transaction: Transaction) {
 function calculatePendingExpenses(
   calendarTransactions: Transaction[],
   invoiceTransactions: Transaction[],
+  invoices: CardInvoice[],
   excludeDependents = false,
 ) {
   const pendingCalendarExpenses = calendarTransactions
@@ -238,13 +241,44 @@ function calculatePendingExpenses(
     )
     .reduce((sum, transaction) => sum + transaction.amount, 0);
 
-  const pendingCardExpenses = invoiceTransactions
-    .filter(
-      (transaction) =>
-        transaction.status !== "paid" &&
-        (!excludeDependents || !hasDependent(transaction)),
-    )
-    .reduce((sum, transaction) => sum + getCardSignedAmount(transaction), 0);
+  const pendingCardExpenses = invoices.length
+    ? invoices.reduce((sum, invoice) => {
+        const outstanding = Math.max(
+          invoice.totalAmount - invoice.paidAmount,
+          0,
+        );
+
+        if (!excludeDependents || outstanding === 0) return sum + outstanding;
+
+        const invoiceEntries = invoiceTransactions.filter(
+          (transaction) => transaction.invoiceId === invoice.id,
+        );
+        const invoiceTotal = invoiceEntries.reduce(
+          (total, transaction) => total + getCardSignedAmount(transaction),
+          0,
+        );
+        const personalTotal = invoiceEntries
+          .filter((transaction) => !hasDependent(transaction))
+          .reduce(
+            (total, transaction) => total + getCardSignedAmount(transaction),
+            0,
+          );
+        const personalShare =
+          invoiceTotal > 0
+            ? Math.min(Math.max(personalTotal / invoiceTotal, 0), 1)
+            : 1;
+
+        return sum + outstanding * personalShare;
+      }, 0)
+    : invoiceTransactions
+        .filter(
+          (transaction) =>
+            !excludeDependents || !hasDependent(transaction),
+        )
+        .reduce(
+          (sum, transaction) => sum + getCardSignedAmount(transaction),
+          0,
+        );
 
   return (
     Math.max(pendingCalendarExpenses, 0) + Math.max(pendingCardExpenses, 0)
@@ -258,6 +292,7 @@ interface CardSpendingSummary {
   dueDay?: number;
   dueDate?: string;
   invoiceStatus?: CardInvoiceStatus;
+  invoice?: CardInvoice;
   cycleEndDate: string;
   cycleStartDate: string;
   accentClassName: string;
@@ -317,7 +352,7 @@ function FlippableWalletCard({
   onPayInvoice,
 }: {
   cardSummary: CardSpendingSummary;
-  onPayInvoice: (cardId: string) => void;
+  onPayInvoice: (invoice: CardInvoice, cardName: string) => void;
 }) {
   const [isFlipped, setIsFlipped] = useState(false);
   const hideBalancesByDefault = useFinanceStore(
@@ -451,11 +486,15 @@ function FlippableWalletCard({
               disabled={
                 !cardSummary.invoiceStatus ||
                 cardSummary.invoiceStatus === "paid" ||
-                cardSummary.projected <= 0
+                !cardSummary.invoice ||
+                cardSummary.invoice.totalAmount <=
+                  cardSummary.invoice.paidAmount
               }
               onClick={(event) => {
                 event.stopPropagation();
-                onPayInvoice(cardSummary.id);
+                if (cardSummary.invoice) {
+                  onPayInvoice(cardSummary.invoice, cardSummary.name);
+                }
               }}
             >
               {cardSummary.invoiceStatus === "paid"
@@ -477,6 +516,10 @@ export default function DashboardPage() {
     useState(false);
   const [editingTransaction, setEditingTransaction] =
     useState<Transaction | null>(null);
+  const [paymentTarget, setPaymentTarget] = useState<{
+    invoice: CardInvoice;
+    cardName: string;
+  } | null>(null);
   const [variableIncomeValues, setVariableIncomeValues] = useState<
     Record<string, string>
   >({});
@@ -487,7 +530,6 @@ export default function DashboardPage() {
   const dependents = useFinanceStore((state) => state.dependents);
   const transactions = useFinanceStore((state) => state.transactions);
   const fetchTransactions = useFinanceStore((state) => state.fetchTransactions);
-  const payCardInvoice = useFinanceStore((state) => state.payCardInvoice);
   const updateTransaction = useFinanceStore((state) => state.updateTransaction);
   const currentMonth = useFinanceStore((state) => state.currentMonth);
   const currentYear = useFinanceStore((state) => state.currentYear);
@@ -548,8 +590,12 @@ export default function DashboardPage() {
 
   const pendingExpensesTotal = useMemo(
     () =>
-      calculatePendingExpenses(monthlyTransactions, invoiceCycleTransactions),
-    [invoiceCycleTransactions, monthlyTransactions],
+      calculatePendingExpenses(
+        monthlyTransactions,
+        invoiceCycleTransactions,
+        selectedCardInvoices,
+      ),
+    [invoiceCycleTransactions, monthlyTransactions, selectedCardInvoices],
   );
 
   const personalPendingExpensesTotal = useMemo(
@@ -557,9 +603,10 @@ export default function DashboardPage() {
       calculatePendingExpenses(
         monthlyTransactions,
         invoiceCycleTransactions,
+        selectedCardInvoices,
         true,
       ),
-    [invoiceCycleTransactions, monthlyTransactions],
+    [invoiceCycleTransactions, monthlyTransactions, selectedCardInvoices],
   );
 
   const personalExpenseTotals = useMemo(
@@ -628,6 +675,11 @@ export default function DashboardPage() {
       (sum, invoice) => sum + invoice.postedAmount,
       0,
     );
+    const persistedOpen = selectedCardInvoices.reduce(
+      (sum, invoice) =>
+        sum + Math.max(invoice.postedAmount - invoice.paidAmount, 0),
+      0,
+    );
     const creditCardProjected = selectedCardInvoices.length
       ? persistedProjected
       : totals.creditCardProjected;
@@ -639,6 +691,9 @@ export default function DashboardPage() {
       ...totals,
       creditCardProjected,
       creditCardUntilToday,
+      creditCardOpenUntilToday: selectedCardInvoices.length
+        ? persistedOpen
+        : totals.creditCardUntilToday,
       nonCardTotal: personalExpenseTotals.fixed,
       userCreditCardProjected: personalExpenseTotals.card,
       availableBalance:
@@ -783,7 +838,6 @@ export default function DashboardPage() {
   const cardSpendingSummaries = useMemo(
     () =>
       cards.map((card) => {
-        const debtTotal = calculateCardDebt(transactions, card.id);
         const limitAmount = card.limitAmount ?? 0;
         const fallbackInvoiceTotals = invoiceCycleTransactions
           .filter((transaction) => {
@@ -810,6 +864,25 @@ export default function DashboardPage() {
         const persistedInvoice = selectedCardInvoices.find(
           (invoice) => invoice.cardId === card.id,
         );
+        const loadedInvoiceIds = new Set(
+          transactions
+            .filter(
+              (transaction) =>
+                transaction.cardId === card.id && transaction.invoiceId,
+            )
+            .map((transaction) => transaction.invoiceId),
+        );
+        const confirmedPayments = cardInvoices
+          .filter(
+            (invoice) =>
+              invoice.cardId === card.id && loadedInvoiceIds.has(invoice.id),
+          )
+          .reduce((sum, invoice) => sum + invoice.paidAmount, 0);
+        const debtTotal = calculateCardDebt(
+          transactions,
+          card.id,
+          confirmedPayments,
+        );
         const fallbackInvoiceCycle = getCardInvoiceCycle(
           toDateOnly(displayYear, displayMonth, 1),
           card.closingDay,
@@ -821,6 +894,7 @@ export default function DashboardPage() {
           closingDay: card.closingDay,
           dueDay: card.dueDay,
           dueDate: persistedInvoice?.dueDate,
+          invoice: persistedInvoice,
           invoiceStatus: persistedInvoice?.status,
           cycleEndDate:
             persistedInvoice?.cycleEnd ?? fallbackInvoiceCycle.endDate,
@@ -831,6 +905,7 @@ export default function DashboardPage() {
             transactions,
             card.id,
             limitAmount,
+            confirmedPayments,
           ),
           debtTotal,
           limitAmount,
@@ -846,6 +921,7 @@ export default function DashboardPage() {
       }),
     [
       cards,
+      cardInvoices,
       displayMonth,
       displayYear,
       invoiceCycleTransactions,
@@ -952,17 +1028,10 @@ export default function DashboardPage() {
   }, []);
 
   const handlePayInvoiceClick = useCallback(
-    async (cardId: string) => {
-      try {
-        await payCardInvoice(cardId);
-        toast.success("Fatura liquidada!");
-        await fetchTransactions();
-      } catch (error) {
-        console.error("Erro ao liquidar fatura:", error);
-        toast.error("Não foi possível liquidar a fatura.");
-      }
+    (invoice: CardInvoice, cardName: string) => {
+      setPaymentTarget({ invoice, cardName });
     },
-    [fetchTransactions, payCardInvoice],
+    [],
   );
 
   const handleConfirmVariableIncome = useCallback(
@@ -1197,7 +1266,9 @@ export default function DashboardPage() {
               <div>
                 <p className="text-zinc-500">Faturas abertas</p>
                 <p className="mt-1 text-zinc-200">
-                  {formatPrivateCurrency(monthlyBalances.creditCardUntilToday)}
+                  {formatPrivateCurrency(
+                    monthlyBalances.creditCardOpenUntilToday,
+                  )}
                 </p>
               </div>
               <div>
@@ -1360,9 +1431,7 @@ export default function DashboardPage() {
                     >
                       <FlippableWalletCard
                         cardSummary={cardSummary}
-                        onPayInvoice={(cardId) =>
-                          void handlePayInvoiceClick(cardId)
-                        }
+                        onPayInvoice={handlePayInvoiceClick}
                       />
                     </CarouselItem>
                   ))}
@@ -1793,6 +1862,14 @@ export default function DashboardPage() {
             ? editingTransaction
             : null
         }
+      />
+      <PayInvoiceModal
+        open={Boolean(paymentTarget)}
+        invoice={paymentTarget?.invoice ?? null}
+        cardName={paymentTarget?.cardName}
+        onOpenChange={(open) => {
+          if (!open) setPaymentTarget(null);
+        }}
       />
     </div>
   );

@@ -53,7 +53,7 @@ export function shouldCountCardCharge(
 
 export function calculateCardDebt<
   T extends CardCreditCandidate & { amount: number },
->(transactions: T[], cardId: string) {
+>(transactions: T[], cardId: string, confirmedPayments = 0) {
   const debt = transactions
     .filter(
       (transaction) =>
@@ -67,11 +67,18 @@ export function calculateCardDebt<
       0,
     );
 
-  return Math.max(debt, 0);
+  return Math.max(debt - confirmedPayments, 0);
 }
 
 export function calculateAvailableCardLimit<
   T extends CardCreditCandidate & { amount: number },
->(transactions: T[], cardId: string, limitAmount = 0) {
-  return limitAmount - calculateCardDebt(transactions, cardId);
+>(
+  transactions: T[],
+  cardId: string,
+  limitAmount = 0,
+  confirmedPayments = 0,
+) {
+  return (
+    limitAmount - calculateCardDebt(transactions, cardId, confirmedPayments)
+  );
 }

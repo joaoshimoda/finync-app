@@ -155,6 +155,66 @@ export type Database = {
           },
         ];
       };
+      invoice_payments: {
+        Row: {
+          amount: number;
+          created_at: string;
+          id: string;
+          idempotency_key: string | null;
+          invoice_id: string;
+          method: "PIX" | "DEBIT" | "TRANSFER" | "CASH" | "OTHER";
+          notes: string | null;
+          paid_at: string;
+          source: "MANUAL" | "IMPORT" | "MIGRATION";
+          status: "CONFIRMED" | "VOIDED";
+          updated_at: string;
+          user_id: string;
+        };
+        Insert: {
+          amount: number;
+          created_at?: string;
+          id?: string;
+          idempotency_key?: string | null;
+          invoice_id: string;
+          method?: "PIX" | "DEBIT" | "TRANSFER" | "CASH" | "OTHER";
+          notes?: string | null;
+          paid_at?: string;
+          source?: "MANUAL" | "IMPORT" | "MIGRATION";
+          status?: "CONFIRMED" | "VOIDED";
+          updated_at?: string;
+          user_id: string;
+        };
+        Update: {
+          amount?: number;
+          created_at?: string;
+          id?: string;
+          idempotency_key?: string | null;
+          invoice_id?: string;
+          method?: "PIX" | "DEBIT" | "TRANSFER" | "CASH" | "OTHER";
+          notes?: string | null;
+          paid_at?: string;
+          source?: "MANUAL" | "IMPORT" | "MIGRATION";
+          status?: "CONFIRMED" | "VOIDED";
+          updated_at?: string;
+          user_id?: string;
+        };
+        Relationships: [
+          {
+            foreignKeyName: "invoice_payments_invoice_id_fkey";
+            columns: ["invoice_id"];
+            isOneToOne: false;
+            referencedRelation: "card_invoices";
+            referencedColumns: ["id"];
+          },
+          {
+            foreignKeyName: "invoice_payments_user_id_fkey";
+            columns: ["user_id"];
+            isOneToOne: false;
+            referencedRelation: "users";
+            referencedColumns: ["id"];
+          },
+        ];
+      };
       categories: {
         Row: {
           created_at: string;
