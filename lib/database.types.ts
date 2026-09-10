@@ -593,6 +593,10 @@ export type Database = {
     };
     Views: Record<string, never>;
     Functions: {
+      finync_export_backup: {
+        Args: Record<PropertyKey, never>;
+        Returns: Json;
+      };
       finync_get_data_health: {
         Args: Record<PropertyKey, never>;
         Returns: {

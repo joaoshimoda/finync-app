@@ -15,6 +15,7 @@ import {
   Activity,
   CalendarDays,
   CircleHelp,
+  FileDown,
   FileUp,
   Gauge,
   LogOut,
@@ -106,6 +107,15 @@ export function MobileTopBar() {
             <Link href="/dashboard/importar">
               <FileUp className="size-4" />
               Importar Fatura
+            </Link>
+          </DropdownMenuItem>
+          <DropdownMenuItem
+            asChild
+            className="min-h-11 cursor-pointer rounded-lg"
+          >
+            <Link href="/dashboard/exportar">
+              <FileDown className="size-4" />
+              Exportar e Backup
             </Link>
           </DropdownMenuItem>
           <DropdownMenuItem

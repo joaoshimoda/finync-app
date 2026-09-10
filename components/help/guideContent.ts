@@ -4,6 +4,7 @@ import {
   CalendarRange,
   CircleDollarSign,
   CreditCard,
+  FileDown,
   FileUp,
   Gauge,
   LayoutDashboard,
@@ -262,6 +263,24 @@ export const guideSections: GuideSection[] = [
       "Use a data e a origem do evento para diferenciar ações manuais de atualizações automáticas.",
     ],
     tip: "O histórico começa a ser preenchido após a ativação da Fase 7 e não pode ser editado pelo aplicativo.",
+  },
+  {
+    id: "backup",
+    title: "Exporte e preserve seus dados",
+    shortTitle: "Backup",
+    description:
+      "Gere uma cópia completa em JSON ou um extrato de transações em CSV diretamente no seu dispositivo.",
+    icon: FileDown,
+    href: "/dashboard/exportar",
+    actionLabel: "Abrir Exportação",
+    accent: "text-cyan-400 bg-cyan-500/10",
+    steps: [
+      "Use o backup JSON para preservar cadastros, vínculos, faturas, pagamentos e histórico.",
+      "Use o CSV quando precisar analisar as movimentações em uma planilha.",
+      "Guarde o arquivo JSON em um local privado e protegido.",
+      "Faça novos backups periodicamente para manter a cópia atualizada.",
+    ],
+    tip: "O backup não contém senha, token de sessão ou credenciais do Supabase Auth.",
   },
   {
     id: "privacidade",

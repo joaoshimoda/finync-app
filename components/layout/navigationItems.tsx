@@ -3,6 +3,7 @@ import {
   BarChart3,
   CalendarDays,
   CreditCard,
+  FileDown,
   FileUp,
   CircleHelp,
   Gauge,
@@ -49,6 +50,13 @@ export const navigationItems: NavigationItem[] = [
     href: "/dashboard/importar",
     icon: FileUp,
     tourId: "nav-import",
+  },
+  {
+    label: "Exportar e Backup",
+    shortLabel: "Backup",
+    href: "/dashboard/exportar",
+    icon: FileDown,
+    tourId: "nav-export",
   },
   {
     label: "Analytics",
