@@ -9,6 +9,7 @@ import {
   ChevronLeft,
   ChevronRight,
   CreditCard,
+  Eye,
   Landmark,
   MoreHorizontal,
   Pencil,
@@ -24,6 +25,8 @@ import { toast } from "sonner";
 
 import { RecurringDeleteDialog } from "@/components/finance/RecurringDeleteDialog";
 import { TransactionDescription } from "@/components/finance/TransactionDescription";
+import { TransactionDetailSheet } from "@/components/finance/TransactionDetailSheet";
+import { TransactionEditSheet } from "@/components/finance/TransactionEditSheet";
 import { AddIncomeModal } from "@/components/modals/AddIncomeModal";
 import { AddTransactionModal } from "@/components/modals/AddTransactionModal";
 import { PRODUCT_TOUR_PREVIEW_EVENTS } from "@/components/onboarding/tourSteps";
@@ -175,7 +178,9 @@ export default function TransactionsPage() {
   const [isAddIncomeModalOpen, setIsAddIncomeModalOpen] = useState(false);
   const [isAddTransactionModalOpen, setIsAddTransactionModalOpen] =
     useState(false);
-  const [editingTransaction, setEditingTransaction] =
+  const [detailTransaction, setDetailTransaction] =
+    useState<Transaction | null>(null);
+  const [sheetEditingTransaction, setSheetEditingTransaction] =
     useState<Transaction | null>(null);
   const [deleteTarget, setDeleteTarget] = useState<Transaction | null>(null);
   const [selectedIds, setSelectedIds] = useState<string[]>([]);
@@ -341,23 +346,19 @@ export default function TransactionsPage() {
 
   const handleCloseIncomeModal = useCallback(() => {
     setIsAddIncomeModalOpen(false);
-    setEditingTransaction(null);
   }, []);
 
   const handleCloseTransactionModal = useCallback(() => {
     setIsAddTransactionModalOpen(false);
-    setEditingTransaction(null);
   }, []);
 
   useEffect(() => {
     function openExpensePreview() {
-      setEditingTransaction(null);
       setIsAddIncomeModalOpen(false);
       setIsAddTransactionModalOpen(true);
     }
 
     function openIncomePreview() {
-      setEditingTransaction(null);
       setIsAddTransactionModalOpen(false);
       setIsAddIncomeModalOpen(true);
     }
@@ -383,22 +384,29 @@ export default function TransactionsPage() {
     };
   }, []);
 
-  const handleEditTransaction = useCallback((transaction: Transaction) => {
-    setEditingTransaction(transaction);
+  const handleEditTransaction = useCallback(
+    (transaction: Transaction) => {
+      setDetailTransaction(null);
+      setSheetEditingTransaction(transaction);
+    },
+    [],
+  );
 
-    if (transaction.type === "income") {
-      setIsAddIncomeModalOpen(true);
-      return;
-    }
-
-    setIsAddTransactionModalOpen(true);
-  }, []);
+  const handleOpenTransactionDetail = useCallback(
+    (transaction: Transaction) => {
+      setDetailTransaction(transaction);
+    },
+    [],
+  );
 
   const handleDeleteTransaction = useCallback(async (transactionId: string) => {
     try {
       await deleteTransaction(transactionId);
       toast.success("Movimentação excluída.");
       setDeleteTarget(null);
+      setDetailTransaction((current) =>
+        current?.id === transactionId ? null : current,
+      );
     } catch (error) {
       console.error("Erro ao excluir movimentação:", error);
       toast.error("Não foi possível excluir agora.");
@@ -526,7 +534,6 @@ export default function TransactionsPage() {
             <DropdownMenuItem
               className="flex cursor-pointer items-center gap-4 rounded-md p-3 hover:bg-muted"
               onClick={() => {
-                setEditingTransaction(null);
                 setIsAddIncomeModalOpen(true);
               }}
             >
@@ -543,7 +550,6 @@ export default function TransactionsPage() {
             <DropdownMenuItem
               className="flex cursor-pointer items-center gap-4 rounded-md p-3 hover:bg-muted"
               onClick={() => {
-                setEditingTransaction(null);
                 setIsAddTransactionModalOpen(true);
               }}
             >
@@ -818,15 +824,17 @@ export default function TransactionsPage() {
               return (
                 <motion.article
                   key={transaction.id}
+                  onClick={() => handleOpenTransactionDetail(transaction)}
                   initial={prefersReducedMotion ? false : { opacity: 0, y: 8 }}
                   animate={{ opacity: 1, y: 0 }}
                   transition={{
                     duration: prefersReducedMotion ? 0 : 0.28,
                     delay: prefersReducedMotion ? 0 : Math.min(index * 0.035, 0.28),
                   }}
-                  className="flex min-h-24 items-center gap-3 rounded-xl border border-white/[0.06] bg-zinc-950/45 p-3 transition-colors hover:bg-zinc-800/50"
+                  className="flex min-h-24 cursor-pointer items-center gap-3 rounded-xl border border-white/[0.06] bg-zinc-950/45 p-3 transition-colors hover:bg-zinc-800/50"
                 >
                   <Checkbox
+                    onClick={(event) => event.stopPropagation()}
                     checked={selectedIds.includes(transaction.id)}
                     onCheckedChange={(checked) =>
                       toggleTransactionSelection(transaction.id, checked)
@@ -896,6 +904,7 @@ export default function TransactionsPage() {
                       <DropdownMenuTrigger asChild>
                         <Button
                           type="button"
+                          onClick={(event) => event.stopPropagation()}
                           variant="ghost"
                           size="icon"
                           className="size-9 rounded-lg text-zinc-500 hover:text-zinc-100"
@@ -904,7 +913,18 @@ export default function TransactionsPage() {
                           <MoreHorizontal className="size-5" />
                         </Button>
                       </DropdownMenuTrigger>
-                      <DropdownMenuContent align="end" className="w-52 p-2">
+                      <DropdownMenuContent
+                        align="end"
+                        className="w-52 p-2"
+                        onClick={(event) => event.stopPropagation()}
+                      >
+                        <DropdownMenuItem
+                          className="min-h-11 cursor-pointer rounded-lg"
+                          onClick={() => handleOpenTransactionDetail(transaction)}
+                        >
+                          <Eye className="size-4" />
+                          Ver detalhes
+                        </DropdownMenuItem>
                         <DropdownMenuItem
                           className="min-h-11 cursor-pointer rounded-lg"
                           onClick={() => handleEditTransaction(transaction)}
@@ -982,6 +1002,7 @@ export default function TransactionsPage() {
                 return (
                   <motion.tr
                     key={transaction.id}
+                    onClick={() => handleOpenTransactionDetail(transaction)}
                     initial={
                       prefersReducedMotion ? false : { opacity: 0, y: 7 }
                     }
@@ -992,10 +1013,11 @@ export default function TransactionsPage() {
                         ? 0
                         : Math.min(index * 0.028, 0.3),
                     }}
-                    className="border-b border-white/[0.055] transition-colors hover:bg-zinc-800/50"
+                    className="cursor-pointer border-b border-white/[0.055] transition-colors hover:bg-zinc-800/50"
                   >
                     <TableCell className="py-4.5">
                       <Checkbox
+                        onClick={(event) => event.stopPropagation()}
                         checked={selectedIds.includes(transaction.id)}
                         onCheckedChange={(checked) =>
                           toggleTransactionSelection(transaction.id, checked)
@@ -1067,6 +1089,7 @@ export default function TransactionsPage() {
                         <DropdownMenuTrigger asChild>
                           <Button
                             type="button"
+                            onClick={(event) => event.stopPropagation()}
                             variant="ghost"
                             size="icon-sm"
                             aria-label="Ações da transação"
@@ -1075,7 +1098,18 @@ export default function TransactionsPage() {
                             <MoreHorizontal />
                           </Button>
                         </DropdownMenuTrigger>
-                        <DropdownMenuContent align="end" className="w-48">
+                        <DropdownMenuContent
+                          align="end"
+                          className="w-48"
+                          onClick={(event) => event.stopPropagation()}
+                        >
+                          <DropdownMenuItem
+                            className="cursor-pointer"
+                            onClick={() => handleOpenTransactionDetail(transaction)}
+                          >
+                            <Eye className="size-4" />
+                            Ver detalhes
+                          </DropdownMenuItem>
                           <DropdownMenuItem
                             className="cursor-pointer"
                             onClick={() => handleEditTransaction(transaction)}
@@ -1115,6 +1149,41 @@ export default function TransactionsPage() {
           </TableBody>
         </Table>
       </section>
+
+      <TransactionDetailSheet
+        transaction={detailTransaction}
+        transactions={transactions}
+        cardName={
+          detailTransaction
+            ? cards.find(
+                (card) =>
+                  card.id === getTransactionCardId(detailTransaction),
+              )?.name
+            : null
+        }
+        dependentName={
+          detailTransaction
+            ? dependents.find(
+                (dependent) =>
+                  dependent.id === getDependentId(detailTransaction),
+              )?.name
+            : null
+        }
+        open={Boolean(detailTransaction)}
+        onOpenChange={(open) => {
+          if (!open) setDetailTransaction(null);
+        }}
+        onEdit={handleEditTransaction}
+      />
+
+      <TransactionEditSheet
+        key={sheetEditingTransaction?.id ?? "closed-transaction-editor"}
+        transaction={sheetEditingTransaction}
+        open={Boolean(sheetEditingTransaction)}
+        onOpenChange={(open) => {
+          if (!open) setSheetEditingTransaction(null);
+        }}
+      />
 
       {deleteTarget?.groupId ? (
         <RecurringDeleteDialog
@@ -1172,18 +1241,10 @@ export default function TransactionsPage() {
       <AddIncomeModal
         isOpen={isAddIncomeModalOpen}
         onClose={handleCloseIncomeModal}
-        editingTransaction={
-          editingTransaction?.type === "income" ? editingTransaction : null
-        }
       />
       <AddTransactionModal
         isOpen={isAddTransactionModalOpen}
         onClose={handleCloseTransactionModal}
-        editingTransaction={
-          editingTransaction && editingTransaction.type !== "income"
-            ? editingTransaction
-            : null
-        }
       />
     </div>
   );
