@@ -49,7 +49,6 @@ function createBackup(): FinyncBackup {
           invoice_id: null,
           installment_number: 1,
           installments_total: 1,
-          is_variable: false,
           month_label: "Setembro 2026",
           month_start: "2026-09-01",
           notes: null,

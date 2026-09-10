@@ -399,12 +399,22 @@ function mapCardInvoice(row: CardInvoiceRow): CardInvoice {
 }
 
 function mapInvoicePayment(row: InvoicePaymentRow): InvoicePayment {
+  const method: InvoicePaymentMethod = [
+    "PIX",
+    "DEBIT",
+    "TRANSFER",
+    "CASH",
+    "OTHER",
+  ].includes(row.method)
+    ? (row.method as InvoicePaymentMethod)
+    : "OTHER";
+
   return {
     id: row.id,
     invoiceId: row.invoice_id,
     amount: toAmount(row.amount),
     paidAt: row.paid_at,
-    method: row.method,
+    method,
     status: row.status.toLowerCase() as InvoicePayment["status"],
     source: row.source.toLowerCase() as InvoicePayment["source"],
     notes: row.notes,
@@ -415,13 +425,22 @@ function mapInvoicePayment(row: InvoicePaymentRow): InvoicePayment {
 function mapDependentSettlement(
   row: DependentSettlementRow,
 ): DependentSettlement {
+  const method: DependentSettlementMethod = [
+    "PIX",
+    "TRANSFER",
+    "CASH",
+    "OTHER",
+  ].includes(row.method)
+    ? (row.method as DependentSettlementMethod)
+    : "OTHER";
+
   return {
     id: row.id,
     dependentId: row.dependent_id,
     competenceMonth: row.competence_month,
     amount: toAmount(row.amount),
     settledAt: row.settled_at,
-    method: row.method,
+    method,
     status: row.status.toLowerCase() as DependentSettlement["status"],
     source: row.source.toLowerCase() as DependentSettlement["source"],
     notes: row.notes,
@@ -531,8 +550,8 @@ function mapCategory(row: CategoryRow): Category {
   return {
     id: row.id,
     label: row.label ?? row.name ?? "Categoria",
-    kind: row.kind,
-    icon: row.icon,
+    kind: row.kind === "income" ? "income" : "expense",
+    icon: row.icon ?? "Tag",
     createdAt: row.created_at,
   };
 }
@@ -694,8 +713,12 @@ function setPendingPreferenceSync(pending: boolean) {
 
 function mapUserPreferences(row: UserPreferencesRow): UserPreferences {
   return {
-    defaultCurrency: row.default_currency,
-    dateFormat: row.date_format,
+    defaultCurrency: isDefaultCurrency(row.default_currency)
+      ? row.default_currency
+      : defaultUserPreferences.defaultCurrency,
+    dateFormat: isUserDateFormat(row.date_format)
+      ? row.date_format
+      : defaultUserPreferences.dateFormat,
     hideBalancesByDefault: row.hide_balances_by_default,
     invoiceReminder: row.invoice_reminder,
     weeklySummary: row.weekly_summary,

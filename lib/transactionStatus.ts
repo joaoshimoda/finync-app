@@ -41,7 +41,7 @@ export function toDbTransactionStatus(
 }
 
 export function fromDbTransactionStatus(
-  status: DbTransactionStatus,
+  status: string,
 ): TransactionStatus {
   if (status === "PAGO") return "paid";
   if (status === "PENDENTE") return "pending";
