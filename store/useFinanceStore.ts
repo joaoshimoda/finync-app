@@ -125,6 +125,23 @@ export interface Category {
   createdAt?: string;
 }
 
+export interface CategoryBudget {
+  id: string;
+  categoryId: string;
+  competenceMonth: string;
+  amount: number;
+  alertThresholdPercent: number;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface UpsertCategoryBudgetInput {
+  categoryId: string;
+  competenceMonth: string;
+  amount: number;
+  alertThresholdPercent?: number;
+}
+
 export interface Transaction {
   id: string;
   description: string;
@@ -168,6 +185,7 @@ type DependentSettlementRow = Tables<"dependent_settlements">;
 type TransactionRow = Tables<"transactions">;
 type DependentRow = Tables<"dependents">;
 type CategoryRow = Tables<"categories">;
+type CategoryBudgetRow = Tables<"category_budgets">;
 
 interface FinanceState {
   cards: Card[];
@@ -176,6 +194,7 @@ interface FinanceState {
   dependentSettlements: DependentSettlement[];
   dependents: Dependent[];
   categories: Category[];
+  categoryBudgets: CategoryBudget[];
   transactions: Transaction[];
   authUser: User | null;
   isAuthReady: boolean;
@@ -199,8 +218,13 @@ interface FinanceState {
   fetchDependentSettlements: () => Promise<void>;
   fetchDependents: () => Promise<void>;
   fetchCategories: () => Promise<void>;
+  fetchCategoryBudgets: () => Promise<void>;
   addCategory: (category: CreateCategoryInput) => Promise<void>;
   deleteCategory: (categoryId: string) => Promise<void>;
+  upsertCategoryBudget: (
+    budget: UpsertCategoryBudgetInput,
+  ) => Promise<CategoryBudget>;
+  deleteCategoryBudget: (budgetId: string) => Promise<void>;
   addDependent: (dependent: CreateDependentInput) => Promise<void>;
   deleteDependent: (dependentId: string) => Promise<void>;
   addCard: (card: CreateCardInput) => Promise<void>;
@@ -515,6 +539,18 @@ function mapCategory(row: CategoryRow): Category {
   };
 }
 
+function mapCategoryBudget(row: CategoryBudgetRow): CategoryBudget {
+  return {
+    id: row.id,
+    categoryId: row.category_id,
+    competenceMonth: row.competence_month,
+    amount: toAmount(row.amount),
+    alertThresholdPercent: row.alert_threshold_percent,
+    createdAt: row.created_at,
+    updatedAt: row.updated_at,
+  };
+}
+
 function mergeCategories(customCategories: Category[]) {
   const customKeys = new Set(
     customCategories.map(
@@ -571,6 +607,7 @@ export const useFinanceStore = create<FinanceState>()((set, get) => ({
   dependentSettlements: [],
   dependents: [],
   categories: getEssentialCategories(),
+  categoryBudgets: [],
   transactions: [],
   authUser: null,
   isAuthReady: false,
@@ -682,6 +719,7 @@ export const useFinanceStore = create<FinanceState>()((set, get) => ({
           dependentSettlements: [],
           dependents: [],
           categories: getEssentialCategories(),
+          categoryBudgets: [],
           transactions: [],
           isAuthReady: true,
           isLoading: false,
@@ -705,6 +743,7 @@ export const useFinanceStore = create<FinanceState>()((set, get) => ({
       dependentSettlements: [],
       dependents: [],
       categories: getEssentialCategories(),
+      categoryBudgets: [],
       transactions: [],
       isAuthReady: true,
       isLoading: false,
@@ -754,6 +793,34 @@ export const useFinanceStore = create<FinanceState>()((set, get) => ({
     } catch (error) {
       console.error("Erro ao buscar categorias:", error);
       set({ categories: getEssentialCategories() });
+    }
+  },
+
+  fetchCategoryBudgets: async () => {
+    try {
+      const user = await getCurrentUser();
+      if (!user) return;
+
+      const competenceMonth = toDateOnly(
+        get().currentYear,
+        get().currentMonth,
+        1,
+      );
+      const { data, error } = await supabase
+        .from("category_budgets")
+        .select("*")
+        .eq("user_id", user.id)
+        .eq("competence_month", competenceMonth)
+        .order("created_at", { ascending: true });
+
+      if (error) throw error;
+
+      set({
+        categoryBudgets: (data as CategoryBudgetRow[]).map(mapCategoryBudget),
+      });
+    } catch (error) {
+      console.error("Erro ao buscar orçamentos por categoria:", error);
+      throw error;
     }
   },
 
@@ -812,7 +879,90 @@ export const useFinanceStore = create<FinanceState>()((set, get) => ({
       categories: mergeCategories(
         state.categories.filter((item) => item.id !== categoryId),
       ),
+      categoryBudgets: state.categoryBudgets.filter(
+        (budget) => budget.categoryId !== categoryId,
+      ),
     }));
+  },
+
+  upsertCategoryBudget: async (budget) => {
+    try {
+      const user = await getCurrentUser();
+      if (!user) throw new Error("Usuário não autenticado.");
+
+      const amount = Number(budget.amount);
+      const alertThresholdPercent = budget.alertThresholdPercent ?? 80;
+
+      if (!Number.isFinite(amount) || amount <= 0) {
+        throw new Error("Informe um limite mensal válido.");
+      }
+
+      if (
+        !Number.isInteger(alertThresholdPercent) ||
+        alertThresholdPercent < 1 ||
+        alertThresholdPercent > 100
+      ) {
+        throw new Error("O alerta deve estar entre 1% e 100%.");
+      }
+
+      const { data, error } = await supabase
+        .from("category_budgets")
+        .upsert(
+          {
+            user_id: user.id,
+            category_id: budget.categoryId,
+            competence_month: getMonthStart(budget.competenceMonth),
+            amount,
+            alert_threshold_percent: alertThresholdPercent,
+          },
+          { onConflict: "user_id,category_id,competence_month" },
+        )
+        .select("*")
+        .single();
+
+      if (error) throw error;
+      if (!data) throw new Error("Orçamento não retornado pelo Supabase.");
+
+      const savedBudget = mapCategoryBudget(data as CategoryBudgetRow);
+
+      set((state) => ({
+        categoryBudgets: [
+          ...state.categoryBudgets.filter(
+            (currentBudget) => currentBudget.id !== savedBudget.id,
+          ),
+          savedBudget,
+        ],
+      }));
+
+      return savedBudget;
+    } catch (error) {
+      console.error("Erro ao salvar orçamento por categoria:", error);
+      throw error;
+    }
+  },
+
+  deleteCategoryBudget: async (budgetId) => {
+    try {
+      const user = await getCurrentUser();
+      if (!user) throw new Error("Usuário não autenticado.");
+
+      const { error } = await supabase
+        .from("category_budgets")
+        .delete()
+        .eq("id", budgetId)
+        .eq("user_id", user.id);
+
+      if (error) throw error;
+
+      set((state) => ({
+        categoryBudgets: state.categoryBudgets.filter(
+          (budget) => budget.id !== budgetId,
+        ),
+      }));
+    } catch (error) {
+      console.error("Erro ao excluir orçamento por categoria:", error);
+      throw error;
+    }
   },
 
   addDependent: async (dependent) => {
@@ -1197,6 +1347,7 @@ export const useFinanceStore = create<FinanceState>()((set, get) => ({
       await Promise.all([
         get().fetchCardInvoices(),
         get().fetchDependentSettlements(),
+        get().fetchCategoryBudgets(),
       ]);
     } catch (error) {
       console.error("Erro ao buscar transações:", error);

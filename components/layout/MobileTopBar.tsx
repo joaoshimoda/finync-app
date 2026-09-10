@@ -15,6 +15,7 @@ import {
   CalendarDays,
   CircleHelp,
   FileUp,
+  Gauge,
   LogOut,
   Settings,
 } from "lucide-react";
@@ -78,6 +79,15 @@ export function MobileTopBar() {
           </button>
         </DropdownMenuTrigger>
         <DropdownMenuContent align="end" sideOffset={8} className="w-60 p-2">
+          <DropdownMenuItem
+            asChild
+            className="min-h-11 cursor-pointer rounded-lg"
+          >
+            <Link href="/dashboard/orcamentos">
+              <Gauge className="size-4" />
+              Orçamentos
+            </Link>
+          </DropdownMenuItem>
           <DropdownMenuItem
             asChild
             className="min-h-11 cursor-pointer rounded-lg"

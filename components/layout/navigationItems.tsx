@@ -4,6 +4,7 @@ import {
   CreditCard,
   FileUp,
   CircleHelp,
+  Gauge,
   LayoutDashboard,
   Receipt,
   Settings,
@@ -32,6 +33,13 @@ export const navigationItems: NavigationItem[] = [
     href: "/dashboard/transactions",
     icon: Receipt,
     tourId: "nav-transactions",
+  },
+  {
+    label: "Orçamentos",
+    shortLabel: "Limites",
+    href: "/dashboard/orcamentos",
+    icon: Gauge,
+    tourId: "nav-budgets",
   },
   {
     label: "Importar Faturas",

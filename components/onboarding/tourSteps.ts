@@ -122,6 +122,15 @@ export const productTourSteps: ProductTourStep[] = [
     previewEvent: PRODUCT_TOUR_PREVIEW_EVENTS.income,
   },
   {
+    id: "budgets",
+    eyebrow: "Planejamento pessoal",
+    title: "Defina limites por categoria",
+    description:
+      "Escolha uma categoria, informe o limite mensal e o Finync acompanhará o consumo pessoal automaticamente.",
+    route: "/dashboard/orcamentos",
+    target: "budgets-add",
+  },
+  {
     id: "fixed-navigation",
     eyebrow: "Passo 3 · Recorrências",
     title: "Fixos e assinaturas vivem nesta área",

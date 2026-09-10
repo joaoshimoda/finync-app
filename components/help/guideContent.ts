@@ -4,6 +4,7 @@ import {
   CircleDollarSign,
   CreditCard,
   FileUp,
+  Gauge,
   LayoutDashboard,
   LockKeyhole,
   Receipt,
@@ -187,6 +188,24 @@ export const guideSections: GuideSection[] = [
       "Categorias em uso não podem ser excluídas; Outros e Crédito/Estorno são protegidas.",
     ],
     tip: "Ao recategorizar uma parcela, o Finync atualiza todas as parcelas do mesmo grupo.",
+  },
+  {
+    id: "orcamentos",
+    title: "Defina orçamentos por categoria",
+    shortTitle: "Orçamentos",
+    description:
+      "Crie limites mensais para seus gastos pessoais e acompanhe quanto ainda pode consumir em cada categoria.",
+    icon: Gauge,
+    href: "/dashboard/orcamentos",
+    actionLabel: "Abrir Orçamentos",
+    accent: "text-amber-400 bg-amber-500/10",
+    steps: [
+      "Escolha o mês e crie um orçamento para uma categoria de despesa.",
+      "Informe o limite mensal e em qual percentual deseja receber o alerta visual.",
+      "O consumo é atualizado automaticamente com PIX, débito, fixos e compras na competência da fatura.",
+      "Edite ou remova o limite sem alterar nenhuma transação existente.",
+    ],
+    tip: "Os limites analisam somente seus gastos pessoais; despesas de dependentes permanecem isoladas.",
   },
   {
     id: "analytics",

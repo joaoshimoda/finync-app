@@ -215,6 +215,54 @@ export type Database = {
           },
         ];
       };
+      category_budgets: {
+        Row: {
+          alert_threshold_percent: number;
+          amount: number;
+          category_id: string;
+          competence_month: string;
+          created_at: string;
+          id: string;
+          updated_at: string;
+          user_id: string;
+        };
+        Insert: {
+          alert_threshold_percent?: number;
+          amount: number;
+          category_id: string;
+          competence_month: string;
+          created_at?: string;
+          id?: string;
+          updated_at?: string;
+          user_id: string;
+        };
+        Update: {
+          alert_threshold_percent?: number;
+          amount?: number;
+          category_id?: string;
+          competence_month?: string;
+          created_at?: string;
+          id?: string;
+          updated_at?: string;
+          user_id?: string;
+        };
+        Relationships: [
+          {
+            foreignKeyName: "category_budgets_category_id_fkey";
+            columns: ["category_id"];
+            isOneToOne: false;
+            referencedRelation: "categories";
+            referencedColumns: ["id"];
+          },
+          {
+            foreignKeyName: "category_budgets_user_id_fkey";
+            columns: ["user_id"];
+            isOneToOne: false;
+            referencedRelation: "users";
+            referencedColumns: ["id"];
+          },
+        ];
+      };
       categories: {
         Row: {
           created_at: string;

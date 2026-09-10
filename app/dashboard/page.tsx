@@ -90,6 +90,10 @@ import { aggregatePeriodExpenses } from "@/lib/financeAggregation";
 import { getCardInvoiceCycle } from "@/lib/cardBilling";
 import { getDependentSettlementSummary } from "@/lib/dependentSettlements";
 import {
+  getCategoryBudgetMetrics,
+  getCategoryBudgetSpent,
+} from "@/lib/categoryBudgets";
+import {
   useFinanceStore,
   type CardInvoice,
   type CardInvoiceStatus,
@@ -528,7 +532,9 @@ export default function DashboardPage() {
 
   const cards = useFinanceStore((state) => state.cards);
   const cardInvoices = useFinanceStore((state) => state.cardInvoices);
+  const categories = useFinanceStore((state) => state.categories);
   const dependents = useFinanceStore((state) => state.dependents);
+  const categoryBudgets = useFinanceStore((state) => state.categoryBudgets);
   const dependentSettlements = useFinanceStore(
     (state) => state.dependentSettlements,
   );
@@ -1058,6 +1064,41 @@ export default function DashboardPage() {
     },
     [],
   );
+
+  const budgetHealth = useMemo(() => {
+    const competenceMonth = toDateOnly(displayYear, displayMonth, 1);
+    const selectedBudgets = categoryBudgets.filter(
+      (budget) => budget.competenceMonth === competenceMonth,
+    );
+    const statuses = selectedBudgets.map((budget) => {
+      const category = categories.find(
+        (item) => item.id === budget.categoryId,
+      );
+      const spent = getCategoryBudgetSpent(
+        transactions,
+        category?.label ?? "Outros",
+        displayMonth,
+        displayYear,
+      );
+
+      return getCategoryBudgetMetrics(
+        budget.amount,
+        spent,
+        budget.alertThresholdPercent,
+      ).status;
+    });
+
+    return {
+      total: statuses.length,
+      attention: statuses.filter((status) => status !== "on_track").length,
+    };
+  }, [
+    categories,
+    categoryBudgets,
+    displayMonth,
+    displayYear,
+    transactions,
+  ]);
 
   const handleConfirmVariableIncome = useCallback(
     async (transaction: Transaction) => {
@@ -1750,13 +1791,32 @@ export default function DashboardPage() {
             "col-span-12 h-full rounded-xl lg:col-span-4 lg:min-h-[clamp(16.25rem,28vh,22rem)]",
           )}
         >
-          <CardHeader className="p-3 pb-1 2xl:p-5 2xl:pb-2">
-            <CardDescription className="text-[10px] 2xl:text-xs">
-              Distribuição pessoal
-            </CardDescription>
-            <CardTitle className="text-sm tracking-normal text-foreground 2xl:text-base">
-              Para onde foi seu dinheiro
-            </CardTitle>
+          <CardHeader className="flex flex-row items-start justify-between gap-3 p-3 pb-1 2xl:p-5 2xl:pb-2">
+            <div>
+              <CardDescription className="text-[10px] 2xl:text-xs">
+                Distribuição pessoal
+              </CardDescription>
+              <CardTitle className="text-sm tracking-normal text-foreground 2xl:text-base">
+                Para onde foi seu dinheiro
+              </CardTitle>
+            </div>
+            <Button
+              asChild
+              variant="ghost"
+              size="sm"
+              className={cn(
+                "h-7 shrink-0 px-2 text-[10px] 2xl:text-xs",
+                budgetHealth.attention > 0
+                  ? "text-amber-300 hover:text-amber-200"
+                  : "text-zinc-400 hover:text-zinc-200",
+              )}
+            >
+              <Link href="/dashboard/orcamentos">
+                {budgetHealth.total
+                  ? `${budgetHealth.attention} alertas`
+                  : "Definir limites"}
+              </Link>
+            </Button>
           </CardHeader>
           <CardContent className="flex flex-1 items-center p-4 2xl:p-6">
             {personalSpendingDistribution.categories.length ? (
