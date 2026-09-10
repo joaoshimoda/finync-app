@@ -1,4 +1,5 @@
 import {
+  Activity,
   BarChart3,
   CalendarRange,
   CircleDollarSign,
@@ -243,6 +244,24 @@ export const guideSections: GuideSection[] = [
       "Depois da correção, execute a verificação novamente para confirmar o resultado.",
     ],
     tip: "O diagnóstico é somente leitura: nenhuma transação ou configuração é alterada durante a verificação.",
+  },
+  {
+    id: "atividades",
+    title: "Consulte o histórico de alterações",
+    shortTitle: "Atividades",
+    description:
+      "Veja quando transações, cartões, faturas, pagamentos e configurações financeiras foram criados, editados ou excluídos.",
+    icon: Activity,
+    href: "/dashboard/atividades",
+    actionLabel: "Abrir Histórico",
+    accent: "text-sky-400 bg-sky-500/10",
+    steps: [
+      "Abra Atividades para consultar os eventos mais recentes da sua conta.",
+      "Filtre por área, tipo de ação ou período para encontrar uma mudança específica.",
+      "Nas edições, abra os detalhes para comparar o valor anterior com o novo.",
+      "Use a data e a origem do evento para diferenciar ações manuais de atualizações automáticas.",
+    ],
+    tip: "O histórico começa a ser preenchido após a ativação da Fase 7 e não pode ser editado pelo aplicativo.",
   },
   {
     id: "privacidade",

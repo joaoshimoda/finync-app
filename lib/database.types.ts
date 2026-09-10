@@ -36,6 +36,87 @@ export type Database = {
         };
         Relationships: [];
       };
+      audit_logs: {
+        Row: {
+          action: "CREATE" | "UPDATE" | "DELETE";
+          actor_id: string | null;
+          after_data: Json | null;
+          before_data: Json | null;
+          changed_fields: string[];
+          created_at: string;
+          entity_id: string;
+          entity_type:
+            | "transactions"
+            | "cards"
+            | "dependents"
+            | "categories"
+            | "card_invoices"
+            | "invoice_payments"
+            | "dependent_settlements"
+            | "category_budgets";
+          id: string;
+          origin: "USER" | "SYSTEM";
+          user_id: string;
+        };
+        Insert: {
+          action: "CREATE" | "UPDATE" | "DELETE";
+          actor_id?: string | null;
+          after_data?: Json | null;
+          before_data?: Json | null;
+          changed_fields?: string[];
+          created_at?: string;
+          entity_id: string;
+          entity_type:
+            | "transactions"
+            | "cards"
+            | "dependents"
+            | "categories"
+            | "card_invoices"
+            | "invoice_payments"
+            | "dependent_settlements"
+            | "category_budgets";
+          id?: string;
+          origin?: "USER" | "SYSTEM";
+          user_id: string;
+        };
+        Update: {
+          action?: "CREATE" | "UPDATE" | "DELETE";
+          actor_id?: string | null;
+          after_data?: Json | null;
+          before_data?: Json | null;
+          changed_fields?: string[];
+          created_at?: string;
+          entity_id?: string;
+          entity_type?:
+            | "transactions"
+            | "cards"
+            | "dependents"
+            | "categories"
+            | "card_invoices"
+            | "invoice_payments"
+            | "dependent_settlements"
+            | "category_budgets";
+          id?: string;
+          origin?: "USER" | "SYSTEM";
+          user_id?: string;
+        };
+        Relationships: [
+          {
+            foreignKeyName: "audit_logs_actor_id_fkey";
+            columns: ["actor_id"];
+            isOneToOne: false;
+            referencedRelation: "users";
+            referencedColumns: ["id"];
+          },
+          {
+            foreignKeyName: "audit_logs_user_id_fkey";
+            columns: ["user_id"];
+            isOneToOne: false;
+            referencedRelation: "users";
+            referencedColumns: ["id"];
+          },
+        ];
+      };
       cards: {
         Row: {
           closing_day: number | null;

@@ -1,4 +1,5 @@
 import {
+  Activity,
   BarChart3,
   CalendarDays,
   CreditCard,
@@ -62,6 +63,13 @@ export const navigationItems: NavigationItem[] = [
     href: "/dashboard/integridade",
     icon: ShieldCheck,
     tourId: "nav-integrity",
+  },
+  {
+    label: "Atividades",
+    shortLabel: "Histórico",
+    href: "/dashboard/atividades",
+    icon: Activity,
+    tourId: "nav-activity",
   },
   {
     label: "Dependentes",

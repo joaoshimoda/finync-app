@@ -12,6 +12,7 @@ import {
 import { supabase } from "@/lib/supabaseClient";
 import { useFinanceStore } from "@/store/useFinanceStore";
 import {
+  Activity,
   CalendarDays,
   CircleHelp,
   FileUp,
@@ -114,6 +115,15 @@ export function MobileTopBar() {
             <Link href="/dashboard/integridade">
               <ShieldCheck className="size-4" />
               Integridade dos Dados
+            </Link>
+          </DropdownMenuItem>
+          <DropdownMenuItem
+            asChild
+            className="min-h-11 cursor-pointer rounded-lg"
+          >
+            <Link href="/dashboard/atividades">
+              <Activity className="size-4" />
+              Histórico de Alterações
             </Link>
           </DropdownMenuItem>
           <DropdownMenuItem

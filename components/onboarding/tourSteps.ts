@@ -223,6 +223,15 @@ export const productTourSteps: ProductTourStep[] = [
     target: "integrity-dashboard",
   },
   {
+    id: "activity",
+    eyebrow: "Rastreabilidade",
+    title: "Entenda cada alteração financeira",
+    description:
+      "O histórico registra criações, edições e exclusões para você conferir quando e como seus dados mudaram.",
+    route: "/dashboard/atividades",
+    target: "activity-dashboard",
+  },
+  {
     id: "finish",
     eyebrow: "Tudo pronto",
     title: "Você já conhece o fluxo essencial",
