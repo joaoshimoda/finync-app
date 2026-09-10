@@ -26,6 +26,7 @@ import { RecurringDeleteDialog } from "@/components/finance/RecurringDeleteDialo
 import { TransactionDescription } from "@/components/finance/TransactionDescription";
 import { AddIncomeModal } from "@/components/modals/AddIncomeModal";
 import { AddTransactionModal } from "@/components/modals/AddTransactionModal";
+import { PRODUCT_TOUR_PREVIEW_EVENTS } from "@/components/onboarding/tourSteps";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
@@ -347,6 +348,40 @@ export default function TransactionsPage() {
     setEditingTransaction(null);
   }, []);
 
+  useEffect(() => {
+    function openExpensePreview() {
+      setEditingTransaction(null);
+      setIsAddIncomeModalOpen(false);
+      setIsAddTransactionModalOpen(true);
+    }
+
+    function openIncomePreview() {
+      setEditingTransaction(null);
+      setIsAddTransactionModalOpen(false);
+      setIsAddIncomeModalOpen(true);
+    }
+
+    window.addEventListener(
+      PRODUCT_TOUR_PREVIEW_EVENTS.expense,
+      openExpensePreview,
+    );
+    window.addEventListener(
+      PRODUCT_TOUR_PREVIEW_EVENTS.income,
+      openIncomePreview,
+    );
+
+    return () => {
+      window.removeEventListener(
+        PRODUCT_TOUR_PREVIEW_EVENTS.expense,
+        openExpensePreview,
+      );
+      window.removeEventListener(
+        PRODUCT_TOUR_PREVIEW_EVENTS.income,
+        openIncomePreview,
+      );
+    };
+  }, []);
+
   const handleEditTransaction = useCallback((transaction: Transaction) => {
     setEditingTransaction(transaction);
 
@@ -476,6 +511,7 @@ export default function TransactionsPage() {
             <Button
               type="button"
               aria-label="Criar nova transação"
+              data-tour="transactions-add"
               className="h-11 gap-2 bg-emerald-600 px-3.5 text-sm font-semibold text-white hover:bg-emerald-700 md:h-12 md:px-6 md:text-base"
             >
               <PlusCircle className="size-5" />

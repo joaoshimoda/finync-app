@@ -18,6 +18,7 @@ import { toast } from "sonner";
 import { RecurringDeleteDialog } from "@/components/finance/RecurringDeleteDialog";
 import { TransactionDescription } from "@/components/finance/TransactionDescription";
 import { AddTransactionModal } from "@/components/modals/AddTransactionModal";
+import { PRODUCT_TOUR_PREVIEW_EVENTS } from "@/components/onboarding/tourSteps";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
@@ -625,6 +626,24 @@ export default function FixedExpensesPage() {
     );
   }
 
+  useEffect(() => {
+    function openRecurringPreview() {
+      setEditingTransaction(null);
+      setIsTransactionModalOpen(true);
+    }
+
+    window.addEventListener(
+      PRODUCT_TOUR_PREVIEW_EVENTS.recurring,
+      openRecurringPreview,
+    );
+
+    return () =>
+      window.removeEventListener(
+        PRODUCT_TOUR_PREVIEW_EVENTS.recurring,
+        openRecurringPreview,
+      );
+  }, []);
+
   function renderSubscriptionList(groups: SubscriptionGroup[]) {
     return (
       <div className="rounded-2xl border border-zinc-800 bg-zinc-950">
@@ -879,6 +898,7 @@ export default function FixedExpensesPage() {
           <Button
             type="button"
             aria-label="Criar nova recorrência"
+            data-tour="recurrence-add"
             onClick={openCreateModal}
             className="h-11 gap-2 bg-emerald-600 px-3.5 text-sm font-semibold text-white hover:bg-emerald-700 md:h-12 md:px-6 md:text-base"
           >

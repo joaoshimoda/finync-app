@@ -978,6 +978,7 @@ export default function DashboardPage() {
             <DropdownMenuTrigger asChild>
               <Button
                 aria-label="Criar novo item"
+                data-tour="dashboard-new"
                 className="h-9 gap-2 rounded-lg bg-emerald-400 px-3 text-xs font-semibold text-zinc-950 shadow-lg shadow-emerald-500/10 transition hover:-translate-y-0.5 hover:bg-emerald-300"
               >
                 <PlusCircle className="size-4" />

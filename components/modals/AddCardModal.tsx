@@ -129,7 +129,11 @@ function CardModalContent({
   }
 
   return (
-    <DialogContent className="border border-zinc-800 bg-zinc-950 text-white shadow-2xl sm:max-w-3xl">
+    <DialogContent
+      data-tour="card-modal"
+      data-tour-preview-modal
+      className="border border-zinc-800 bg-zinc-950 text-white shadow-2xl sm:max-w-3xl"
+    >
       <DialogHeader>
         <div className="mb-2 flex size-10 items-center justify-center rounded-2xl border border-brand-500/20 bg-brand-500/10 text-brand-300">
           <CreditCard className="size-5" />

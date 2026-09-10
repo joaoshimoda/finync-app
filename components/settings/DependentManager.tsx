@@ -79,6 +79,7 @@ export function DependentManager({
       <CardContent className="space-y-6 p-5">
         <form
           onSubmit={handleSubmit}
+          data-tour="dependent-add"
           className="rounded-2xl border border-zinc-800 bg-zinc-900/40 p-4"
         >
           <div className="space-y-2">

@@ -562,7 +562,10 @@ export default function AnalyticsPage() {
 
   return (
     <div className="flex w-full flex-col gap-3 overflow-x-hidden bg-zinc-950 lg:h-[calc(100dvh-4rem)] lg:overflow-hidden">
-      <header className="flex shrink-0 items-end justify-between gap-4">
+      <header
+        data-tour="analytics-dashboard"
+        className="flex shrink-0 items-end justify-between gap-4"
+      >
         <div className="min-w-0">
           <p className="text-[11px] font-medium uppercase text-emerald-400">
             Centro de comando

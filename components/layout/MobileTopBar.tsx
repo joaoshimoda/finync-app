@@ -11,7 +11,13 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { supabase } from "@/lib/supabaseClient";
 import { useFinanceStore } from "@/store/useFinanceStore";
-import { CalendarDays, FileUp, LogOut, Settings } from "lucide-react";
+import {
+  CalendarDays,
+  CircleHelp,
+  FileUp,
+  LogOut,
+  Settings,
+} from "lucide-react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
@@ -88,6 +94,15 @@ export function MobileTopBar() {
             <Link href="/dashboard/importar">
               <FileUp className="size-4" />
               Importar Fatura
+            </Link>
+          </DropdownMenuItem>
+          <DropdownMenuItem
+            asChild
+            className="min-h-11 cursor-pointer rounded-lg"
+          >
+            <Link href="/dashboard/ajuda">
+              <CircleHelp className="size-4" />
+              Guia do Usuário
             </Link>
           </DropdownMenuItem>
           <DropdownMenuItem

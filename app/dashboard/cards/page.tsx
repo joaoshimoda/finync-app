@@ -13,6 +13,7 @@ import {
 import { toast } from "sonner";
 
 import { AddCardModal } from "@/components/modals/AddCardModal";
+import { PRODUCT_TOUR_PREVIEW_EVENTS } from "@/components/onboarding/tourSteps";
 import { TransactionDescription } from "@/components/finance/TransactionDescription";
 import { MobileTransactionItem } from "@/components/finance/MobileTransactionItem";
 import {
@@ -576,6 +577,24 @@ export default function CardsPage() {
     setIsAddCardModalOpen(true);
   }, []);
 
+  useEffect(() => {
+    function openCardPreview() {
+      setEditingCard(null);
+      setIsAddCardModalOpen(true);
+    }
+
+    window.addEventListener(
+      PRODUCT_TOUR_PREVIEW_EVENTS.card,
+      openCardPreview,
+    );
+
+    return () =>
+      window.removeEventListener(
+        PRODUCT_TOUR_PREVIEW_EVENTS.card,
+        openCardPreview,
+      );
+  }, []);
+
   const openEditModal = useCallback((card: FinanceCard) => {
     setEditingCard(card);
     setIsAddCardModalOpen(true);
@@ -645,6 +664,7 @@ export default function CardsPage() {
           <Button
             type="button"
             aria-label="Adicionar cartão"
+            data-tour="cards-add"
             onClick={openCreateModal}
             className="h-11 gap-2 bg-emerald-600 px-3.5 text-sm font-semibold text-white hover:bg-emerald-700 md:h-12 md:px-6 md:text-base"
           >

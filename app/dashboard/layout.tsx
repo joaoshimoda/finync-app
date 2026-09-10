@@ -3,6 +3,7 @@
 import { BottomNav } from "@/components/layout/BottomNav";
 import { Sidebar } from "@/components/layout/Sidebar";
 import { MobileTopBar } from "@/components/layout/MobileTopBar";
+import { FirstRunOnboarding } from "@/components/onboarding/FirstRunOnboarding";
 import { useFinanceStore } from "@/store/useFinanceStore";
 import { useRouter } from "next/navigation";
 import { useEffect } from "react";
@@ -36,18 +37,22 @@ export default function DashboardLayout({
   }
 
   return (
-    <div className="min-h-screen w-full overflow-x-hidden bg-background text-white">
+    <div className="min-h-dvh w-full overflow-x-hidden bg-background text-white">
       <div className="pointer-events-none fixed inset-0 bg-[linear-gradient(rgba(255,255,255,0.025)_1px,transparent_1px),linear-gradient(90deg,rgba(255,255,255,0.025)_1px,transparent_1px)] bg-[size:72px_72px] opacity-35" />
-      <div className="relative flex h-screen w-full">
+      <div className="relative flex h-dvh w-full">
         <Sidebar />
         <MobileTopBar />
-        <main className="h-screen min-w-0 flex-1 overflow-x-hidden overflow-y-auto px-4 pb-28 pt-20 sm:px-5 md:px-6 md:pb-8 md:pt-8 lg:px-8">
+        <main
+          id="dashboard-scroll-container"
+          className="h-dvh min-h-0 min-w-0 flex-1 overscroll-y-contain overflow-x-hidden overflow-y-auto px-4 pb-28 pt-20 [scrollbar-gutter:stable] sm:px-5 md:px-6 md:pb-8 md:pt-8 lg:px-8"
+        >
           <div className="mx-auto w-full max-w-lg md:max-w-none">
             {children}
           </div>
         </main>
       </div>
       <BottomNav />
+      <FirstRunOnboarding />
     </div>
   );
 }

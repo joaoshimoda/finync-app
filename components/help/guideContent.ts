@@ -1,0 +1,291 @@
+import {
+  BarChart3,
+  CalendarRange,
+  CircleDollarSign,
+  CreditCard,
+  FileUp,
+  LayoutDashboard,
+  LockKeyhole,
+  Receipt,
+  Repeat2,
+  Settings,
+  Tags,
+  UsersRound,
+  type LucideIcon,
+} from "lucide-react";
+
+export type GuideSection = {
+  id: string;
+  title: string;
+  shortTitle: string;
+  description: string;
+  icon: LucideIcon;
+  href: string;
+  actionLabel: string;
+  accent: string;
+  steps: string[];
+  tip: string;
+};
+
+export const guideSections: GuideSection[] = [
+  {
+    id: "competencia",
+    title: "Entenda o mês financeiro",
+    shortTitle: "Mês financeiro",
+    description:
+      "O seletor de mês controla toda a leitura do Finync: receitas e contas usam o mês civil; cartões usam o mês de vencimento da fatura.",
+    icon: CalendarRange,
+    href: "/dashboard",
+    actionLabel: "Ver visão geral",
+    accent: "text-sky-400 bg-sky-500/10",
+    steps: [
+      "Use o carrossel de meses no topo para avançar ou voltar o período analisado.",
+      "Receitas, PIX, débito e contas fixas aparecem no mês em que foram lançados.",
+      "Compras no cartão aparecem no mês da fatura: no dia do fechamento ou depois, entram na fatura seguinte.",
+    ],
+    tip: "Se um gasto do cartão parecer estar no mês errado, confira o fechamento e o vencimento cadastrados no cartão.",
+  },
+  {
+    id: "dashboard",
+    title: "Leia sua Visão Geral",
+    shortTitle: "Visão Geral",
+    description:
+      "A página inicial reúne caixa, faturas, pendências, cartões, distribuição pessoal e movimentações recentes.",
+    icon: LayoutDashboard,
+    href: "/dashboard",
+    actionLabel: "Abrir Dashboard",
+    accent: "text-emerald-400 bg-emerald-500/10",
+    steps: [
+      "Receitas mostra todas as entradas do período selecionado.",
+      "Saldo Disponível Total projeta o que sobra no fim do mês após seus gastos pessoais planejados.",
+      "Faturas em Aberto mostra o que já caiu no cartão; Projeção de Fechamento inclui também lançamentos futuros.",
+      "Gastos Pendentes reúne obrigações ainda não liquidadas e separa seus valores dos gastos de dependentes.",
+    ],
+    tip: "Valores de dependentes aparecem na fatura, pois serão cobrados no cartão, mas não reduzem seu saldo pessoal projetado.",
+  },
+  {
+    id: "receitas",
+    title: "Registre receitas",
+    shortTitle: "Receitas",
+    description:
+      "Salários, freelances e outras entradas dão contexto aos indicadores de saldo, comprometimento e poupança.",
+    icon: CircleDollarSign,
+    href: "/dashboard/transactions",
+    actionLabel: "Adicionar receita",
+    accent: "text-emerald-400 bg-emerald-500/10",
+    steps: [
+      "Abra o menu Novo e escolha Nova Receita.",
+      "Informe valor, data, descrição e categoria.",
+      "Confirme o lançamento; os KPIs e gráficos são atualizados automaticamente.",
+    ],
+    tip: "Use descrições consistentes, como Salário ou Freelance, para facilitar buscas e análises futuras.",
+  },
+  {
+    id: "transacoes",
+    title: "Registre e organize despesas",
+    shortTitle: "Transações",
+    description:
+      "A tela de Transações funciona como um extrato completo, com busca, filtros, edição, exclusão e alteração de categorias.",
+    icon: Receipt,
+    href: "/dashboard/transactions",
+    actionLabel: "Abrir Transações",
+    accent: "text-rose-400 bg-rose-500/10",
+    steps: [
+      "Escolha Débito/PIX para gastos que saem da conta no momento da compra.",
+      "Escolha Cartão de Crédito e selecione o cartão usado para lançar na fatura correta.",
+      "Use os filtros de tipo, origem, cartão e categoria para encontrar lançamentos.",
+      "No menu de cada linha, edite ou exclua a transação; categorias de parcelas são propagadas para todo o grupo.",
+    ],
+    tip: "Uma compra parcelada deve receber o valor total e a quantidade de parcelas. O Finync divide e projeta cada ocorrência.",
+  },
+  {
+    id: "cartoes",
+    title: "Cadastre cartões e ciclos",
+    shortTitle: "Cartões",
+    description:
+      "Fechamento e vencimento definem em qual fatura cada compra entra e tornam a projeção mensal confiável.",
+    icon: CreditCard,
+    href: "/dashboard/cards",
+    actionLabel: "Gerenciar Cartões",
+    accent: "text-violet-400 bg-violet-500/10",
+    steps: [
+      "Cadastre nome, limite, dia de fechamento e dia de vencimento.",
+      "Compras anteriores ao fechamento entram na fatura vigente; no dia do fechamento ou depois, vão para a próxima.",
+      "Vire o cartão para conferir total, gastos pessoais e valores por dependente.",
+      "Use Pagar Fatura para liquidar as transações daquele cartão no mês selecionado.",
+    ],
+    tip: "Excluir um cartão também remove suas transações vinculadas. O Finync sempre pede confirmação antes dessa ação.",
+  },
+  {
+    id: "recorrencias",
+    title: "Controle fixos e assinaturas",
+    shortTitle: "Recorrências",
+    description:
+      "Contas fixas e assinaturas são projetadas por 12 meses, mas seguem regras diferentes de pagamento.",
+    icon: Repeat2,
+    href: "/dashboard/fixed",
+    actionLabel: "Abrir Recorrências",
+    accent: "text-amber-400 bg-amber-500/10",
+    steps: [
+      "Débito/PIX recorrente vira Conta Fixa e nasce pendente até você dar baixa.",
+      "Cartão de Crédito recorrente vira Assinatura vinculada ao cartão escolhido.",
+      "Uma assinatura futura entra no saldo projetado, mas só aparece na fatura atual quando chega a data da cobrança.",
+      "Marque contas fixas como pagas individualmente ou selecione várias para uma baixa em massa.",
+    ],
+    tip: "Ao excluir uma recorrência, escolha entre remover somente o mês atual ou este e os próximos lançamentos.",
+  },
+  {
+    id: "dependentes",
+    title: "Separe gastos de dependentes",
+    shortTitle: "Dependentes",
+    description:
+      "Vincule despesas de terceiros sem distorcer sua leitura pessoal de renda, poupança e categorias.",
+    icon: UsersRound,
+    href: "/dashboard/dependentes",
+    actionLabel: "Gerenciar Dependentes",
+    accent: "text-cyan-400 bg-cyan-500/10",
+    steps: [
+      "Cadastre o nome da pessoa na área Dependentes.",
+      "Ao criar ou editar uma despesa, selecione opcionalmente quem é o responsável pelo gasto.",
+      "O valor continua compondo a fatura do cartão, mas é isolado nos resumos por dependente.",
+      "O Analytics considera somente seu fluxo pessoal e exclui essas despesas dos indicadores de saúde financeira.",
+    ],
+    tip: "Use a página de Dependentes para conferir quanto cada pessoa deve no período selecionado.",
+  },
+  {
+    id: "importacao",
+    title: "Importe faturas por arquivo",
+    shortTitle: "Importação",
+    description:
+      "O importador lê faturas, sugere categorias e compara lançamentos antes de gravar qualquer item.",
+    icon: FileUp,
+    href: "/dashboard/importar",
+    actionLabel: "Importar Fatura",
+    accent: "text-blue-400 bg-blue-500/10",
+    steps: [
+      "Exporte a fatura do banco e envie o arquivo aceito pelo importador.",
+      "Escolha o cartão e o mês de vencimento correspondente à fatura.",
+      "Revise descrições, parcelas, dependentes e categorias no preview.",
+      "Confira os itens novos, duplicados e que exigem revisão antes de confirmar a importação.",
+    ],
+    tip: "Pagamentos de fatura e estornos são tratados separadamente. Revise valores negativos antes da confirmação.",
+  },
+  {
+    id: "categorias",
+    title: "Personalize categorias",
+    shortTitle: "Categorias",
+    description:
+      "Categorias alimentam filtros e gráficos. Você pode criar opções próprias com nome, tipo e ícone.",
+    icon: Tags,
+    href: "/configuracoes",
+    actionLabel: "Configurar Categorias",
+    accent: "text-fuchsia-400 bg-fuchsia-500/10",
+    steps: [
+      "Em Configurações, abra Preferências e localize o gerenciador de categorias.",
+      "Defina um nome, escolha se é receita ou despesa e selecione um ícone.",
+      "A nova categoria aparece imediatamente nos formulários e filtros.",
+      "Categorias em uso não podem ser excluídas; Outros e Crédito/Estorno são protegidas.",
+    ],
+    tip: "Ao recategorizar uma parcela, o Finync atualiza todas as parcelas do mesmo grupo.",
+  },
+  {
+    id: "analytics",
+    title: "Interprete o Analytics",
+    shortTitle: "Analytics",
+    description:
+      "O Centro de Comando transforma seu histórico pessoal em tendências, composição e concentração de gastos.",
+    icon: BarChart3,
+    href: "/dashboard/analytics",
+    actionLabel: "Abrir Analytics",
+    accent: "text-lime-400 bg-lime-500/10",
+    steps: [
+      "Confira Entradas, Saídas, Balanço Líquido e Taxa de Poupança no topo.",
+      "Use o gráfico de fluxo para comparar receitas e despesas ao longo dos períodos.",
+      "Top Categorias mostra onde houve maior concentração de dinheiro.",
+      "Composição separa contas fixas e cartão; Maiores Despesas destaca os lançamentos mais relevantes.",
+    ],
+    tip: "O Analytics é pessoal: gastos vinculados a dependentes não entram nos KPIs nem nos gráficos.",
+  },
+  {
+    id: "privacidade",
+    title: "Ajuste perfil e privacidade",
+    shortTitle: "Configurações",
+    description:
+      "Gerencie identidade, preferências, categorias, senha, saldos ocultos e permissões do navegador.",
+    icon: Settings,
+    href: "/configuracoes",
+    actionLabel: "Abrir Configurações",
+    accent: "text-zinc-300 bg-zinc-500/10",
+    steps: [
+      "Em Meu Perfil, altere nome de exibição e foto.",
+      "Em Preferências, defina moeda, formato de data, categorias e se os saldos devem iniciar ocultos.",
+      "Em Segurança, troque sua senha com validação.",
+      "Ative notificações somente quando desejar permitir alertas nativos do navegador.",
+    ],
+    tip: "Ocultar saldos é uma preferência local e permanece ativa nas próximas sessões deste navegador.",
+  },
+  {
+    id: "seguranca",
+    title: "Saiba como seus dados são protegidos",
+    shortTitle: "Segurança",
+    description:
+      "Autenticação, sessão e políticas do Supabase mantêm cada conta isolada.",
+    icon: LockKeyhole,
+    href: "/configuracoes",
+    actionLabel: "Revisar Segurança",
+    accent: "text-teal-400 bg-teal-500/10",
+    steps: [
+      "Todas as rotas do painel são protegidas antes da renderização.",
+      "As políticas RLS limitam leituras e alterações ao usuário autenticado.",
+      "Ao sair, o Finync encerra a sessão e limpa os dados financeiros do estado local.",
+      "Use a recuperação de senha na tela de login caso perca o acesso.",
+    ],
+    tip: "Nunca compartilhe códigos de acesso, links de recuperação ou sua senha.",
+  },
+];
+
+export const quickStartSteps = [
+  {
+    title: "Cadastre o cartão",
+    description: "Informe fechamento e vencimento para organizar as faturas.",
+    href: "/dashboard/cards",
+  },
+  {
+    title: "Registre sua receita",
+    description: "Adicione salário e entradas para calcular o saldo projetado.",
+    href: "/dashboard/transactions",
+  },
+  {
+    title: "Organize recorrências",
+    description: "Separe contas fixas de assinaturas cobradas no cartão.",
+    href: "/dashboard/fixed",
+  },
+  {
+    title: "Revise o mês",
+    description: "Confira saldos, pendências e distribuição na Visão Geral.",
+    href: "/dashboard",
+  },
+];
+
+export const frequentlyAskedQuestions = [
+  {
+    question: "Por que uma compra de agosto aparece em setembro?",
+    answer:
+      "Porque cartões seguem o mês de vencimento da fatura. Se a compra ocorreu no dia do fechamento ou depois, ela pertence à próxima fatura.",
+  },
+  {
+    question: "Assinatura futura reduz meu saldo disponível?",
+    answer:
+      "Sim. Ela entra na projeção do fim do mês, mas só passa a compor a fatura atual quando chega a data prevista de cobrança.",
+  },
+  {
+    question: "Gasto de dependente altera meus gráficos?",
+    answer:
+      "Não. Ele continua na fatura bruta do cartão, mas é excluído do saldo pessoal e do Analytics.",
+  },
+  {
+    question: "Por que não consigo excluir uma categoria?",
+    answer:
+      "Categorias vinculadas a transações não podem ser removidas. Recategorize os lançamentos antes de tentar novamente.",
+  },
+];

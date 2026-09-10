@@ -27,7 +27,10 @@ export function AnimatedMonthSelector({
     .format(new Date(currentYear, currentMonth - 1, 1))
     .replace(/^\w/, (letter) => letter.toUpperCase());
   return (
-    <div className="flex h-9 w-max items-center gap-1 rounded-lg border border-white/[0.08] bg-zinc-900/70 p-1 shadow-lg shadow-black/15 backdrop-blur-xl">
+    <div
+      data-tour="month-selector"
+      className="flex h-9 w-max items-center gap-1 rounded-lg border border-white/[0.08] bg-zinc-900/70 p-1 shadow-lg shadow-black/15 backdrop-blur-xl"
+    >
       <Button
         type="button"
         variant="ghost"

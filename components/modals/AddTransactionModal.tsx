@@ -372,7 +372,11 @@ function TransactionModalContent({
   }
 
   return (
-    <DialogContent className="border border-zinc-800 bg-zinc-950 shadow-2xl sm:max-w-3xl">
+    <DialogContent
+      data-tour={isFixedMode ? "recurring-modal" : "transaction-modal"}
+      data-tour-preview-modal
+      className="border border-zinc-800 bg-zinc-950 shadow-2xl sm:max-w-3xl"
+    >
       <DialogHeader>
         <div className="flex items-center gap-2 text-sm font-medium text-brand-300">
           <ReceiptText className="size-4" />

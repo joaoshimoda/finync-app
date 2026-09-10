@@ -1896,6 +1896,7 @@ export default function ImportarPage() {
               ) : (
                 <Button
                   type="button"
+                  data-tour="import-upload"
                   className="mt-8 bg-emerald-600 text-white hover:bg-emerald-700"
                 >
                   Selecionar arquivo

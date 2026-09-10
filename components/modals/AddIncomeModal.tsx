@@ -238,7 +238,11 @@ function IncomeModalContent({
   }
 
   return (
-    <DialogContent className="border border-zinc-800 bg-zinc-950 text-white shadow-2xl sm:max-w-3xl">
+    <DialogContent
+      data-tour="income-modal"
+      data-tour-preview-modal
+      className="border border-zinc-800 bg-zinc-950 text-white shadow-2xl sm:max-w-3xl"
+    >
       <DialogHeader>
         <div className="flex items-center gap-2 text-sm font-medium text-emerald-300">
           <ArrowUp className="size-4" />

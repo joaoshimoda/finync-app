@@ -81,6 +81,7 @@ export function Sidebar() {
             <Link
               key={item.href}
               href={item.href}
+              data-tour={item.tourId}
               className={[
                 "group flex h-12 items-center gap-3 rounded-2xl px-4 text-sm font-medium transition",
                 active

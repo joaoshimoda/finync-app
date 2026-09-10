@@ -158,6 +158,7 @@ export function AuthCard({ mode }: AuthCardProps) {
             options: {
               data: {
                 name: name.trim(),
+                onboarding_completed: false,
               },
             },
           })
