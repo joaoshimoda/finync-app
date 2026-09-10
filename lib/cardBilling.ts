@@ -9,9 +9,16 @@ export function getCardInvoiceMonthStart(date: string, closingDay?: number) {
   const normalizedDate = normalizeDateOnly(date);
   const { day, month, year } = getDateOnlyParts(normalizedDate);
 
-  if (!closingDay || day < closingDay) {
+  if (!closingDay) {
     return toDateOnly(year, month, 1);
   }
+
+  const effectiveClosingDay = Math.min(
+    Math.max(closingDay, 1),
+    getLastDayOfMonth(year, month),
+  );
+
+  if (day < effectiveClosingDay) return toDateOnly(year, month, 1);
 
   const nextMonth = month === 12 ? 1 : month + 1;
   const nextYear = month === 12 ? year + 1 : year;
@@ -70,6 +77,17 @@ function toClampedDateOnly(year: number, month: number, day: number) {
   return toDateOnly(year, month, Math.min(day, getLastDayOfMonth(year, month)));
 }
 
+function addDaysToDateOnly(date: string, offset: number) {
+  const { day, month, year } = getDateOnlyParts(date);
+  const result = new Date(year, month - 1, day + offset);
+
+  return toDateOnly(
+    result.getFullYear(),
+    result.getMonth() + 1,
+    result.getDate(),
+  );
+}
+
 export function getCardInvoiceCycle(
   invoiceMonthStart: string,
   closingDay?: number | null,
@@ -79,18 +97,48 @@ export function getCardInvoiceCycle(
   const previousMonthStart = addMonthsToMonthStart(normalizedInvoiceMonth, -1);
   const invoiceParts = getDateOnlyParts(normalizedInvoiceMonth);
   const previousParts = getDateOnlyParts(previousMonthStart);
-  const endParts = safeClosingDay === 1 ? previousParts : invoiceParts;
-  const endDay =
-    safeClosingDay === 1
-      ? getLastDayOfMonth(previousParts.year, previousParts.month)
-      : safeClosingDay - 1;
+  const closingDate = toClampedDateOnly(
+    invoiceParts.year,
+    invoiceParts.month,
+    safeClosingDay,
+  );
 
   return {
-    endDate: toClampedDateOnly(endParts.year, endParts.month, endDay),
+    endDate: addDaysToDateOnly(closingDate, -1),
     startDate: toClampedDateOnly(
       previousParts.year,
       previousParts.month,
       safeClosingDay,
     ),
   };
+}
+
+export function getCardInvoiceDueDate(
+  invoiceMonthStart: string,
+  closingDay?: number | null,
+  dueDay?: number | null,
+) {
+  const normalizedInvoiceMonth = normalizeDateOnly(invoiceMonthStart);
+  const safeDueDay = Math.max(dueDay ?? 1, 1);
+  const invoiceParts = getDateOnlyParts(normalizedInvoiceMonth);
+  const candidate = toClampedDateOnly(
+    invoiceParts.year,
+    invoiceParts.month,
+    safeDueDay,
+  );
+  const { endDate } = getCardInvoiceCycle(
+    normalizedInvoiceMonth,
+    closingDay,
+  );
+
+  if (candidate > endDate) return candidate;
+
+  const nextMonthStart = addMonthsToMonthStart(normalizedInvoiceMonth, 1);
+  const nextMonthParts = getDateOnlyParts(nextMonthStart);
+
+  return toClampedDateOnly(
+    nextMonthParts.year,
+    nextMonthParts.month,
+    safeDueDay,
+  );
 }

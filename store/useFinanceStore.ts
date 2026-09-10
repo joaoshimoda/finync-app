@@ -25,6 +25,11 @@ import type { Tables, TablesUpdate } from "@/lib/database.types";
 export type TransactionType = "income" | "fixed" | "card";
 export type TransactionStatus = "pending" | "confirmed" | "paid";
 type DbTransactionStatus = "PAGO" | "PENDENTE" | "CONFIRMADO";
+export type CardInvoiceStatus =
+  | "open"
+  | "closed"
+  | "partially_paid"
+  | "paid";
 
 export interface Card {
   id: string;
@@ -42,6 +47,21 @@ export interface Dependent {
   id: string;
   name: string;
   createdAt?: string;
+}
+
+export interface CardInvoice {
+  id: string;
+  cardId: string;
+  billingMonthStart: string;
+  cycleStart: string;
+  cycleEnd: string;
+  dueDate: string;
+  status: CardInvoiceStatus;
+  postedAmount: number;
+  totalAmount: number;
+  paidAmount: number;
+  closedAt?: string | null;
+  paidAt?: string | null;
 }
 
 export interface Category {
@@ -62,6 +82,7 @@ export interface Transaction {
   type: TransactionType;
   status: TransactionStatus;
   cardId?: string | null;
+  invoiceId?: string | null;
   dependentId?: string | null;
   groupId?: string | null;
   owner?: string;
@@ -89,12 +110,14 @@ export type CreateDependentInput = Pick<Dependent, "name">;
 export type CreateCategoryInput = Pick<Category, "label" | "kind" | "icon">;
 
 type CardRow = Tables<"cards">;
+type CardInvoiceRow = Tables<"card_invoices">;
 type TransactionRow = Tables<"transactions">;
 type DependentRow = Tables<"dependents">;
 type CategoryRow = Tables<"categories">;
 
 interface FinanceState {
   cards: Card[];
+  cardInvoices: CardInvoice[];
   dependents: Dependent[];
   categories: Category[];
   transactions: Transaction[];
@@ -115,6 +138,7 @@ interface FinanceState {
   nextMonth: () => void;
   prevMonth: () => void;
   fetchCards: () => Promise<void>;
+  fetchCardInvoices: () => Promise<void>;
   fetchDependents: () => Promise<void>;
   fetchCategories: () => Promise<void>;
   addCategory: (category: CreateCategoryInput) => Promise<void>;
@@ -264,6 +288,30 @@ function mapCard(row: CardRow): Card {
   };
 }
 
+function mapCardInvoice(row: CardInvoiceRow): CardInvoice {
+  const today = getLocalTodayDateOnly();
+  const persistedStatus = row.status.toLowerCase() as CardInvoiceStatus;
+  const status =
+    persistedStatus === "open" && row.cycle_end < today
+      ? "closed"
+      : persistedStatus;
+
+  return {
+    id: row.id,
+    cardId: row.card_id,
+    billingMonthStart: row.billing_month,
+    cycleStart: row.cycle_start,
+    cycleEnd: row.cycle_end,
+    dueDate: row.due_date,
+    status,
+    postedAmount: toAmount(row.posted_amount),
+    totalAmount: toAmount(row.total_amount),
+    paidAmount: toAmount(row.paid_amount),
+    closedAt: row.closed_at,
+    paidAt: row.paid_at,
+  };
+}
+
 function mapTransaction(row: TransactionRow): Transaction {
   const { month, year } = getDateOnlyParts(row.month_start);
 
@@ -276,6 +324,7 @@ function mapTransaction(row: TransactionRow): Transaction {
     type: toTransactionType(row.type),
     status: fromDbStatus(row.status),
     cardId: row.card_id,
+    invoiceId: row.invoice_id ?? null,
     dependentId: row.dependent_id,
     groupId: row.group_id,
     owner: row.owner ?? "eu",
@@ -422,6 +471,7 @@ function getStoredHideBalancesPreference() {
 
 export const useFinanceStore = create<FinanceState>()((set, get) => ({
   cards: [],
+  cardInvoices: [],
   dependents: [],
   categories: getEssentialCategories(),
   transactions: [],
@@ -530,6 +580,7 @@ export const useFinanceStore = create<FinanceState>()((set, get) => ({
         set({
           authUser: null,
           cards: [],
+          cardInvoices: [],
           dependents: [],
           categories: getEssentialCategories(),
           transactions: [],
@@ -550,6 +601,7 @@ export const useFinanceStore = create<FinanceState>()((set, get) => ({
     set({
       authUser: null,
       cards: [],
+      cardInvoices: [],
       dependents: [],
       categories: getEssentialCategories(),
       transactions: [],
@@ -762,6 +814,31 @@ export const useFinanceStore = create<FinanceState>()((set, get) => ({
     }
   },
 
+  fetchCardInvoices: async () => {
+    try {
+      const user = await getCurrentUser();
+      if (!user) return;
+
+      const { startDate, endDate } = getSelectedMonthRange(
+        get().currentMonth,
+        get().currentYear,
+      );
+      const { data, error } = await supabase
+        .from("card_invoices")
+        .select("*")
+        .eq("user_id", user.id)
+        .gte("billing_month", startDate)
+        .lt("billing_month", endDate)
+        .order("due_date", { ascending: true });
+
+      if (error) throw error;
+
+      set({ cardInvoices: (data as CardInvoiceRow[]).map(mapCardInvoice) });
+    } catch (error) {
+      console.error("Erro ao buscar faturas:", error);
+    }
+  },
+
   addCard: async (card) => {
     try {
       const {
@@ -864,6 +941,9 @@ export const useFinanceStore = create<FinanceState>()((set, get) => ({
 
       set((state) => ({
         cards: state.cards.filter((card) => card.id !== cardId),
+        cardInvoices: state.cardInvoices.filter(
+          (invoice) => invoice.cardId !== cardId,
+        ),
         transactions: state.transactions.filter(
           (transaction) => transaction.cardId !== cardId,
         ),
@@ -930,6 +1010,7 @@ export const useFinanceStore = create<FinanceState>()((set, get) => ({
         fetchedMonth: selectedMonth,
         fetchedYear: selectedYear,
       });
+      await get().fetchCardInvoices();
     } catch (error) {
       console.error("Erro ao buscar transações:", error);
     } finally {
@@ -999,6 +1080,7 @@ export const useFinanceStore = create<FinanceState>()((set, get) => ({
       set((state) => ({
         transactions: [...visibleTransactions, ...state.transactions],
       }));
+      await get().fetchCardInvoices();
     } catch (error) {
       console.error("Erro no Supabase:", error);
       throw error;
@@ -1151,6 +1233,7 @@ export const useFinanceStore = create<FinanceState>()((set, get) => ({
           item.id === transactionId ? updatedTransaction : item,
         ),
       }));
+      await get().fetchCardInvoices();
     } catch (error) {
       console.error("Erro ao atualizar transação:", error);
       throw error;
@@ -1332,6 +1415,7 @@ export const useFinanceStore = create<FinanceState>()((set, get) => ({
             updatedById.get(currentTransaction.id) ?? currentTransaction,
         ),
       }));
+      await get().fetchCardInvoices();
     } catch (error) {
       console.error("Erro ao atualizar recorrência:", error);
       throw error;
@@ -1380,6 +1464,7 @@ export const useFinanceStore = create<FinanceState>()((set, get) => ({
             : transaction,
         ),
       }));
+      await get().fetchCardInvoices();
     } catch (error) {
       console.error("Erro ao atualizar categorias das transações:", error);
       throw error;
@@ -1419,6 +1504,7 @@ export const useFinanceStore = create<FinanceState>()((set, get) => ({
             paidTransactionById.get(transaction.id) ?? transaction,
         ),
       }));
+      await get().fetchCardInvoices();
     } catch (error) {
       console.error("Erro ao liquidar fatura:", error);
       throw error;
@@ -1458,6 +1544,7 @@ export const useFinanceStore = create<FinanceState>()((set, get) => ({
           (transaction) => transaction.id !== transactionId,
         ),
       }));
+      await get().fetchCardInvoices();
     } catch (error) {
       console.error("Erro ao excluir transação:", error);
       throw error;
@@ -1488,6 +1575,7 @@ export const useFinanceStore = create<FinanceState>()((set, get) => ({
             ),
         ),
       }));
+      await get().fetchCardInvoices();
     } catch (error) {
       console.error("Erro ao excluir recorrência:", error);
       throw error;

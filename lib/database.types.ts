@@ -86,6 +86,75 @@ export type Database = {
           },
         ];
       };
+      card_invoices: {
+        Row: {
+          billing_month: string;
+          card_id: string;
+          closed_at: string | null;
+          created_at: string;
+          cycle_end: string;
+          cycle_start: string;
+          due_date: string;
+          id: string;
+          paid_amount: number;
+          paid_at: string | null;
+          posted_amount: number;
+          status: "OPEN" | "CLOSED" | "PARTIALLY_PAID" | "PAID";
+          total_amount: number;
+          updated_at: string;
+          user_id: string;
+        };
+        Insert: {
+          billing_month: string;
+          card_id: string;
+          closed_at?: string | null;
+          created_at?: string;
+          cycle_end: string;
+          cycle_start: string;
+          due_date: string;
+          id?: string;
+          paid_amount?: number;
+          paid_at?: string | null;
+          posted_amount?: number;
+          status?: "OPEN" | "CLOSED" | "PARTIALLY_PAID" | "PAID";
+          total_amount?: number;
+          updated_at?: string;
+          user_id: string;
+        };
+        Update: {
+          billing_month?: string;
+          card_id?: string;
+          closed_at?: string | null;
+          created_at?: string;
+          cycle_end?: string;
+          cycle_start?: string;
+          due_date?: string;
+          id?: string;
+          paid_amount?: number;
+          paid_at?: string | null;
+          posted_amount?: number;
+          status?: "OPEN" | "CLOSED" | "PARTIALLY_PAID" | "PAID";
+          total_amount?: number;
+          updated_at?: string;
+          user_id?: string;
+        };
+        Relationships: [
+          {
+            foreignKeyName: "card_invoices_card_id_fkey";
+            columns: ["card_id"];
+            isOneToOne: false;
+            referencedRelation: "cards";
+            referencedColumns: ["id"];
+          },
+          {
+            foreignKeyName: "card_invoices_user_id_fkey";
+            columns: ["user_id"];
+            isOneToOne: false;
+            referencedRelation: "users";
+            referencedColumns: ["id"];
+          },
+        ];
+      };
       categories: {
         Row: {
           created_at: string;
@@ -166,6 +235,7 @@ export type Database = {
           group_id: string | null;
           id: string;
           import_signature: string | null;
+          invoice_id: string | null;
           installment_number: number;
           installments_total: number;
           is_variable: boolean;
@@ -193,6 +263,7 @@ export type Database = {
           group_id?: string | null;
           id?: string;
           import_signature?: string | null;
+          invoice_id?: string | null;
           installment_number?: number;
           installments_total?: number;
           is_variable?: boolean;
@@ -220,6 +291,7 @@ export type Database = {
           group_id?: string | null;
           id?: string;
           import_signature?: string | null;
+          invoice_id?: string | null;
           installment_number?: number;
           installments_total?: number;
           is_variable?: boolean;
@@ -248,6 +320,13 @@ export type Database = {
             columns: ["dependent_id"];
             isOneToOne: false;
             referencedRelation: "dependents";
+            referencedColumns: ["id"];
+          },
+          {
+            foreignKeyName: "transactions_invoice_id_fkey";
+            columns: ["invoice_id"];
+            isOneToOne: false;
+            referencedRelation: "card_invoices";
             referencedColumns: ["id"];
           },
           {

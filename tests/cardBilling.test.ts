@@ -3,6 +3,7 @@ import test from "node:test";
 
 import {
   getCardInvoiceCycle,
+  getCardInvoiceDueDate,
   getCardInvoiceMonthStart,
   getInstallmentInvoiceMonthStart,
 } from "../lib/cardBilling.ts";
@@ -50,4 +51,17 @@ test("ciclo com fechamento dia 1 cobre o mes civil anterior", () => {
     startDate: "2026-08-01",
     endDate: "2026-08-31",
   });
+});
+
+test("fechamento no ultimo dia real de fevereiro nao sobrepoe ciclos", () => {
+  assert.equal(getCardInvoiceMonthStart("2026-02-28", 31), "2026-03-01");
+  assert.deepEqual(getCardInvoiceCycle("2026-03-01", 31), {
+    startDate: "2026-02-28",
+    endDate: "2026-03-30",
+  });
+});
+
+test("vencimento anterior ao fechamento avanca para o mes seguinte", () => {
+  assert.equal(getCardInvoiceDueDate("2026-09-01", 25, 5), "2026-10-05");
+  assert.equal(getCardInvoiceDueDate("2026-09-01", 4, 10), "2026-09-10");
 });

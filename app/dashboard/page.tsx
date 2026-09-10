@@ -67,7 +67,11 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import { formatDateOnlyBR, toDateOnly } from "@/lib/dateUtils";
+import {
+  formatDateOnlyBR,
+  getDateOnlyParts,
+  toDateOnly,
+} from "@/lib/dateUtils";
 import {
   calculateAvailableCardLimit,
   calculateCardDebt,
@@ -83,7 +87,11 @@ import {
 } from "@/lib/transactionPeriod";
 import { aggregatePeriodExpenses } from "@/lib/financeAggregation";
 import { getCardInvoiceCycle } from "@/lib/cardBilling";
-import { useFinanceStore, type Transaction } from "@/store/useFinanceStore";
+import {
+  useFinanceStore,
+  type CardInvoiceStatus,
+  type Transaction,
+} from "@/store/useFinanceStore";
 import { toast } from "sonner";
 
 const brlFormatter = new Intl.NumberFormat("pt-BR", {
@@ -248,6 +256,8 @@ interface CardSpendingSummary {
   name: string;
   closingDay?: number;
   dueDay?: number;
+  dueDate?: string;
+  invoiceStatus?: CardInvoiceStatus;
   cycleEndDate: string;
   cycleStartDate: string;
   accentClassName: string;
@@ -314,6 +324,14 @@ function FlippableWalletCard({
     (state) => state.hideBalancesByDefault,
   );
   const cycleLabel = `${formatDateOnlyBR(cardSummary.cycleStartDate)} - ${formatDateOnlyBR(cardSummary.cycleEndDate)}`;
+  const invoiceStatusLabel = cardSummary.invoiceStatus
+    ? {
+        open: "Aberta",
+        closed: "Fechada",
+        partially_paid: "Parcialmente paga",
+        paid: "Paga",
+      }[cardSummary.invoiceStatus]
+    : "Sem lançamentos";
 
   return (
     <div className={cn(walletCardSizeClassName, "perspective-[1000px]")}>
@@ -379,9 +397,14 @@ function FlippableWalletCard({
         >
           <div className="relative">
             <div className="flex items-center justify-between gap-3">
-              <p className="truncate text-xs font-medium text-zinc-200">
-                {cardSummary.name}
-              </p>
+              <div className="flex min-w-0 items-center gap-2">
+                <p className="truncate text-xs font-medium text-zinc-200">
+                  {cardSummary.name}
+                </p>
+                <span className="shrink-0 rounded-md bg-white/[0.07] px-1.5 py-0.5 text-[9px] text-zinc-400">
+                  {invoiceStatusLabel}
+                </span>
+              </div>
               <span className="flex items-center gap-1 text-[10px] text-zinc-500">
                 <RotateCcw className="size-3" /> Desvirar
               </span>
@@ -413,9 +436,11 @@ function FlippableWalletCard({
             <div className="mt-2 flex items-center justify-between gap-3 text-[10px] text-zinc-500">
               <span>{cycleLabel}</span>
               <span>
-                {cardSummary.dueDay
-                  ? `Vence dia ${cardSummary.dueDay}`
-                  : "Sem vencimento"}
+                {cardSummary.dueDate
+                  ? `Vence ${formatDateOnlyBR(cardSummary.dueDate)}`
+                  : cardSummary.dueDay
+                    ? `Vence dia ${cardSummary.dueDay}`
+                    : "Sem vencimento"}
               </span>
             </div>
           </div>
@@ -423,12 +448,19 @@ function FlippableWalletCard({
             <Button
               type="button"
               className="h-9 w-full bg-emerald-500 text-xs font-semibold text-zinc-950 hover:bg-emerald-400"
+              disabled={
+                !cardSummary.invoiceStatus ||
+                cardSummary.invoiceStatus === "paid" ||
+                cardSummary.projected <= 0
+              }
               onClick={(event) => {
                 event.stopPropagation();
                 onPayInvoice(cardSummary.id);
               }}
             >
-              Pagar Fatura
+              {cardSummary.invoiceStatus === "paid"
+                ? "Fatura paga"
+                : "Pagar Fatura"}
             </Button>
           </div>
         </div>
@@ -451,6 +483,7 @@ export default function DashboardPage() {
   const [recentTransactionLimit, setRecentTransactionLimit] = useState(3);
 
   const cards = useFinanceStore((state) => state.cards);
+  const cardInvoices = useFinanceStore((state) => state.cardInvoices);
   const dependents = useFinanceStore((state) => state.dependents);
   const transactions = useFinanceStore((state) => state.transactions);
   const fetchTransactions = useFinanceStore((state) => state.fetchTransactions);
@@ -501,6 +534,16 @@ export default function DashboardPage() {
         isSameSelectedInvoiceCycle(transaction, displayMonth, displayYear),
       ),
     [displayMonth, displayYear, transactions],
+  );
+
+  const selectedCardInvoices = useMemo(
+    () =>
+      cardInvoices.filter((invoice) => {
+        const { month, year } = getDateOnlyParts(invoice.billingMonthStart);
+
+        return month === displayMonth && year === displayYear;
+      }),
+    [cardInvoices, displayMonth, displayYear],
   );
 
   const pendingExpensesTotal = useMemo(
@@ -577,8 +620,25 @@ export default function DashboardPage() {
       }
     });
 
+    const persistedProjected = selectedCardInvoices.reduce(
+      (sum, invoice) => sum + invoice.totalAmount,
+      0,
+    );
+    const persistedPosted = selectedCardInvoices.reduce(
+      (sum, invoice) => sum + invoice.postedAmount,
+      0,
+    );
+    const creditCardProjected = selectedCardInvoices.length
+      ? persistedProjected
+      : totals.creditCardProjected;
+    const creditCardUntilToday = selectedCardInvoices.length
+      ? persistedPosted
+      : totals.creditCardUntilToday;
+
     return {
       ...totals,
+      creditCardProjected,
+      creditCardUntilToday,
       nonCardTotal: personalExpenseTotals.fixed,
       userCreditCardProjected: personalExpenseTotals.card,
       availableBalance:
@@ -593,11 +653,11 @@ export default function DashboardPage() {
         0,
       ),
       dependentCreditCardUntilToday: Math.max(
-        totals.creditCardUntilToday - totals.userCreditCardUntilToday,
+        creditCardUntilToday - totals.userCreditCardUntilToday,
         0,
       ),
       dependentCreditCardProjected: Math.max(
-        totals.creditCardProjected - totals.userCreditCardProjected,
+        creditCardProjected - totals.userCreditCardProjected,
         0,
       ),
     };
@@ -607,6 +667,7 @@ export default function DashboardPage() {
     pendingExpensesTotal,
     personalPendingExpensesTotal,
     personalExpenseTotals,
+    selectedCardInvoices,
     todayDate,
   ]);
 
@@ -724,7 +785,7 @@ export default function DashboardPage() {
       cards.map((card) => {
         const debtTotal = calculateCardDebt(transactions, card.id);
         const limitAmount = card.limitAmount ?? 0;
-        const invoiceTotals = invoiceCycleTransactions
+        const fallbackInvoiceTotals = invoiceCycleTransactions
           .filter((transaction) => {
             const dbCardId =
               (transaction as Transaction & { card_id?: string | null })
@@ -746,7 +807,10 @@ export default function DashboardPage() {
             },
             { current: 0, projected: 0 },
           );
-        const invoiceCycle = getCardInvoiceCycle(
+        const persistedInvoice = selectedCardInvoices.find(
+          (invoice) => invoice.cardId === card.id,
+        );
+        const fallbackInvoiceCycle = getCardInvoiceCycle(
           toDateOnly(displayYear, displayMonth, 1),
           card.closingDay,
         );
@@ -756,8 +820,12 @@ export default function DashboardPage() {
           name: card.name,
           closingDay: card.closingDay,
           dueDay: card.dueDay,
-          cycleEndDate: invoiceCycle.endDate,
-          cycleStartDate: invoiceCycle.startDate,
+          dueDate: persistedInvoice?.dueDate,
+          invoiceStatus: persistedInvoice?.status,
+          cycleEndDate:
+            persistedInvoice?.cycleEnd ?? fallbackInvoiceCycle.endDate,
+          cycleStartDate:
+            persistedInvoice?.cycleStart ?? fallbackInvoiceCycle.startDate,
           accentClassName: getCardAccentClassName(card.name),
           availableLimit: calculateAvailableCardLimit(
             transactions,
@@ -770,7 +838,10 @@ export default function DashboardPage() {
             limitAmount > 0
               ? Math.min((debtTotal / limitAmount) * 100, 100)
               : 0,
-          ...invoiceTotals,
+          current:
+            persistedInvoice?.postedAmount ?? fallbackInvoiceTotals.current,
+          projected:
+            persistedInvoice?.totalAmount ?? fallbackInvoiceTotals.projected,
         };
       }),
     [
@@ -778,6 +849,7 @@ export default function DashboardPage() {
       displayMonth,
       displayYear,
       invoiceCycleTransactions,
+      selectedCardInvoices,
       todayDate,
       transactions,
     ],

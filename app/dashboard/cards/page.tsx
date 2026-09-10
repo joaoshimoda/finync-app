@@ -70,6 +70,7 @@ import { getTransactionStatusPresentation } from "@/lib/transactionStatus";
 import {
   useFinanceStore,
   type Card as FinanceCard,
+  type CardInvoice,
   type Dependent,
   type Transaction,
 } from "@/store/useFinanceStore";
@@ -201,6 +202,7 @@ function FlippableManagedCard({
   onDelete,
   onPayInvoice,
   invoiceMonthStart,
+  invoice,
 }: {
   card: FinanceCard;
   availableLimit: number;
@@ -214,13 +216,25 @@ function FlippableManagedCard({
   onDelete: (card: FinanceCard) => void;
   onPayInvoice: (cardId: string) => void;
   invoiceMonthStart: string;
+  invoice?: CardInvoice;
 }) {
   const [isFlipped, setIsFlipped] = useState(false);
   const hideBalancesByDefault = useFinanceStore(
     (state) => state.hideBalancesByDefault,
   );
-  const invoiceCycle = getCardInvoiceCycle(invoiceMonthStart, card.closingDay);
+  const fallbackCycle = getCardInvoiceCycle(invoiceMonthStart, card.closingDay);
+  const invoiceCycle = invoice
+    ? { startDate: invoice.cycleStart, endDate: invoice.cycleEnd }
+    : fallbackCycle;
   const cycleLabel = `${formatDateOnlyBR(invoiceCycle.startDate)} - ${formatDateOnlyBR(invoiceCycle.endDate)}`;
+  const invoiceStatusLabel = invoice
+    ? {
+        open: "Aberta",
+        closed: "Fechada",
+        partially_paid: "Parcialmente paga",
+        paid: "Paga",
+      }[invoice.status]
+    : "Sem lançamentos";
 
   return (
     <div className="h-[190px] w-full max-w-[340px] perspective-[1000px] sm:w-[304px]">
@@ -255,7 +269,11 @@ function FlippableManagedCard({
               <p className="mt-1 text-xs text-white/65">
                 Ciclo: {cycleLabel}
                 {" • "}
-                {card.dueDay ? `Vence dia ${card.dueDay}` : "Sem vencimento"}
+                {invoice?.dueDate
+                  ? `Vence ${formatDateOnlyBR(invoice.dueDate)}`
+                  : card.dueDay
+                    ? `Vence dia ${card.dueDay}`
+                    : "Sem vencimento"}
               </p>
             </div>
 
@@ -300,7 +318,7 @@ function FlippableManagedCard({
           <div className="relative flex items-start justify-between gap-3">
             <div>
               <p className="text-xs font-medium uppercase text-white/60">
-                Fatura atual
+                Fatura atual · {invoiceStatusLabel}
               </p>
               <strong className="mt-1 block text-xl font-bold text-white">
                 {formatSensitiveCurrency(invoiceTotal, hideBalancesByDefault)}
@@ -349,9 +367,12 @@ function FlippableManagedCard({
               type="button"
               size="sm"
               className="h-8 flex-1 bg-white text-zinc-950 hover:bg-white/90"
+              disabled={
+                !invoice || invoice.status === "paid" || invoiceTotal <= 0
+              }
               onClick={() => onPayInvoice(card.id)}
             >
-              Pagar Fatura
+              {invoice?.status === "paid" ? "Fatura paga" : "Pagar Fatura"}
             </Button>
             <Button
               type="button"
@@ -390,6 +411,7 @@ export default function CardsPage() {
   const [selectedCardId, setSelectedCardId] = useState<string | null>(null);
 
   const cards = useFinanceStore((state) => state.cards);
+  const cardInvoices = useFinanceStore((state) => state.cardInvoices);
   const dependents = useFinanceStore((state) => state.dependents);
   const transactions = useFinanceStore((state) => state.transactions);
   const fetchTransactions = useFinanceStore((state) => state.fetchTransactions);
@@ -426,6 +448,21 @@ export default function CardsPage() {
     [cards, selectedCardId],
   );
 
+  const selectedInvoiceMonthStart = toDateOnly(
+    currentYear,
+    currentMonth,
+    1,
+  );
+  const selectedInvoice = useMemo(
+    () =>
+      cardInvoices.find(
+        (invoice) =>
+          invoice.cardId === selectedCard?.id &&
+          invoice.billingMonthStart === selectedInvoiceMonthStart,
+      ),
+    [cardInvoices, selectedCard?.id, selectedInvoiceMonthStart],
+  );
+
   const selectedCardTransactions = useMemo(
     () =>
       selectedCard
@@ -446,19 +483,21 @@ export default function CardsPage() {
 
   const selectedInvoiceTotal = useMemo(
     () =>
+      selectedInvoice?.postedAmount ??
       selectedChargeableCardTransactions.reduce(
         (total, transaction) => total + getCardSignedAmount(transaction),
         0,
       ),
-    [selectedChargeableCardTransactions],
+    [selectedChargeableCardTransactions, selectedInvoice?.postedAmount],
   );
   const selectedProjectedInvoiceTotal = useMemo(
     () =>
+      selectedInvoice?.totalAmount ??
       selectedCardTransactions.reduce(
         (total, transaction) => total + getCardSignedAmount(transaction),
         0,
       ),
-    [selectedCardTransactions],
+    [selectedCardTransactions, selectedInvoice?.totalAmount],
   );
   const selectedInvoiceSummary = useMemo(() => {
     const today = getLocalTodayDateOnly();
@@ -505,22 +544,29 @@ export default function CardsPage() {
     return {
       dependentsTotal,
       installmentsTotal,
-      open,
-      paid,
+      open: selectedInvoice
+        ? Math.max(selectedInvoice.totalAmount - selectedInvoice.paidAmount, 0)
+        : open,
+      paid: selectedInvoice?.paidAmount ?? paid,
       personalTotal,
-      posted,
+      posted: selectedInvoice?.postedAmount ?? posted,
       scheduled,
       subscriptionsTotal,
-      total,
+      total: selectedInvoice?.totalAmount ?? total,
     };
-  }, [selectedCardTransactions]);
+  }, [selectedCardTransactions, selectedInvoice]);
   const selectedInvoiceCycle = useMemo(
     () =>
-      getCardInvoiceCycle(
-        toDateOnly(currentYear, currentMonth, 1),
-        selectedCard?.closingDay,
-      ),
-    [currentMonth, currentYear, selectedCard?.closingDay],
+      selectedInvoice
+        ? {
+            startDate: selectedInvoice.cycleStart,
+            endDate: selectedInvoice.cycleEnd,
+          }
+        : getCardInvoiceCycle(
+            selectedInvoiceMonthStart,
+            selectedCard?.closingDay,
+          ),
+    [selectedCard?.closingDay, selectedInvoice, selectedInvoiceMonthStart],
   );
   const selectedLimit = selectedCard?.limitAmount ?? 0;
   const selectedDebtTotal = useMemo(
@@ -540,13 +586,18 @@ export default function CardsPage() {
 
     return new Map(
       cards.map((card) => {
+        const persistedInvoice = cardInvoices.find(
+          (invoice) =>
+            invoice.cardId === card.id &&
+            invoice.billingMonthStart === selectedInvoiceMonthStart,
+        );
         const cardTransactions = monthlyTransactions.filter(
           (transaction) => transaction.cardId === card.id,
         );
         const currentInvoiceTransactions = cardTransactions.filter(
           (transaction) => shouldCountCardCharge(transaction, today),
         );
-        const invoiceTotal = currentInvoiceTransactions.reduce(
+        const fallbackInvoiceTotal = currentInvoiceTransactions.reduce(
           (total, transaction) => total + getCardSignedAmount(transaction),
           0,
         );
@@ -561,7 +612,9 @@ export default function CardsPage() {
               currentInvoiceTransactions,
               dependents,
             ),
-            invoiceTotal,
+            invoice: persistedInvoice,
+            invoiceTotal:
+              persistedInvoice?.postedAmount ?? fallbackInvoiceTotal,
             limitUsage:
               limitAmount > 0
                 ? Math.min((debtTotal / limitAmount) * 100, 100)
@@ -570,7 +623,14 @@ export default function CardsPage() {
         ] as const;
       }),
     );
-  }, [cards, dependents, monthlyTransactions, transactions]);
+  }, [
+    cardInvoices,
+    cards,
+    dependents,
+    monthlyTransactions,
+    selectedInvoiceMonthStart,
+    transactions,
+  ]);
 
   const openCreateModal = useCallback(() => {
     setEditingCard(null);
@@ -682,6 +742,7 @@ export default function CardsPage() {
               const cardSummary = cardInvoiceSummaries.get(card.id) ?? {
                 debtTotal: 0,
                 invoiceBreakdown: { personal: 0, dependents: [] },
+                invoice: undefined,
                 invoiceTotal: 0,
                 limitUsage: 0,
               };
@@ -705,6 +766,7 @@ export default function CardsPage() {
                     onDelete={setDeleteTargetCard}
                     onPayInvoice={(cardId) => void handlePayInvoiceClick(cardId)}
                     invoiceMonthStart={toDateOnly(currentYear, currentMonth, 1)}
+                    invoice={cardSummary.invoice}
                   />
                 </CarouselItem>
               );
@@ -727,13 +789,29 @@ export default function CardsPage() {
         <Card className="rounded-lg border border-border/50 bg-card shadow-none lg:sticky lg:top-24 lg:self-start">
           <CardHeader className="border-b">
             <CardDescription>Detalhe do cartão</CardDescription>
-            <CardTitle className="mt-1 text-xl tracking-normal">
-              {selectedCard?.name ?? "Nenhum cartão selecionado"}
-            </CardTitle>
+            <div className="mt-1 flex items-center gap-2">
+              <CardTitle className="text-xl tracking-normal">
+                {selectedCard?.name ?? "Nenhum cartão selecionado"}
+              </CardTitle>
+              {selectedInvoice ? (
+                <Badge variant="outline" className="text-[10px] text-zinc-400">
+                  {{
+                    open: "Aberta",
+                    closed: "Fechada",
+                    partially_paid: "Parcialmente paga",
+                    paid: "Paga",
+                  }[selectedInvoice.status]}
+                </Badge>
+              ) : null}
+            </div>
             <p className="mt-2 text-xs text-muted-foreground">
               Ciclo: {formatDateOnlyBR(selectedInvoiceCycle.startDate)} -{" "}
               {formatDateOnlyBR(selectedInvoiceCycle.endDate)}
-              {selectedCard?.dueDay ? ` • Vence dia ${selectedCard.dueDay}` : ""}
+              {selectedInvoice?.dueDate
+                ? ` • Vence ${formatDateOnlyBR(selectedInvoice.dueDate)}`
+                : selectedCard?.dueDay
+                  ? ` • Vence dia ${selectedCard.dueDay}`
+                  : ""}
             </p>
           </CardHeader>
 
@@ -808,10 +886,19 @@ export default function CardsPage() {
             <Button
               type="button"
               className="h-11 w-full bg-emerald-600 font-semibold text-white hover:bg-emerald-700"
-              disabled={!selectedCard}
-              onClick={() => selectedCard && void handlePayInvoiceClick(selectedCard.id)}
+              disabled={
+                !selectedCard ||
+                !selectedInvoice ||
+                selectedInvoice.status === "paid" ||
+                selectedInvoice.totalAmount <= 0
+              }
+              onClick={() =>
+                selectedCard && void handlePayInvoiceClick(selectedCard.id)
+              }
             >
-              Pagar fatura
+              {selectedInvoice?.status === "paid"
+                ? "Fatura paga"
+                : "Pagar fatura"}
             </Button>
           </CardContent>
         </Card>
