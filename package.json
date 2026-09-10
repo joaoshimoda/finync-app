@@ -11,7 +11,8 @@
     "test": "node --experimental-strip-types --test \"tests/**/*.test.ts\"",
     "supabase:login": "supabase login",
     "db:types": "node scripts/generate-supabase-types.mjs",
-    "db:types:check": "node scripts/generate-supabase-types.mjs --check"
+    "db:types:check": "node scripts/generate-supabase-types.mjs --check",
+    "security:audit": "npm audit --audit-level=high"
   },
   "dependencies": {
     "@base-ui/react": "^1.7.0",
@@ -25,7 +26,7 @@
     "framer-motion": "^13.1.1",
     "input-otp": "^1.4.2",
     "lucide-react": "^1.20.0",
-    "next": "16.3.2",
+    "next": "16.3.4",
     "papaparse": "^5.5.4",
     "pdfjs-dist": "6.2.108",
     "radix-ui": "^1.6.0",
@@ -47,7 +48,7 @@
     "@types/react-dom": "^19",
     "babel-plugin-react-compiler": "1.0.0",
     "eslint": "^9",
-    "eslint-config-next": "16.3.2",
+    "eslint-config-next": "16.3.4",
     "supabase": "^2.117.0",
     "tailwindcss": "4.3.3",
     "typescript": "^5"
