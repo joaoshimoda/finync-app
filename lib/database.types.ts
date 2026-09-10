@@ -282,6 +282,69 @@ export type Database = {
           },
         ];
       };
+      dependent_settlements: {
+        Row: {
+          amount: number;
+          competence_month: string;
+          created_at: string;
+          dependent_id: string;
+          id: string;
+          idempotency_key: string | null;
+          method: "PIX" | "TRANSFER" | "CASH" | "OTHER";
+          notes: string | null;
+          settled_at: string;
+          source: "MANUAL" | "IMPORT" | "MIGRATION";
+          status: "CONFIRMED" | "VOIDED";
+          updated_at: string;
+          user_id: string;
+        };
+        Insert: {
+          amount: number;
+          competence_month: string;
+          created_at?: string;
+          dependent_id: string;
+          id?: string;
+          idempotency_key?: string | null;
+          method?: "PIX" | "TRANSFER" | "CASH" | "OTHER";
+          notes?: string | null;
+          settled_at?: string;
+          source?: "MANUAL" | "IMPORT" | "MIGRATION";
+          status?: "CONFIRMED" | "VOIDED";
+          updated_at?: string;
+          user_id: string;
+        };
+        Update: {
+          amount?: number;
+          competence_month?: string;
+          created_at?: string;
+          dependent_id?: string;
+          id?: string;
+          idempotency_key?: string | null;
+          method?: "PIX" | "TRANSFER" | "CASH" | "OTHER";
+          notes?: string | null;
+          settled_at?: string;
+          source?: "MANUAL" | "IMPORT" | "MIGRATION";
+          status?: "CONFIRMED" | "VOIDED";
+          updated_at?: string;
+          user_id?: string;
+        };
+        Relationships: [
+          {
+            foreignKeyName: "dependent_settlements_dependent_id_fkey";
+            columns: ["dependent_id"];
+            isOneToOne: false;
+            referencedRelation: "dependents";
+            referencedColumns: ["id"];
+          },
+          {
+            foreignKeyName: "dependent_settlements_user_id_fkey";
+            columns: ["user_id"];
+            isOneToOne: false;
+            referencedRelation: "users";
+            referencedColumns: ["id"];
+          },
+        ];
+      };
       transactions: {
         Row: {
           amount: number;

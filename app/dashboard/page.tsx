@@ -88,6 +88,7 @@ import {
 } from "@/lib/transactionPeriod";
 import { aggregatePeriodExpenses } from "@/lib/financeAggregation";
 import { getCardInvoiceCycle } from "@/lib/cardBilling";
+import { getDependentSettlementSummary } from "@/lib/dependentSettlements";
 import {
   useFinanceStore,
   type CardInvoice,
@@ -528,6 +529,9 @@ export default function DashboardPage() {
   const cards = useFinanceStore((state) => state.cards);
   const cardInvoices = useFinanceStore((state) => state.cardInvoices);
   const dependents = useFinanceStore((state) => state.dependents);
+  const dependentSettlements = useFinanceStore(
+    (state) => state.dependentSettlements,
+  );
   const transactions = useFinanceStore((state) => state.transactions);
   const fetchTransactions = useFinanceStore((state) => state.fetchTransactions);
   const updateTransaction = useFinanceStore((state) => state.updateTransaction);
@@ -966,10 +970,9 @@ export default function DashboardPage() {
   const dependentSpendingSummaries = useMemo(
     () =>
       dependents
-        .map((dependent) => ({
-          ...dependent,
-          total: monthlyTransactions
-            .filter((transaction) => {
+        .map((dependent) => {
+          const dependentTransactions = monthlyTransactions.filter(
+            (transaction) => {
               const dependentId =
                 (transaction as Transaction & { dependent_id?: string | null })
                   .dependent_id ?? transaction.dependentId;
@@ -977,12 +980,34 @@ export default function DashboardPage() {
               return (
                 transaction.type !== "income" && dependentId === dependent.id
               );
-            })
-            .reduce((sum, transaction) => sum + transaction.amount, 0),
-        }))
+            },
+          );
+          const competenceMonth = toDateOnly(displayYear, displayMonth, 1);
+          const settlementSummary = getDependentSettlementSummary(
+            dependentTransactions,
+            dependentSettlements.filter(
+              (settlement) =>
+                settlement.competenceMonth === competenceMonth,
+            ),
+            dependent.id,
+          );
+
+          return {
+            ...dependent,
+            total: settlementSummary.obligationTotal,
+            received: settlementSummary.settledTotal,
+            outstanding: settlementSummary.outstanding,
+          };
+        })
         .filter((dependent) => dependent.total > 0)
         .sort((left, right) => right.total - left.total),
-    [dependents, monthlyTransactions],
+    [
+      dependentSettlements,
+      dependents,
+      displayMonth,
+      displayYear,
+      monthlyTransactions,
+    ],
   );
   const dependentSpendingTotal = useMemo(
     () =>
@@ -1076,23 +1101,23 @@ export default function DashboardPage() {
         initial="hidden"
         animate="visible"
         transition={revealTransition}
-        className="flex flex-col gap-3 xl:flex-row xl:items-center xl:justify-between"
+        className="flex flex-col gap-4 xl:flex-row xl:items-center xl:justify-between"
       >
         <div>
-          <p className="mb-1 flex items-center gap-2 text-[9px] font-medium uppercase tracking-[0.2em] text-emerald-300">
+          <p className="mb-1.5 flex items-center gap-2 text-[10px] font-medium uppercase tracking-[0.18em] text-emerald-300">
             <span className="size-1.5 rounded-full bg-emerald-300 shadow-[0_0_12px_rgba(110,231,183,0.8)]" />
             Finanças pessoais
           </p>
-          <h1 className="text-2xl font-semibold tracking-[-0.04em] text-zinc-50 lg:text-3xl">
+          <h1 className="text-3xl font-semibold tracking-[-0.04em] text-zinc-50 lg:text-4xl">
             Visão Geral
           </h1>
-          <p className="mt-0.5 text-xs text-zinc-500">
+          <p className="mt-1 text-sm text-zinc-400">
             Uma leitura clara do seu dinheiro.
           </p>
         </div>
 
-        <div className="flex flex-wrap items-center gap-2">
-          <div className="shrink-0">
+        <div className="grid w-full grid-cols-[minmax(0,1fr)_2.75rem_auto] items-center gap-2 sm:flex sm:w-auto">
+          <div className="min-w-0 sm:shrink-0">
             <AnimatedMonthSelector
               currentMonth={currentMonth}
               currentYear={currentYear}
@@ -1103,16 +1128,17 @@ export default function DashboardPage() {
           </div>
           <button
             type="button"
+            data-tour="dashboard-privacy"
             onClick={toggleHideBalancesByDefault}
             aria-label={
               hideBalancesByDefault ? "Mostrar valores" : "Ocultar valores"
             }
-            className="flex size-9 items-center justify-center rounded-lg border border-white/[0.08] bg-zinc-900/70 text-zinc-400 transition hover:-translate-y-0.5 hover:border-emerald-400/30 hover:text-zinc-100"
+            className="flex size-11 items-center justify-center rounded-lg border border-white/[0.08] bg-zinc-900/70 text-zinc-300 transition hover:-translate-y-0.5 hover:border-emerald-400/30 hover:text-zinc-100"
           >
             {hideBalancesByDefault ? (
-              <EyeOff className="size-4" />
+              <EyeOff className="size-5" />
             ) : (
-              <Eye className="size-4" />
+              <Eye className="size-5" />
             )}
           </button>
           <DropdownMenu>
@@ -1120,9 +1146,9 @@ export default function DashboardPage() {
               <Button
                 aria-label="Criar novo item"
                 data-tour="dashboard-new"
-                className="h-9 gap-2 rounded-lg bg-emerald-400 px-3 text-xs font-semibold text-zinc-950 shadow-lg shadow-emerald-500/10 transition hover:-translate-y-0.5 hover:bg-emerald-300"
+                className="h-11 gap-2 rounded-lg bg-emerald-400 px-5 text-sm font-semibold text-zinc-950 shadow-lg shadow-emerald-500/10 transition hover:-translate-y-0.5 hover:bg-emerald-300"
               >
-                <PlusCircle className="size-4" />
+                <PlusCircle className="size-5" />
                 Novo
               </Button>
             </DropdownMenuTrigger>
@@ -1202,7 +1228,7 @@ export default function DashboardPage() {
               : "bg-emerald-400/[0.045]",
           )}
         >
-          <div className="pointer-events-none absolute inset-x-0 bottom-7 z-0 h-16 opacity-55">
+          <div className="pointer-events-none absolute inset-x-0 top-12 z-0 h-16 opacity-55">
             <svg
               viewBox="0 0 320 80"
               preserveAspectRatio="none"
@@ -1216,7 +1242,7 @@ export default function DashboardPage() {
               />
             </svg>
           </div>
-          <CardContent className="relative z-10 flex min-h-36 flex-col p-4 sm:min-h-40 sm:p-5 2xl:min-h-44 2xl:p-6">
+          <CardContent className="relative z-10 flex min-h-44 flex-col p-5 sm:min-h-48 sm:p-6 2xl:min-h-52">
             <div className="flex items-center justify-between">
               <p className="text-[11px] font-medium uppercase tracking-[0.16em] text-zinc-500">
                 Saldo projetado
@@ -1232,7 +1258,7 @@ export default function DashboardPage() {
             </div>
             <strong
               className={cn(
-                "mt-auto block pt-5 text-[clamp(1.5rem,2.1vw,2.25rem)] font-semibold leading-none tracking-tight tabular-nums",
+                "mt-auto block pt-5 text-[clamp(1.75rem,2.4vw,2.5rem)] font-semibold leading-none tracking-tight tabular-nums",
                 isProjectedBalanceNegative
                   ? "text-rose-400"
                   : "text-emerald-400",
@@ -1252,14 +1278,14 @@ export default function DashboardPage() {
             "col-span-12 h-full min-h-0 rounded-xl lg:col-span-4",
           )}
         >
-          <CardContent className="flex min-h-36 flex-col p-4 sm:min-h-40 sm:p-5 2xl:min-h-44 2xl:p-6">
+          <CardContent className="flex min-h-44 flex-col p-5 sm:min-h-48 sm:p-6 2xl:min-h-52">
             <div className="flex items-center justify-between">
               <p className="text-[11px] font-medium uppercase tracking-[0.16em] text-zinc-500">
                 Compromissos do mês
               </p>
               <ReceiptText className="size-4 text-zinc-600" />
             </div>
-            <strong className="mt-auto block pt-5 text-[clamp(1.5rem,2.1vw,2.25rem)] font-semibold leading-none tracking-tight text-zinc-100 tabular-nums">
+            <strong className="mt-auto block pt-5 text-[clamp(1.75rem,2.4vw,2.5rem)] font-semibold leading-none tracking-tight text-zinc-100 tabular-nums">
               {formatPrivateCurrency(animatedPendingObligations)}
             </strong>
             <div className="mt-4 grid grid-cols-2 gap-3 text-[11px] sm:text-xs">
@@ -1289,14 +1315,14 @@ export default function DashboardPage() {
             "col-span-12 h-full min-h-0 rounded-xl lg:col-span-4",
           )}
         >
-          <CardContent className="flex min-h-36 flex-col p-4 sm:min-h-40 sm:p-5 2xl:min-h-44 2xl:p-6">
+          <CardContent className="flex min-h-44 flex-col p-5 sm:min-h-48 sm:p-6 2xl:min-h-52">
             <div className="flex items-center justify-between">
               <p className="text-[11px] font-medium uppercase tracking-[0.16em] text-zinc-500">
                 Projeção de fechamento
               </p>
               <TrendingUp className="size-4 text-emerald-300" />
             </div>
-            <strong className="mt-auto block pt-5 text-[clamp(1.5rem,2.1vw,2.25rem)] font-semibold leading-none tracking-tight text-zinc-100 tabular-nums">
+            <strong className="mt-auto block pt-5 text-[clamp(1.75rem,2.4vw,2.5rem)] font-semibold leading-none tracking-tight text-zinc-100 tabular-nums">
               {formatPrivateCurrency(animatedClosingProjection)}
             </strong>
             <div className="mt-4 flex items-center justify-between gap-3 text-[11px] sm:text-xs">
@@ -1559,6 +1585,10 @@ export default function DashboardPage() {
                           )}
                         />
                       </div>
+                      <p className="mt-1.5 truncate text-[10px] text-zinc-500 2xl:text-xs">
+                        Recebido {formatPrivateCurrency(dependent.received)} · A
+                        receber {formatPrivateCurrency(dependent.outstanding)}
+                      </p>
                     </div>
                   ))}
                 </div>

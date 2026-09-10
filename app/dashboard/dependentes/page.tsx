@@ -2,7 +2,9 @@
 
 import { useEffect, useMemo, useState } from "react";
 import {
+  CheckCircle2,
   CreditCard,
+  HandCoins,
   ReceiptText,
   TrendingUp,
   UserRound,
@@ -10,6 +12,8 @@ import {
 } from "lucide-react";
 
 import { DependentManager } from "@/components/settings/DependentManager";
+import { SettleDependentModal } from "@/components/modals/SettleDependentModal";
+import { Button } from "@/components/ui/button";
 import {
   Card,
   CardContent,
@@ -18,8 +22,10 @@ import {
   CardTitle,
 } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
+import { Progress } from "@/components/ui/progress";
 import { getCardSignedAmount, isCardCreditAdjustment } from "@/lib/cardCredits";
-import { formatDateOnlyBR } from "@/lib/dateUtils";
+import { formatDateOnlyBR, toDateOnly } from "@/lib/dateUtils";
+import { getDependentSettlementSummary } from "@/lib/dependentSettlements";
 import { isTransactionInSelectedCompetence } from "@/lib/transactionPeriod";
 import { cn } from "@/lib/utils";
 import { useFinanceStore } from "@/store/useFinanceStore";
@@ -32,12 +38,20 @@ const brlFormatter = new Intl.NumberFormat("pt-BR", {
 export default function DependentesPage() {
   const dependents = useFinanceStore((state) => state.dependents);
   const transactions = useFinanceStore((state) => state.transactions);
+  const dependentSettlements = useFinanceStore(
+    (state) => state.dependentSettlements,
+  );
   const currentMonth = useFinanceStore((state) => state.currentMonth);
   const currentYear = useFinanceStore((state) => state.currentYear);
   const fetchTransactions = useFinanceStore((state) => state.fetchTransactions);
   const [selectedDependentId, setSelectedDependentId] = useState<string | null>(
     null,
   );
+  const [settlementTargetId, setSettlementTargetId] = useState<string | null>(
+    null,
+  );
+
+  const competenceMonth = toDateOnly(currentYear, currentMonth, 1);
 
   useEffect(() => {
     void fetchTransactions();
@@ -93,6 +107,14 @@ export default function DependentesPage() {
           const biggestExpense = dependentTransactions
             .filter((transaction) => !isCardCreditAdjustment(transaction))
             .sort((left, right) => right.amount - left.amount)[0];
+          const settlementSummary = getDependentSettlementSummary(
+            dependentTransactions,
+            dependentSettlements.filter(
+              (settlement) =>
+                settlement.competenceMonth === competenceMonth,
+            ),
+            dependent.id,
+          );
 
           return {
             ...dependent,
@@ -100,11 +122,12 @@ export default function DependentesPage() {
             cardTotal,
             fixedTotal,
             total,
+            ...settlementSummary,
             transactionsCount: dependentTransactions.length,
           };
         })
         .sort((left, right) => right.total - left.total),
-    [dependents, monthlyDependentTransactions],
+    [competenceMonth, dependentSettlements, dependents, monthlyDependentTransactions],
   );
 
   const totals = useMemo(
@@ -115,8 +138,17 @@ export default function DependentesPage() {
           fixed: acc.fixed + dependent.fixedTotal,
           transactions: acc.transactions + dependent.transactionsCount,
           total: acc.total + dependent.total,
+          settled: acc.settled + dependent.settledTotal,
+          outstanding: acc.outstanding + dependent.outstanding,
         }),
-        { card: 0, fixed: 0, total: 0, transactions: 0 },
+        {
+          card: 0,
+          fixed: 0,
+          total: 0,
+          settled: 0,
+          outstanding: 0,
+          transactions: 0,
+        },
       ),
     [dependentSummaries],
   );
@@ -139,6 +171,24 @@ export default function DependentesPage() {
         : [],
     [monthlyDependentTransactions, effectiveSelectedDependentId],
   );
+
+  const selectedSettlements = useMemo(
+    () =>
+      effectiveSelectedDependentId
+        ? dependentSettlements.filter(
+            (settlement) =>
+              settlement.dependentId === effectiveSelectedDependentId &&
+              settlement.competenceMonth === competenceMonth &&
+              settlement.status === "confirmed",
+          )
+        : [],
+    [competenceMonth, dependentSettlements, effectiveSelectedDependentId],
+  );
+
+  const settlementTarget =
+    dependentSummaries.find(
+      (dependent) => dependent.id === settlementTargetId,
+    ) ?? null;
 
   return (
     <div className="flex w-full flex-col gap-6 md:gap-8">
@@ -165,16 +215,16 @@ export default function DependentesPage() {
             tone: "text-zinc-50",
           },
           {
-            label: "Cartão",
-            value: brlFormatter.format(totals.card),
-            icon: CreditCard,
-            tone: "text-blue-300",
+            label: "Recebido",
+            value: brlFormatter.format(totals.settled),
+            icon: CheckCircle2,
+            tone: "text-emerald-300",
           },
           {
-            label: "Débito/PIX",
-            value: brlFormatter.format(totals.fixed),
-            icon: ReceiptText,
-            tone: "text-emerald-300",
+            label: "A receber",
+            value: brlFormatter.format(totals.outstanding),
+            icon: HandCoins,
+            tone: "text-amber-300",
           },
           {
             label: "Lançamentos",
@@ -225,18 +275,20 @@ export default function DependentesPage() {
             <CardContent className="grid gap-4 p-4 md:grid-cols-2">
               {dependentSummaries.length ? (
                 dependentSummaries.map((dependent) => (
-                  <button
+                  <div
                     key={dependent.id}
-                    type="button"
-                    onClick={() => setSelectedDependentId(dependent.id)}
                     className={cn(
-                      "rounded-2xl border p-4 text-left transition-colors",
+                      "rounded-2xl border p-4 transition-colors",
                       effectiveSelectedDependentId === dependent.id
                         ? "border-emerald-500/40 bg-emerald-500/10"
                         : "border-zinc-800 bg-zinc-950/50 hover:bg-zinc-950",
                     )}
                   >
-                    <div className="flex items-start justify-between gap-4">
+                    <button
+                      type="button"
+                      onClick={() => setSelectedDependentId(dependent.id)}
+                      className="flex w-full items-start justify-between gap-4 text-left"
+                    >
                       <div className="flex min-w-0 items-center gap-3">
                         <span className="flex size-10 shrink-0 items-center justify-center rounded-xl bg-zinc-900 text-zinc-300">
                           <UserRound className="size-5" />
@@ -254,7 +306,7 @@ export default function DependentesPage() {
                       <strong className="shrink-0 text-sm text-zinc-50">
                         {brlFormatter.format(dependent.total)}
                       </strong>
-                    </div>
+                    </button>
 
                     <div className="mt-4 grid grid-cols-2 gap-2">
                       <div className="rounded-xl border border-zinc-800 bg-zinc-900/60 p-3">
@@ -288,7 +340,43 @@ export default function DependentesPage() {
                         </span>
                       </div>
                     ) : null}
-                  </button>
+
+                    <div className="mt-4 border-t border-zinc-800/80 pt-3">
+                      <div className="flex items-center justify-between gap-3 text-xs">
+                        <span className="text-zinc-500">
+                          Recebido: {brlFormatter.format(dependent.settledTotal)}
+                        </span>
+                        <strong
+                          className={cn(
+                            "font-medium",
+                            dependent.outstanding > 0
+                              ? "text-amber-300"
+                              : "text-emerald-300",
+                          )}
+                        >
+                          {dependent.outstanding > 0
+                            ? `A receber: ${brlFormatter.format(dependent.outstanding)}`
+                            : "Quitado"}
+                        </strong>
+                      </div>
+                      <Progress
+                        value={dependent.progress}
+                        className="mt-2 h-1.5 bg-zinc-800"
+                      />
+                      <Button
+                        type="button"
+                        variant="outline"
+                        className="mt-3 w-full border-zinc-700 bg-zinc-950"
+                        disabled={dependent.outstanding <= 0}
+                        onClick={() => setSettlementTargetId(dependent.id)}
+                      >
+                        <HandCoins className="size-4" />
+                        {dependent.outstanding > 0
+                          ? "Registrar acerto"
+                          : "Acerto concluído"}
+                      </Button>
+                    </div>
+                  </div>
                 ))
               ) : (
                 <div className="rounded-2xl border border-dashed border-zinc-800 p-6 text-sm leading-6 text-zinc-500 md:col-span-2">
@@ -310,6 +398,29 @@ export default function DependentesPage() {
               </CardDescription>
             </CardHeader>
             <CardContent className="p-0">
+              {selectedSettlements.length ? (
+                <div className="border-b border-zinc-800 px-4 py-3">
+                  <p className="mb-2 text-xs font-medium uppercase tracking-wide text-zinc-500">
+                    Acertos desta competência
+                  </p>
+                  <div className="flex flex-wrap gap-2">
+                    {selectedSettlements.map((settlement) => (
+                      <div
+                        key={settlement.id}
+                        className="flex items-center gap-2 rounded-lg border border-zinc-800 bg-zinc-900/60 px-3 py-2 text-xs"
+                      >
+                        <CheckCircle2 className="size-3.5 text-emerald-500" />
+                        <span className="text-zinc-500">
+                          {formatDateOnlyBR(settlement.settledAt.slice(0, 10))}
+                        </span>
+                        <strong className="text-zinc-200">
+                          {brlFormatter.format(settlement.amount)}
+                        </strong>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              ) : null}
               {selectedTransactions.length ? (
                 <div className="divide-y divide-zinc-800">
                   {selectedTransactions.map((transaction) => {
@@ -367,6 +478,17 @@ export default function DependentesPage() {
           </Card>
         </div>
       </section>
+
+      <SettleDependentModal
+        dependent={settlementTarget}
+        competenceMonth={competenceMonth}
+        obligationTotal={settlementTarget?.obligationTotal ?? 0}
+        settledTotal={settlementTarget?.settledTotal ?? 0}
+        open={Boolean(settlementTarget)}
+        onOpenChange={(open) => {
+          if (!open) setSettlementTargetId(null);
+        }}
+      />
     </div>
   );
 }

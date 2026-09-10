@@ -35,6 +35,15 @@ export const productTourSteps: ProductTourStep[] = [
     target: "month-selector",
   },
   {
+    id: "privacy",
+    eyebrow: "Privacidade rápida",
+    title: "Oculte seus valores quando precisar",
+    description:
+      "Use o ícone de olho para esconder ou revelar todos os saldos da Dashboard sem alterar nenhum dado financeiro.",
+    route: "/dashboard",
+    target: "dashboard-privacy",
+  },
+  {
     id: "new",
     eyebrow: "Ação principal",
     title: "Crie lançamentos pelo menu Novo",

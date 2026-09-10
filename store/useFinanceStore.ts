@@ -36,6 +36,11 @@ export type InvoicePaymentMethod =
   | "TRANSFER"
   | "CASH"
   | "OTHER";
+export type DependentSettlementMethod =
+  | "PIX"
+  | "TRANSFER"
+  | "CASH"
+  | "OTHER";
 
 export interface Card {
   id: string;
@@ -89,6 +94,28 @@ export interface CreateInvoicePaymentInput {
   notes?: string;
 }
 
+export interface DependentSettlement {
+  id: string;
+  dependentId: string;
+  competenceMonth: string;
+  amount: number;
+  settledAt: string;
+  method: DependentSettlementMethod;
+  status: "confirmed" | "voided";
+  source: "manual" | "import" | "migration";
+  notes?: string | null;
+  createdAt: string;
+}
+
+export interface CreateDependentSettlementInput {
+  dependentId: string;
+  competenceMonth: string;
+  amount: number;
+  settledAt?: string;
+  method?: DependentSettlementMethod;
+  notes?: string;
+}
+
 export interface Category {
   id: string;
   label: string;
@@ -137,6 +164,7 @@ export type CreateCategoryInput = Pick<Category, "label" | "kind" | "icon">;
 type CardRow = Tables<"cards">;
 type CardInvoiceRow = Tables<"card_invoices">;
 type InvoicePaymentRow = Tables<"invoice_payments">;
+type DependentSettlementRow = Tables<"dependent_settlements">;
 type TransactionRow = Tables<"transactions">;
 type DependentRow = Tables<"dependents">;
 type CategoryRow = Tables<"categories">;
@@ -145,6 +173,7 @@ interface FinanceState {
   cards: Card[];
   cardInvoices: CardInvoice[];
   invoicePayments: InvoicePayment[];
+  dependentSettlements: DependentSettlement[];
   dependents: Dependent[];
   categories: Category[];
   transactions: Transaction[];
@@ -167,6 +196,7 @@ interface FinanceState {
   fetchCards: () => Promise<void>;
   fetchCardInvoices: () => Promise<void>;
   fetchInvoicePayments: (invoiceIds?: string[]) => Promise<void>;
+  fetchDependentSettlements: () => Promise<void>;
   fetchDependents: () => Promise<void>;
   fetchCategories: () => Promise<void>;
   addCategory: (category: CreateCategoryInput) => Promise<void>;
@@ -197,6 +227,9 @@ interface FinanceState {
     invoiceId: string,
     payment?: CreateInvoicePaymentInput,
   ) => Promise<InvoicePayment>;
+  settleDependent: (
+    settlement: CreateDependentSettlementInput,
+  ) => Promise<DependentSettlement>;
   addIncome: (
     income: Pick<CreateTransactionInput, "amount" | "date" | "description">,
   ) => Promise<void>;
@@ -352,6 +385,23 @@ function mapInvoicePayment(row: InvoicePaymentRow): InvoicePayment {
     method: row.method,
     status: row.status.toLowerCase() as InvoicePayment["status"],
     source: row.source.toLowerCase() as InvoicePayment["source"],
+    notes: row.notes,
+    createdAt: row.created_at,
+  };
+}
+
+function mapDependentSettlement(
+  row: DependentSettlementRow,
+): DependentSettlement {
+  return {
+    id: row.id,
+    dependentId: row.dependent_id,
+    competenceMonth: row.competence_month,
+    amount: toAmount(row.amount),
+    settledAt: row.settled_at,
+    method: row.method,
+    status: row.status.toLowerCase() as DependentSettlement["status"],
+    source: row.source.toLowerCase() as DependentSettlement["source"],
     notes: row.notes,
     createdAt: row.created_at,
   };
@@ -518,6 +568,7 @@ export const useFinanceStore = create<FinanceState>()((set, get) => ({
   cards: [],
   cardInvoices: [],
   invoicePayments: [],
+  dependentSettlements: [],
   dependents: [],
   categories: getEssentialCategories(),
   transactions: [],
@@ -628,6 +679,7 @@ export const useFinanceStore = create<FinanceState>()((set, get) => ({
           cards: [],
           cardInvoices: [],
           invoicePayments: [],
+          dependentSettlements: [],
           dependents: [],
           categories: getEssentialCategories(),
           transactions: [],
@@ -650,6 +702,7 @@ export const useFinanceStore = create<FinanceState>()((set, get) => ({
       cards: [],
       cardInvoices: [],
       invoicePayments: [],
+      dependentSettlements: [],
       dependents: [],
       categories: getEssentialCategories(),
       transactions: [],
@@ -815,6 +868,9 @@ export const useFinanceStore = create<FinanceState>()((set, get) => ({
         dependents: state.dependents.filter(
           (dependent) => dependent.id !== dependentId,
         ),
+        dependentSettlements: state.dependentSettlements.filter(
+          (settlement) => settlement.dependentId !== dependentId,
+        ),
         transactions: state.transactions.map((transaction) =>
           transaction.dependentId === dependentId
             ? { ...transaction, dependentId: null }
@@ -922,6 +978,36 @@ export const useFinanceStore = create<FinanceState>()((set, get) => ({
       });
     } catch (error) {
       console.error("Erro ao buscar pagamentos de fatura:", error);
+      throw error;
+    }
+  },
+
+  fetchDependentSettlements: async () => {
+    try {
+      const user = await getCurrentUser();
+      if (!user) return;
+
+      const competenceMonth = toDateOnly(
+        get().currentYear,
+        get().currentMonth,
+        1,
+      );
+      const { data, error } = await supabase
+        .from("dependent_settlements")
+        .select("*")
+        .eq("user_id", user.id)
+        .eq("competence_month", competenceMonth)
+        .order("settled_at", { ascending: false });
+
+      if (error) throw error;
+
+      set({
+        dependentSettlements: (data as DependentSettlementRow[]).map(
+          mapDependentSettlement,
+        ),
+      });
+    } catch (error) {
+      console.error("Erro ao buscar acertos de dependentes:", error);
       throw error;
     }
   },
@@ -1108,7 +1194,10 @@ export const useFinanceStore = create<FinanceState>()((set, get) => ({
         fetchedMonth: selectedMonth,
         fetchedYear: selectedYear,
       });
-      await get().fetchCardInvoices();
+      await Promise.all([
+        get().fetchCardInvoices(),
+        get().fetchDependentSettlements(),
+      ]);
     } catch (error) {
       console.error("Erro ao buscar transações:", error);
     } finally {
@@ -1622,6 +1711,54 @@ export const useFinanceStore = create<FinanceState>()((set, get) => ({
       return newPayment;
     } catch (error) {
       console.error("Erro ao liquidar fatura:", error);
+      throw error;
+    }
+  },
+
+  settleDependent: async (settlement) => {
+    try {
+      const user = await getCurrentUser();
+      if (!user) throw new Error("Usuário não autenticado.");
+
+      const amount = Number(settlement.amount);
+      if (!Number.isFinite(amount) || amount <= 0) {
+        throw new Error("Informe um valor válido para o acerto.");
+      }
+
+      const { data, error } = await supabase
+        .from("dependent_settlements")
+        .insert({
+          user_id: user.id,
+          dependent_id: settlement.dependentId,
+          competence_month: getMonthStart(settlement.competenceMonth),
+          amount,
+          settled_at: settlement.settledAt ?? new Date().toISOString(),
+          method: settlement.method ?? "PIX",
+          status: "CONFIRMED",
+          source: "MANUAL",
+          idempotency_key: `manual:${crypto.randomUUID()}`,
+          notes: settlement.notes?.trim() || null,
+        })
+        .select("*")
+        .single();
+
+      if (error) throw error;
+      if (!data) throw new Error("Acerto não retornado pelo Supabase.");
+
+      const newSettlement = mapDependentSettlement(
+        data as DependentSettlementRow,
+      );
+
+      set((state) => ({
+        dependentSettlements: [
+          newSettlement,
+          ...state.dependentSettlements,
+        ],
+      }));
+
+      return newSettlement;
+    } catch (error) {
+      console.error("Erro ao registrar acerto de dependente:", error);
       throw error;
     }
   },
