@@ -43,6 +43,7 @@ import {
 } from "@/components/ui/select";
 import { Switch } from "@/components/ui/switch";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { reportAppError } from "@/lib/errorMonitoring";
 import { supabase } from "@/lib/supabaseClient";
 import {
   useFinanceStore,
@@ -225,7 +226,10 @@ export default function ConfiguracoesPage() {
     try {
       await updatePreferences(updates);
     } catch (error) {
-      console.error("Erro ao salvar preferências:", error);
+      void reportAppError(error, {
+        source: "SUPABASE",
+        context: { operation: "Salvar preferências" },
+      });
       toast.error("Não foi possível sincronizar a preferência.");
     } finally {
       setIsSavingPreferences(false);
@@ -398,7 +402,11 @@ export default function ConfiguracoesPage() {
         .eq("id", authUser.id);
 
       if (profileError && profileError.code !== "PGRST204") {
-        console.warn("Não foi possível atualizar avatar_url em users:", profileError);
+        void reportAppError(profileError, {
+          source: "SUPABASE",
+          severity: "WARNING",
+          context: { operation: "Atualizar referência do avatar" },
+        });
       }
 
       const { data, error: userError } = await supabase.auth.updateUser({
@@ -422,14 +430,21 @@ export default function ConfiguracoesPage() {
           .remove([previousAvatarPath]);
 
         if (removeError) {
-          console.warn("Não foi possível remover o avatar anterior:", removeError);
+          void reportAppError(removeError, {
+            source: "SUPABASE",
+            severity: "WARNING",
+            context: { operation: "Remover avatar anterior" },
+          });
         }
       }
 
       closeCropDialog();
       toast.success("Foto atualizada!");
     } catch (error) {
-      console.error("Erro ao enviar avatar:", error);
+      void reportAppError(error, {
+        source: "SUPABASE",
+        context: { operation: "Enviar avatar" },
+      });
       toast.error("Não foi possível atualizar a foto.");
     } finally {
       setIsUploadingAvatar(false);
@@ -441,7 +456,10 @@ export default function ConfiguracoesPage() {
       const croppedAvatar = await createCroppedAvatarFile();
       await uploadAvatarFile(croppedAvatar);
     } catch (error) {
-      console.error("Erro ao recortar avatar:", error);
+      void reportAppError(error, {
+        source: "CLIENT",
+        context: { operation: "Recortar avatar" },
+      });
       toast.error("Não foi possível recortar a foto.");
     }
   }
@@ -471,7 +489,10 @@ export default function ConfiguracoesPage() {
 
       toast.success("Perfil atualizado!");
     } catch (error) {
-      console.error("Erro ao atualizar perfil:", error);
+      void reportAppError(error, {
+        source: "SUPABASE",
+        context: { operation: "Atualizar perfil" },
+      });
       toast.error("Não foi possível salvar as alterações.");
     } finally {
       setIsSaving(false);
@@ -517,7 +538,11 @@ export default function ConfiguracoesPage() {
       setConfirmPassword("");
       toast.success("Senha atualizada!");
     } catch (error) {
-      console.error("Erro ao atualizar senha:", error);
+      void reportAppError(error, {
+        source: "SUPABASE",
+        severity: "WARNING",
+        context: { operation: "Atualizar senha" },
+      });
       toast.error("Não foi possível atualizar a senha.");
     } finally {
       setIsUpdatingPassword(false);

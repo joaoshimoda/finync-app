@@ -22,6 +22,7 @@ import {
   getBackupFilename,
   parseFinyncBackup,
 } from "@/lib/backupExport";
+import { reportAppError } from "@/lib/errorMonitoring";
 import { supabase } from "@/lib/supabaseClient";
 
 type ExportFormat = "json" | "csv";
@@ -85,7 +86,10 @@ export default function ExportarPage() {
       });
       toast.success(format === "json" ? "Backup completo exportado." : "Extrato CSV exportado.");
     } catch (error) {
-      console.error("Erro ao exportar dados:", error);
+      void reportAppError(error, {
+        source: "SUPABASE",
+        context: { operation: "Exportar dados" },
+      });
       toast.error("Não foi possível exportar seus dados.");
     } finally {
       setExportingFormat(null);

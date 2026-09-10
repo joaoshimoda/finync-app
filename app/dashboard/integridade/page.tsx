@@ -5,6 +5,7 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import {
   AlertTriangle,
   ArrowRight,
+  Bug,
   Check,
   CircleAlert,
   CircleCheck,
@@ -24,12 +25,20 @@ import {
   CardTitle,
 } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
-import type { Database } from "@/lib/database.types";
+import type { Database, Tables } from "@/lib/database.types";
 import { supabase } from "@/lib/supabaseClient";
 import { cn } from "@/lib/utils";
 
 type DataHealthCheck =
   Database["public"]["Functions"]["finync_get_data_health"]["Returns"][number];
+type AppErrorLog = Tables<"app_error_logs">;
+
+const errorDateFormatter = new Intl.DateTimeFormat("pt-BR", {
+  day: "2-digit",
+  month: "short",
+  hour: "2-digit",
+  minute: "2-digit",
+});
 
 const severityPresentation = {
   warning: {
@@ -61,6 +70,7 @@ function getSeverityPresentation(severity: string) {
 
 export default function IntegridadePage() {
   const [checks, setChecks] = useState<DataHealthCheck[]>([]);
+  const [recentErrors, setRecentErrors] = useState<AppErrorLog[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [lastCheckedAt, setLastCheckedAt] = useState<Date | null>(null);
 
@@ -68,11 +78,20 @@ export default function IntegridadePage() {
     setIsLoading(true);
 
     try {
-      const { data, error } = await supabase.rpc("finync_get_data_health");
+      const [healthResult, errorLogResult] = await Promise.all([
+        supabase.rpc("finync_get_data_health"),
+        supabase
+          .from("app_error_logs")
+          .select("*")
+          .order("last_seen", { ascending: false })
+          .limit(8),
+      ]);
 
-      if (error) throw error;
+      if (healthResult.error) throw healthResult.error;
+      if (errorLogResult.error) throw errorLogResult.error;
 
-      setChecks(data ?? []);
+      setChecks(healthResult.data ?? []);
+      setRecentErrors(errorLogResult.data ?? []);
       setLastCheckedAt(new Date());
     } catch (error) {
       console.error("Erro ao verificar integridade dos dados:", error);
@@ -292,6 +311,85 @@ export default function IntegridadePage() {
           </CardContent>
         </Card>
       ) : null}
+
+      <Card className="rounded-xl border-zinc-800/80 bg-zinc-950 shadow-none">
+        <CardHeader className="border-b border-zinc-800/80 px-4 py-5 sm:px-6">
+          <div className="flex items-start justify-between gap-4">
+            <div>
+              <CardTitle className="text-base">Falhas recentes do app</CardTitle>
+              <CardDescription className="mt-1">
+                Erros técnicos deduplicados e registrados sem dados sensíveis.
+              </CardDescription>
+            </div>
+            <Badge
+              variant="outline"
+              className={cn(
+                "shrink-0 border",
+                recentErrors.length
+                  ? "border-rose-500/20 bg-rose-500/10 text-rose-300"
+                  : "border-emerald-500/20 bg-emerald-500/10 text-emerald-300",
+              )}
+            >
+              {recentErrors.length ? recentErrors.length : "Estável"}
+            </Badge>
+          </div>
+        </CardHeader>
+        <CardContent className="p-0">
+          {recentErrors.length ? (
+            <div className="divide-y divide-zinc-800/80">
+              {recentErrors.map((errorLog) => (
+                <article
+                  key={errorLog.id}
+                  className="flex items-start gap-3 px-4 py-4 sm:px-6"
+                >
+                  <span className="mt-0.5 flex size-9 shrink-0 items-center justify-center rounded-lg bg-rose-500/10 text-rose-300">
+                    <Bug className="size-4" />
+                  </span>
+                  <div className="min-w-0 flex-1">
+                    <div className="flex flex-wrap items-center gap-2">
+                      <p className="break-words text-sm font-medium text-zinc-200">
+                        {errorLog.message}
+                      </p>
+                      {errorLog.occurrences > 1 ? (
+                        <Badge
+                          variant="outline"
+                          className="border-zinc-700 text-zinc-400"
+                        >
+                          {errorLog.occurrences} ocorrências
+                        </Badge>
+                      ) : null}
+                    </div>
+                    <p className="mt-1 text-xs text-zinc-500">
+                      {errorLog.route ?? "Rota não identificada"} ·{" "}
+                      {errorDateFormatter.format(new Date(errorLog.last_seen))}
+                    </p>
+                  </div>
+                  <Badge
+                    variant="outline"
+                    className="shrink-0 border-zinc-700 text-zinc-400"
+                  >
+                    {errorLog.source}
+                  </Badge>
+                </article>
+              ))}
+            </div>
+          ) : (
+            <div className="flex items-center gap-3 px-4 py-6 sm:px-6">
+              <span className="flex size-9 items-center justify-center rounded-lg bg-emerald-500/10 text-emerald-400">
+                <Check className="size-4" />
+              </span>
+              <div>
+                <p className="text-sm font-medium text-zinc-200">
+                  Nenhuma falha registrada
+                </p>
+                <p className="mt-1 text-xs text-zinc-500">
+                  O monitoramento está ativo nesta conta.
+                </p>
+              </div>
+            </div>
+          )}
+        </CardContent>
+      </Card>
 
       <Card className="rounded-xl border-zinc-800/80 bg-zinc-950/60 shadow-none">
         <CardHeader className="border-b border-zinc-800/80 px-4 py-5 sm:px-6">

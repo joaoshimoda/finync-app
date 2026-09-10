@@ -54,6 +54,7 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { formatDateOnlyBR } from "@/lib/dateUtils";
+import { reportAppError } from "@/lib/errorMonitoring";
 import { getCardSignedAmount, isCardCreditAdjustment } from "@/lib/cardCredits";
 import { supabase } from "@/lib/supabaseClient";
 import { cn } from "@/lib/utils";
@@ -465,7 +466,10 @@ export default function TransactionsPage() {
       setSelectedIds([]);
       await fetchTransactions();
     } catch (error) {
-      console.error("Erro ao excluir transações em massa:", error);
+      void reportAppError(error, {
+        source: "SUPABASE",
+        context: { operation: "Excluir transações em massa" },
+      });
       toast.error("Não foi possível excluir as transações selecionadas.");
     } finally {
       setIsBulkSubmitting(false);

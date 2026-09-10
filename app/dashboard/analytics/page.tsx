@@ -39,6 +39,7 @@ import {
   toDateOnly,
 } from "@/lib/dateUtils";
 import { aggregatePeriodExpenses } from "@/lib/financeAggregation";
+import { reportAppError } from "@/lib/errorMonitoring";
 import { supabase } from "@/lib/supabaseClient";
 import { cn } from "@/lib/utils";
 import { useFinanceStore } from "@/store/useFinanceStore";
@@ -490,7 +491,10 @@ export default function AnalyticsPage() {
           ),
         );
       } catch (error) {
-        console.error("Erro ao carregar analytics:", error);
+        void reportAppError(error, {
+          source: "SUPABASE",
+          context: { operation: "Carregar analytics" },
+        });
         setAnalyticsData(createEmptyAnalyticsData(currentMonth, currentYear));
       } finally {
         setIsLoading(false);

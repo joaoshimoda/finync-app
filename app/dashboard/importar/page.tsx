@@ -63,6 +63,7 @@ import {
   normalizeDateOnly,
   toDateOnly,
 } from "@/lib/dateUtils";
+import { reportAppError } from "@/lib/errorMonitoring";
 import { supabase } from "@/lib/supabaseClient";
 import {
   addOccurrenceSignatures,
@@ -669,7 +670,10 @@ export default function ImportarPage() {
         .limit(1000);
 
       if (error) {
-        console.error("Erro ao buscar histórico de categorias:", error);
+        void reportAppError(error, {
+          source: "SUPABASE",
+          context: { operation: "Buscar histórico de categorias" },
+        });
         return;
       }
 
@@ -1012,7 +1016,10 @@ export default function ImportarPage() {
           );
         }
       } catch (error) {
-        console.error("Erro ao verificar duplicidade da importação:", error);
+        void reportAppError(error, {
+          source: "SUPABASE",
+          context: { operation: "Verificar duplicidade da importação" },
+        });
         if (isMounted) {
           setExistingImportSignatures(new Set());
           setExistingLooseImportSignatures(new Set());
@@ -1591,7 +1598,11 @@ export default function ImportarPage() {
       );
       resetImport({ keepSummary: true });
     } catch (error) {
-      console.error("Erro ao importar fatura:", error);
+      void reportAppError(error, {
+        source: "SUPABASE",
+        severity: "CRITICAL",
+        context: { operation: "Importar fatura" },
+      });
       toast.error("Não foi possível importar as transações.");
     } finally {
       setIsSubmitting(false);

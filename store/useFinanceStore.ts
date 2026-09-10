@@ -27,6 +27,7 @@ import {
   toDbTransactionStatus,
   type TransactionStatus,
 } from "@/lib/transactionStatus";
+import { reportAppError } from "@/lib/errorMonitoring";
 
 export type TransactionType = "income" | "fixed" | "card";
 export type { TransactionStatus } from "@/lib/transactionStatus";
@@ -737,6 +738,17 @@ function getPreferencesFromState(state: FinanceState): UserPreferences {
 
 const initialUserPreferences = getStoredPreferences();
 
+function reportFinanceError(operation: string, error: unknown) {
+  if (process.env.NODE_ENV === "development") {
+    console.error(operation, error);
+  }
+
+  void reportAppError(error, {
+    source: "SUPABASE",
+    context: { operation },
+  });
+}
+
 export const useFinanceStore = create<FinanceState>()((set, get) => ({
   cards: [],
   cardInvoices: [],
@@ -818,7 +830,7 @@ export const useFinanceStore = create<FinanceState>()((set, get) => ({
       setPendingPreferenceSync(false);
       set({ ...localPreferences, isPreferencesReady: true });
     } catch (error) {
-      console.error("Erro ao sincronizar preferências:", error);
+      reportFinanceError("Sincronizar preferências", error);
       set({ isPreferencesReady: true });
     }
   },
@@ -857,7 +869,7 @@ export const useFinanceStore = create<FinanceState>()((set, get) => ({
     try {
       await get().updatePreferences({ hideBalancesByDefault: hideBalances });
     } catch (error) {
-      console.error("Erro ao sincronizar privacidade:", error);
+      reportFinanceError("Sincronizar privacidade", error);
     }
   },
 
@@ -867,7 +879,7 @@ export const useFinanceStore = create<FinanceState>()((set, get) => ({
         hideBalancesByDefault: !get().hideBalancesByDefault,
       });
     } catch (error) {
-      console.error("Erro ao sincronizar privacidade:", error);
+      reportFinanceError("Alternar privacidade", error);
     }
   },
 
@@ -1005,7 +1017,7 @@ export const useFinanceStore = create<FinanceState>()((set, get) => ({
 
       set({ dependents: (data as DependentRow[]).map(mapDependent) });
     } catch (error) {
-      console.error("Erro ao buscar dependentes:", error);
+      reportFinanceError("Buscar dependentes", error);
       throw error;
     }
   },
@@ -1029,7 +1041,7 @@ export const useFinanceStore = create<FinanceState>()((set, get) => ({
         ),
       });
     } catch (error) {
-      console.error("Erro ao buscar categorias:", error);
+      reportFinanceError("Buscar categorias", error);
       set({ categories: getEssentialCategories() });
     }
   },
@@ -1057,7 +1069,7 @@ export const useFinanceStore = create<FinanceState>()((set, get) => ({
         categoryBudgets: (data as CategoryBudgetRow[]).map(mapCategoryBudget),
       });
     } catch (error) {
-      console.error("Erro ao buscar orçamentos por categoria:", error);
+      reportFinanceError("Buscar orçamentos por categoria", error);
       throw error;
     }
   },
@@ -1174,7 +1186,7 @@ export const useFinanceStore = create<FinanceState>()((set, get) => ({
 
       return savedBudget;
     } catch (error) {
-      console.error("Erro ao salvar orçamento por categoria:", error);
+      reportFinanceError("Salvar orçamento por categoria", error);
       throw error;
     }
   },
@@ -1198,7 +1210,7 @@ export const useFinanceStore = create<FinanceState>()((set, get) => ({
         ),
       }));
     } catch (error) {
-      console.error("Erro ao excluir orçamento por categoria:", error);
+      reportFinanceError("Excluir orçamento por categoria", error);
       throw error;
     }
   },
@@ -1234,7 +1246,7 @@ export const useFinanceStore = create<FinanceState>()((set, get) => ({
         ].sort((left, right) => left.name.localeCompare(right.name, "pt-BR")),
       }));
     } catch (error) {
-      console.error("Erro ao adicionar dependente:", error);
+      reportFinanceError("Adicionar dependente", error);
       throw error;
     }
   },
@@ -1266,7 +1278,7 @@ export const useFinanceStore = create<FinanceState>()((set, get) => ({
         ),
       }));
     } catch (error) {
-      console.error("Erro ao remover dependente:", error);
+      reportFinanceError("Remover dependente", error);
       throw error;
     }
   },
@@ -1302,7 +1314,7 @@ export const useFinanceStore = create<FinanceState>()((set, get) => ({
             }),
       }));
     } catch (error) {
-      console.error("Erro ao buscar cartões:", error);
+      reportFinanceError("Buscar cartões", error);
     }
   },
 
@@ -1335,7 +1347,7 @@ export const useFinanceStore = create<FinanceState>()((set, get) => ({
       set({ cardInvoices });
       await get().fetchInvoicePayments(selectedInvoiceIds);
     } catch (error) {
-      console.error("Erro ao buscar faturas:", error);
+      reportFinanceError("Buscar faturas", error);
     }
   },
 
@@ -1365,7 +1377,7 @@ export const useFinanceStore = create<FinanceState>()((set, get) => ({
         invoicePayments: (data as InvoicePaymentRow[]).map(mapInvoicePayment),
       });
     } catch (error) {
-      console.error("Erro ao buscar pagamentos de fatura:", error);
+      reportFinanceError("Buscar pagamentos de fatura", error);
       throw error;
     }
   },
@@ -1395,7 +1407,7 @@ export const useFinanceStore = create<FinanceState>()((set, get) => ({
         ),
       });
     } catch (error) {
-      console.error("Erro ao buscar acertos de dependentes:", error);
+      reportFinanceError("Buscar acertos de dependentes", error);
       throw error;
     }
   },
@@ -1441,7 +1453,7 @@ export const useFinanceStore = create<FinanceState>()((set, get) => ({
 
       set({ cards: [...get().cards, mapCard(data as CardRow)] });
     } catch (error) {
-      console.error("Erro no Supabase:", error);
+      reportFinanceError("Adicionar cartão", error);
       throw error;
     }
   },
@@ -1482,7 +1494,7 @@ export const useFinanceStore = create<FinanceState>()((set, get) => ({
         ),
       });
     } catch (error) {
-      console.error("Erro ao editar cartão:", error);
+      reportFinanceError("Editar cartão", error);
       throw error;
     }
   },
@@ -1521,7 +1533,7 @@ export const useFinanceStore = create<FinanceState>()((set, get) => ({
         };
       });
     } catch (error) {
-      console.error("Erro ao excluir cartão:", error);
+      reportFinanceError("Excluir cartão", error);
       if (
         typeof error === "object" &&
         error !== null &&
@@ -1580,7 +1592,7 @@ export const useFinanceStore = create<FinanceState>()((set, get) => ({
         get().fetchCategoryBudgets(),
       ]);
     } catch (error) {
-      console.error("Erro ao buscar transações:", error);
+      reportFinanceError("Buscar transações", error);
     } finally {
       set({ isFetching: false });
     }
@@ -1650,7 +1662,7 @@ export const useFinanceStore = create<FinanceState>()((set, get) => ({
       }));
       await get().fetchCardInvoices();
     } catch (error) {
-      console.error("Erro no Supabase:", error);
+      reportFinanceError("Adicionar transações", error);
       throw error;
     }
   },
@@ -1813,7 +1825,7 @@ export const useFinanceStore = create<FinanceState>()((set, get) => ({
       }));
       await get().fetchCardInvoices();
     } catch (error) {
-      console.error("Erro ao atualizar transação:", error);
+      reportFinanceError("Atualizar transação", error);
       throw error;
     }
   },
@@ -2005,7 +2017,7 @@ export const useFinanceStore = create<FinanceState>()((set, get) => ({
       }));
       await get().fetchCardInvoices();
     } catch (error) {
-      console.error("Erro ao atualizar recorrência:", error);
+      reportFinanceError("Atualizar recorrência", error);
       throw error;
     }
   },
@@ -2054,7 +2066,7 @@ export const useFinanceStore = create<FinanceState>()((set, get) => ({
       }));
       await get().fetchCardInvoices();
     } catch (error) {
-      console.error("Erro ao atualizar categorias das transações:", error);
+      reportFinanceError("Atualizar categorias das transações", error);
       throw error;
     }
   },
@@ -2111,7 +2123,7 @@ export const useFinanceStore = create<FinanceState>()((set, get) => ({
       await get().fetchCardInvoices();
       return newPayment;
     } catch (error) {
-      console.error("Erro ao liquidar fatura:", error);
+      reportFinanceError("Liquidar fatura", error);
       throw error;
     }
   },
@@ -2159,7 +2171,7 @@ export const useFinanceStore = create<FinanceState>()((set, get) => ({
 
       return newSettlement;
     } catch (error) {
-      console.error("Erro ao registrar acerto de dependente:", error);
+      reportFinanceError("Registrar acerto de dependente", error);
       throw error;
     }
   },
@@ -2199,7 +2211,7 @@ export const useFinanceStore = create<FinanceState>()((set, get) => ({
       }));
       await get().fetchCardInvoices();
     } catch (error) {
-      console.error("Erro ao excluir transação:", error);
+      reportFinanceError("Excluir transação", error);
       throw error;
     }
   },
@@ -2230,7 +2242,7 @@ export const useFinanceStore = create<FinanceState>()((set, get) => ({
       }));
       await get().fetchCardInvoices();
     } catch (error) {
-      console.error("Erro ao excluir recorrência:", error);
+      reportFinanceError("Excluir recorrência", error);
       throw error;
     }
   },

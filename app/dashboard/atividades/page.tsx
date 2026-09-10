@@ -23,6 +23,7 @@ import {
 } from "@/components/ui/select";
 import { Skeleton } from "@/components/ui/skeleton";
 import type { Json, Tables } from "@/lib/database.types";
+import { reportAppError } from "@/lib/errorMonitoring";
 import { supabase } from "@/lib/supabaseClient";
 import { cn } from "@/lib/utils";
 
@@ -221,7 +222,10 @@ export default function AtividadesPage() {
       setLogs(data ?? []);
       setLoadedAt(Date.now());
     } catch (error) {
-      console.error("Erro ao carregar histórico de alterações:", error);
+      void reportAppError(error, {
+        source: "SUPABASE",
+        context: { operation: "Carregar histórico de alterações" },
+      });
       toast.error("Não foi possível carregar o histórico de alterações.");
     } finally {
       setIsLoading(false);

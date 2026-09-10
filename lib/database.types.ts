@@ -14,6 +14,62 @@ export type Database = {
   }
   public: {
     Tables: {
+      app_error_logs: {
+        Row: {
+          context: Json
+          error_code: string | null
+          fingerprint: string
+          first_seen: string
+          id: string
+          last_seen: string
+          message: string
+          occurrences: number
+          resolved_at: string | null
+          route: string | null
+          severity: string
+          source: string
+          user_id: string
+        }
+        Insert: {
+          context?: Json
+          error_code?: string | null
+          fingerprint: string
+          first_seen?: string
+          id?: string
+          last_seen?: string
+          message: string
+          occurrences?: number
+          resolved_at?: string | null
+          route?: string | null
+          severity?: string
+          source?: string
+          user_id: string
+        }
+        Update: {
+          context?: Json
+          error_code?: string | null
+          fingerprint?: string
+          first_seen?: string
+          id?: string
+          last_seen?: string
+          message?: string
+          occurrences?: number
+          resolved_at?: string | null
+          route?: string | null
+          severity?: string
+          source?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "app_error_logs_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "users"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       audit_logs: {
         Row: {
           action: string
@@ -713,6 +769,17 @@ export type Database = {
       finync_refresh_card_invoice_totals: {
         Args: { selected_invoice_id: string }
         Returns: undefined
+      }
+      finync_report_error: {
+        Args: {
+          error_code?: string
+          error_context?: Json
+          error_message: string
+          error_route?: string
+          error_severity?: string
+          error_source?: string
+        }
+        Returns: string
       }
       finync_sync_due_transaction_statuses: { Args: never; Returns: number }
       seed_default_categories: {
