@@ -72,7 +72,7 @@ export function Sidebar() {
         </span>
       </Link>
 
-      <nav className="flex flex-1 flex-col gap-2">
+      <nav className="flex min-h-0 flex-1 flex-col gap-2 overflow-y-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
         {navigationItems.map((item) => {
           const active = isActiveRoute(pathname, item.href);
           const Icon = item.icon;

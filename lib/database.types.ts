@@ -511,7 +511,19 @@ export type Database = {
       };
     };
     Views: Record<string, never>;
-    Functions: Record<string, never>;
+    Functions: {
+      finync_get_data_health: {
+        Args: Record<PropertyKey, never>;
+        Returns: {
+          action_route: string;
+          check_key: string;
+          description: string;
+          issue_count: number;
+          severity: string;
+          title: string;
+        }[];
+      };
+    };
     Enums: Record<string, never>;
     CompositeTypes: Record<string, never>;
   };

@@ -10,6 +10,7 @@ import {
   Receipt,
   Repeat2,
   Settings,
+  ShieldCheck,
   Tags,
   UsersRound,
   type LucideIcon,
@@ -224,6 +225,24 @@ export const guideSections: GuideSection[] = [
       "Composição separa contas fixas e cartão; Maiores Despesas destaca os lançamentos mais relevantes.",
     ],
     tip: "O Analytics é pessoal: gastos vinculados a dependentes não entram nos KPIs nem nos gráficos.",
+  },
+  {
+    id: "integridade",
+    title: "Verifique a integridade dos dados",
+    shortTitle: "Integridade",
+    description:
+      "A Central de Integridade confere vínculos, parcelas, faturas, pagamentos e cadastros sem modificar seus lançamentos.",
+    icon: ShieldCheck,
+    href: "/dashboard/integridade",
+    actionLabel: "Verificar Dados",
+    accent: "text-emerald-400 bg-emerald-500/10",
+    steps: [
+      "Abra a Central de Integridade para executar as verificações da sua conta.",
+      "Confira o resumo de avisos, erros e ocorrências críticas encontrado pelo diagnóstico.",
+      "Use Revisar para acessar diretamente a área relacionada a cada inconsistência.",
+      "Depois da correção, execute a verificação novamente para confirmar o resultado.",
+    ],
+    tip: "O diagnóstico é somente leitura: nenhuma transação ou configuração é alterada durante a verificação.",
   },
   {
     id: "privacidade",

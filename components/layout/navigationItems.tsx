@@ -8,6 +8,7 @@ import {
   LayoutDashboard,
   Receipt,
   Settings,
+  ShieldCheck,
   UsersRound,
   type LucideIcon,
 } from "lucide-react";
@@ -54,6 +55,13 @@ export const navigationItems: NavigationItem[] = [
     href: "/dashboard/analytics",
     icon: BarChart3,
     tourId: "nav-analytics",
+  },
+  {
+    label: "Integridade",
+    shortLabel: "Saúde",
+    href: "/dashboard/integridade",
+    icon: ShieldCheck,
+    tourId: "nav-integrity",
   },
   {
     label: "Dependentes",

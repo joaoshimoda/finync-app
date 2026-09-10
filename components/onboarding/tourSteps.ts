@@ -214,6 +214,15 @@ export const productTourSteps: ProductTourStep[] = [
     target: "analytics-dashboard",
   },
   {
+    id: "integrity",
+    eyebrow: "Diagnóstico",
+    title: "Confira a consistência dos seus dados",
+    description:
+      "A Central de Integridade identifica vínculos incompletos, parcelas isoladas e divergências em faturas sem alterar seus lançamentos.",
+    route: "/dashboard/integridade",
+    target: "integrity-dashboard",
+  },
+  {
     id: "finish",
     eyebrow: "Tudo pronto",
     title: "Você já conhece o fluxo essencial",
