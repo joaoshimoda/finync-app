@@ -53,7 +53,8 @@ export type Database = {
             | "card_invoices"
             | "invoice_payments"
             | "dependent_settlements"
-            | "category_budgets";
+            | "category_budgets"
+            | "user_preferences";
           id: string;
           origin: "USER" | "SYSTEM";
           user_id: string;
@@ -74,7 +75,8 @@ export type Database = {
             | "card_invoices"
             | "invoice_payments"
             | "dependent_settlements"
-            | "category_budgets";
+            | "category_budgets"
+            | "user_preferences";
           id?: string;
           origin?: "USER" | "SYSTEM";
           user_id: string;
@@ -95,7 +97,8 @@ export type Database = {
             | "card_invoices"
             | "invoice_payments"
             | "dependent_settlements"
-            | "category_budgets";
+            | "category_budgets"
+            | "user_preferences";
           id?: string;
           origin?: "USER" | "SYSTEM";
           user_id?: string;
@@ -112,6 +115,47 @@ export type Database = {
             foreignKeyName: "audit_logs_user_id_fkey";
             columns: ["user_id"];
             isOneToOne: false;
+            referencedRelation: "users";
+            referencedColumns: ["id"];
+          },
+        ];
+      };
+      user_preferences: {
+        Row: {
+          created_at: string;
+          date_format: "DD/MM/AAAA" | "MM/DD/AAAA";
+          default_currency: "BRL" | "USD" | "EUR";
+          hide_balances_by_default: boolean;
+          invoice_reminder: boolean;
+          updated_at: string;
+          user_id: string;
+          weekly_summary: boolean;
+        };
+        Insert: {
+          created_at?: string;
+          date_format?: "DD/MM/AAAA" | "MM/DD/AAAA";
+          default_currency?: "BRL" | "USD" | "EUR";
+          hide_balances_by_default?: boolean;
+          invoice_reminder?: boolean;
+          updated_at?: string;
+          user_id: string;
+          weekly_summary?: boolean;
+        };
+        Update: {
+          created_at?: string;
+          date_format?: "DD/MM/AAAA" | "MM/DD/AAAA";
+          default_currency?: "BRL" | "USD" | "EUR";
+          hide_balances_by_default?: boolean;
+          invoice_reminder?: boolean;
+          updated_at?: string;
+          user_id?: string;
+          weekly_summary?: boolean;
+        };
+        Relationships: [
+          {
+            foreignKeyName: "user_preferences_user_id_fkey";
+            columns: ["user_id"];
+            isOneToOne: true;
             referencedRelation: "users";
             referencedColumns: ["id"];
           },

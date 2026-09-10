@@ -44,36 +44,22 @@ import {
 import { Switch } from "@/components/ui/switch";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { supabase } from "@/lib/supabaseClient";
-import { useFinanceStore } from "@/store/useFinanceStore";
+import {
+  useFinanceStore,
+  type DefaultCurrency,
+  type UpdateUserPreferencesInput,
+  type UserDateFormat,
+} from "@/store/useFinanceStore";
 
 const AVATAR_CROP_SIZE = 280;
 const AVATAR_OUTPUT_SIZE = 512;
 const MAX_AVATAR_FILE_SIZE = 5 * 1024 * 1024;
-const invoiceReminderStorageKey = "finync-invoice-reminder";
-const weeklySummaryStorageKey = "finync-weekly-summary";
-const currencyStorageKey = "finync-default-currency";
-const dateFormatStorageKey = "finync-date-format";
-
 function isNotificationPermissionDenied() {
   return (
     typeof window !== "undefined" &&
     "Notification" in window &&
     Notification.permission === "denied"
   );
-}
-
-function getStoredBoolean(key: string) {
-  if (typeof window === "undefined" || isNotificationPermissionDenied()) {
-    return false;
-  }
-
-  return window.localStorage.getItem(key) === "true";
-}
-
-function getStoredPreference(key: string, fallback: string) {
-  if (typeof window === "undefined") return fallback;
-
-  return window.localStorage.getItem(key) ?? fallback;
 }
 
 function getInitials(name: string, email: string) {
@@ -149,8 +135,12 @@ export default function ConfiguracoesPage() {
   const hideBalancesByDefault = useFinanceStore(
     (state) => state.hideBalancesByDefault,
   );
-  const setHideBalancesByDefault = useFinanceStore(
-    (state) => state.setHideBalancesByDefault,
+  const defaultCurrency = useFinanceStore((state) => state.defaultCurrency);
+  const dateFormat = useFinanceStore((state) => state.dateFormat);
+  const invoiceReminder = useFinanceStore((state) => state.invoiceReminder);
+  const weeklySummary = useFinanceStore((state) => state.weeklySummary);
+  const updatePreferences = useFinanceStore(
+    (state) => state.updatePreferences,
   );
   const metadataName = authUser?.user_metadata?.name;
   const currentName =
@@ -162,18 +152,7 @@ export default function ConfiguracoesPage() {
   const [displayName, setDisplayName] = useState<string | null>(null);
   const [isSaving, setIsSaving] = useState(false);
   const [isUploadingAvatar, setIsUploadingAvatar] = useState(false);
-  const [defaultCurrency, setDefaultCurrency] = useState(() =>
-    getStoredPreference(currencyStorageKey, "BRL"),
-  );
-  const [dateFormat, setDateFormat] = useState(() =>
-    getStoredPreference(dateFormatStorageKey, "DD/MM/AAAA"),
-  );
-  const [invoiceReminder, setInvoiceReminder] = useState(() =>
-    getStoredBoolean(invoiceReminderStorageKey),
-  );
-  const [weeklySummary, setWeeklySummary] = useState(() =>
-    getStoredBoolean(weeklySummaryStorageKey),
-  );
+  const [isSavingPreferences, setIsSavingPreferences] = useState(false);
   const [notificationsBlocked, setNotificationsBlocked] = useState(
     isNotificationPermissionDenied,
   );
@@ -238,30 +217,45 @@ export default function ConfiguracoesPage() {
     return true;
   }
 
+  async function handlePreferenceUpdate(
+    updates: UpdateUserPreferencesInput,
+  ) {
+    setIsSavingPreferences(true);
+
+    try {
+      await updatePreferences(updates);
+    } catch (error) {
+      console.error("Erro ao salvar preferências:", error);
+      toast.error("Não foi possível sincronizar a preferência.");
+    } finally {
+      setIsSavingPreferences(false);
+    }
+  }
+
   async function handleInvoiceReminderChange(checked: boolean) {
     if (!checked) {
-      setInvoiceReminder(false);
-      window.localStorage.setItem(invoiceReminderStorageKey, "false");
+      await handlePreferenceUpdate({ invoiceReminder: false });
       return;
     }
 
     const canEnable = await enableNativeNotifications();
 
-    setInvoiceReminder(canEnable);
-    window.localStorage.setItem(invoiceReminderStorageKey, String(canEnable));
+    if (canEnable) {
+      await handlePreferenceUpdate({ invoiceReminder: true });
+    }
   }
 
   async function handleWeeklySummaryChange(checked: boolean) {
     if (!checked) {
-      setWeeklySummary(false);
-      window.localStorage.setItem(weeklySummaryStorageKey, "false");
+      await handlePreferenceUpdate({ weeklySummary: false });
       return;
     }
 
     const canEnable = await enableNativeNotifications();
 
-    setWeeklySummary(canEnable);
-    window.localStorage.setItem(weeklySummaryStorageKey, String(canEnable));
+    if (canEnable) {
+      await handlePreferenceUpdate({ weeklySummary: true });
+    }
   }
 
   function closeCropDialog() {
@@ -698,10 +692,12 @@ export default function ConfiguracoesPage() {
                 <Label>Moeda Padrão</Label>
                 <Select
                   value={defaultCurrency}
-                  onValueChange={(value) => {
-                    setDefaultCurrency(value);
-                    window.localStorage.setItem(currencyStorageKey, value);
-                  }}
+                  disabled={isSavingPreferences}
+                  onValueChange={(value) =>
+                    void handlePreferenceUpdate({
+                      defaultCurrency: value as DefaultCurrency,
+                    })
+                  }
                 >
                   <SelectTrigger className="h-11 border-zinc-700 bg-zinc-900 text-zinc-100">
                     <SelectValue placeholder="Selecione a moeda" />
@@ -718,10 +714,12 @@ export default function ConfiguracoesPage() {
                 <Label>Formato de Data</Label>
                 <Select
                   value={dateFormat}
-                  onValueChange={(value) => {
-                    setDateFormat(value);
-                    window.localStorage.setItem(dateFormatStorageKey, value);
-                  }}
+                  disabled={isSavingPreferences}
+                  onValueChange={(value) =>
+                    void handlePreferenceUpdate({
+                      dateFormat: value as UserDateFormat,
+                    })
+                  }
                 >
                   <SelectTrigger className="h-11 border-zinc-700 bg-zinc-900 text-zinc-100">
                     <SelectValue placeholder="Selecione o formato" />
@@ -755,7 +753,12 @@ export default function ConfiguracoesPage() {
                 <Switch
                   id="hide-balances"
                   checked={hideBalancesByDefault}
-                  onCheckedChange={setHideBalancesByDefault}
+                  disabled={isSavingPreferences}
+                  onCheckedChange={(checked) =>
+                    void handlePreferenceUpdate({
+                      hideBalancesByDefault: checked,
+                    })
+                  }
                 />
               </div>
             </CardContent>
@@ -780,8 +783,8 @@ export default function ConfiguracoesPage() {
                 </div>
                 <Switch
                   id="invoice-reminder"
-                  checked={invoiceReminder}
-                  disabled={notificationsBlocked}
+                  checked={notificationsBlocked ? false : invoiceReminder}
+                  disabled={notificationsBlocked || isSavingPreferences}
                   onCheckedChange={(checked) =>
                     void handleInvoiceReminderChange(checked)
                   }
@@ -799,8 +802,8 @@ export default function ConfiguracoesPage() {
                 </div>
                 <Switch
                   id="weekly-summary"
-                  checked={weeklySummary}
-                  disabled={notificationsBlocked}
+                  checked={notificationsBlocked ? false : weeklySummary}
+                  disabled={notificationsBlocked || isSavingPreferences}
                   onCheckedChange={(checked) =>
                     void handleWeeklySummaryChange(checked)
                   }

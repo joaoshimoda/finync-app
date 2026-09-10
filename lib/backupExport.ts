@@ -8,6 +8,7 @@ export type FinyncBackup = {
   user_id: string;
   profile: Tables<"users"> | null;
   data: {
+    user_preferences?: Tables<"user_preferences"> | null;
     cards: Tables<"cards">[];
     dependents: Tables<"dependents">[];
     categories: Tables<"categories">[];

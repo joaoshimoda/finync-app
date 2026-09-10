@@ -298,7 +298,7 @@ export const guideSections: GuideSection[] = [
       "Em Segurança, troque sua senha com validação.",
       "Ative notificações somente quando desejar permitir alertas nativos do navegador.",
     ],
-    tip: "Ocultar saldos é uma preferência local e permanece ativa nas próximas sessões deste navegador.",
+    tip: "As preferências são sincronizadas com sua conta e mantêm um fallback local quando o dispositivo está sem conexão.",
   },
   {
     id: "seguranca",

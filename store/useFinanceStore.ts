@@ -41,6 +41,18 @@ export type DependentSettlementMethod =
   | "TRANSFER"
   | "CASH"
   | "OTHER";
+export type DefaultCurrency = "BRL" | "USD" | "EUR";
+export type UserDateFormat = "DD/MM/AAAA" | "MM/DD/AAAA";
+
+export interface UserPreferences {
+  defaultCurrency: DefaultCurrency;
+  dateFormat: UserDateFormat;
+  hideBalancesByDefault: boolean;
+  invoiceReminder: boolean;
+  weeklySummary: boolean;
+}
+
+export type UpdateUserPreferencesInput = Partial<UserPreferences>;
 
 export interface Card {
   id: string;
@@ -186,6 +198,7 @@ type TransactionRow = Tables<"transactions">;
 type DependentRow = Tables<"dependents">;
 type CategoryRow = Tables<"categories">;
 type CategoryBudgetRow = Tables<"category_budgets">;
+type UserPreferencesRow = Tables<"user_preferences">;
 
 interface FinanceState {
   cards: Card[];
@@ -201,13 +214,20 @@ interface FinanceState {
   isLoading: boolean;
   isFetching: boolean;
   hasInitializedFinancialMonth: boolean;
+  isPreferencesReady: boolean;
+  defaultCurrency: DefaultCurrency;
+  dateFormat: UserDateFormat;
   hideBalancesByDefault: boolean;
+  invoiceReminder: boolean;
+  weeklySummary: boolean;
   currentMonth: number;
   currentYear: number;
   fetchedMonth: number;
   fetchedYear: number;
-  setHideBalancesByDefault: (hideBalances: boolean) => void;
-  toggleHideBalancesByDefault: () => void;
+  fetchPreferences: () => Promise<void>;
+  updatePreferences: (preferences: UpdateUserPreferencesInput) => Promise<void>;
+  setHideBalancesByDefault: (hideBalances: boolean) => Promise<void>;
+  toggleHideBalancesByDefault: () => Promise<void>;
   updateAuthUser: (user: User) => void;
   initializeAuth: () => () => void;
   nextMonth: () => void;
@@ -592,13 +612,129 @@ async function getCurrentUser(): Promise<User | null> {
   return user;
 }
 
-const hideBalancesStorageKey = "finync-hide-balances-by-default";
+const preferenceStorageKeys = {
+  owner: "finync-preferences-owner",
+  dirty: "finync-preferences-dirty",
+  defaultCurrency: "finync-default-currency",
+  dateFormat: "finync-date-format",
+  hideBalancesByDefault: "finync-hide-balances-by-default",
+  invoiceReminder: "finync-invoice-reminder",
+  weeklySummary: "finync-weekly-summary",
+} as const;
 
-function getStoredHideBalancesPreference() {
+const defaultUserPreferences: UserPreferences = {
+  defaultCurrency: "BRL",
+  dateFormat: "DD/MM/AAAA",
+  hideBalancesByDefault: false,
+  invoiceReminder: false,
+  weeklySummary: false,
+};
+
+function isDefaultCurrency(value: string | null): value is DefaultCurrency {
+  return value === "BRL" || value === "USD" || value === "EUR";
+}
+
+function isUserDateFormat(value: string | null): value is UserDateFormat {
+  return value === "DD/MM/AAAA" || value === "MM/DD/AAAA";
+}
+
+function getStoredPreferences(userId?: string): UserPreferences {
+  if (typeof window === "undefined") return defaultUserPreferences;
+
+  const storedOwner = window.localStorage.getItem(preferenceStorageKeys.owner);
+  if (userId && storedOwner && storedOwner !== userId) {
+    return defaultUserPreferences;
+  }
+
+  const storedCurrency = window.localStorage.getItem(
+    preferenceStorageKeys.defaultCurrency,
+  );
+  const storedDateFormat = window.localStorage.getItem(
+    preferenceStorageKeys.dateFormat,
+  );
+
+  return {
+    defaultCurrency: isDefaultCurrency(storedCurrency)
+      ? storedCurrency
+      : defaultUserPreferences.defaultCurrency,
+    dateFormat: isUserDateFormat(storedDateFormat)
+      ? storedDateFormat
+      : defaultUserPreferences.dateFormat,
+    hideBalancesByDefault:
+      window.localStorage.getItem(preferenceStorageKeys.hideBalancesByDefault) ===
+      "true",
+    invoiceReminder:
+      window.localStorage.getItem(preferenceStorageKeys.invoiceReminder) ===
+      "true",
+    weeklySummary:
+      window.localStorage.getItem(preferenceStorageKeys.weeklySummary) === "true",
+  };
+}
+
+function persistPreferences(preferences: UserPreferences, userId?: string) {
+  if (typeof window === "undefined") return;
+
+  if (userId) {
+    window.localStorage.setItem(preferenceStorageKeys.owner, userId);
+  }
+
+  window.localStorage.setItem(
+    preferenceStorageKeys.defaultCurrency,
+    preferences.defaultCurrency,
+  );
+  window.localStorage.setItem(
+    preferenceStorageKeys.dateFormat,
+    preferences.dateFormat,
+  );
+  window.localStorage.setItem(
+    preferenceStorageKeys.hideBalancesByDefault,
+    String(preferences.hideBalancesByDefault),
+  );
+  window.localStorage.setItem(
+    preferenceStorageKeys.invoiceReminder,
+    String(preferences.invoiceReminder),
+  );
+  window.localStorage.setItem(
+    preferenceStorageKeys.weeklySummary,
+    String(preferences.weeklySummary),
+  );
+}
+
+function hasPendingPreferenceSync(userId: string) {
   if (typeof window === "undefined") return false;
 
-  return window.localStorage.getItem(hideBalancesStorageKey) === "true";
+  return (
+    window.localStorage.getItem(preferenceStorageKeys.owner) === userId &&
+    window.localStorage.getItem(preferenceStorageKeys.dirty) === "true"
+  );
 }
+
+function setPendingPreferenceSync(pending: boolean) {
+  if (typeof window === "undefined") return;
+  window.localStorage.setItem(preferenceStorageKeys.dirty, String(pending));
+}
+
+function mapUserPreferences(row: UserPreferencesRow): UserPreferences {
+  return {
+    defaultCurrency: row.default_currency,
+    dateFormat: row.date_format,
+    hideBalancesByDefault: row.hide_balances_by_default,
+    invoiceReminder: row.invoice_reminder,
+    weeklySummary: row.weekly_summary,
+  };
+}
+
+function getPreferencesFromState(state: FinanceState): UserPreferences {
+  return {
+    defaultCurrency: state.defaultCurrency,
+    dateFormat: state.dateFormat,
+    hideBalancesByDefault: state.hideBalancesByDefault,
+    invoiceReminder: state.invoiceReminder,
+    weeklySummary: state.weeklySummary,
+  };
+}
+
+const initialUserPreferences = getStoredPreferences();
 
 export const useFinanceStore = create<FinanceState>()((set, get) => ({
   cards: [],
@@ -614,28 +750,124 @@ export const useFinanceStore = create<FinanceState>()((set, get) => ({
   isLoading: true,
   isFetching: false,
   hasInitializedFinancialMonth: false,
-  hideBalancesByDefault: getStoredHideBalancesPreference(),
+  isPreferencesReady: false,
+  ...initialUserPreferences,
   currentMonth: getDateOnlyParts(getLocalTodayDateOnly()).month,
   currentYear: getDateOnlyParts(getLocalTodayDateOnly()).year,
   fetchedMonth: getDateOnlyParts(getLocalTodayDateOnly()).month,
   fetchedYear: getDateOnlyParts(getLocalTodayDateOnly()).year,
 
-  setHideBalancesByDefault: (hideBalances) => {
-    if (typeof window !== "undefined") {
-      window.localStorage.setItem(hideBalancesStorageKey, String(hideBalances));
-    }
+  fetchPreferences: async () => {
+    const user = get().authUser ?? (await getCurrentUser());
+    if (!user) return;
 
-    set({ hideBalancesByDefault: hideBalances });
+    try {
+      const { data, error } = await supabase
+        .from("user_preferences")
+        .select("*")
+        .eq("user_id", user.id)
+        .maybeSingle();
+
+      if (error) throw error;
+
+      const localPreferences = getStoredPreferences(user.id);
+      if (hasPendingPreferenceSync(user.id)) {
+        const { error: syncError } = await supabase
+          .from("user_preferences")
+          .upsert(
+            {
+              user_id: user.id,
+              default_currency: localPreferences.defaultCurrency,
+              date_format: localPreferences.dateFormat,
+              hide_balances_by_default: localPreferences.hideBalancesByDefault,
+              invoice_reminder: localPreferences.invoiceReminder,
+              weekly_summary: localPreferences.weeklySummary,
+            },
+            { onConflict: "user_id" },
+          );
+
+        if (syncError) throw syncError;
+
+        setPendingPreferenceSync(false);
+        set({ ...localPreferences, isPreferencesReady: true });
+        return;
+      }
+
+      if (data) {
+        const preferences = mapUserPreferences(data as UserPreferencesRow);
+        persistPreferences(preferences, user.id);
+        set({ ...preferences, isPreferencesReady: true });
+        return;
+      }
+
+      const { error: insertError } = await supabase
+        .from("user_preferences")
+        .insert({
+          user_id: user.id,
+          default_currency: localPreferences.defaultCurrency,
+          date_format: localPreferences.dateFormat,
+          hide_balances_by_default: localPreferences.hideBalancesByDefault,
+          invoice_reminder: localPreferences.invoiceReminder,
+          weekly_summary: localPreferences.weeklySummary,
+        });
+
+      if (insertError) throw insertError;
+
+      persistPreferences(localPreferences, user.id);
+      setPendingPreferenceSync(false);
+      set({ ...localPreferences, isPreferencesReady: true });
+    } catch (error) {
+      console.error("Erro ao sincronizar preferências:", error);
+      set({ isPreferencesReady: true });
+    }
   },
 
-  toggleHideBalancesByDefault: () => {
-    const nextValue = !get().hideBalancesByDefault;
+  updatePreferences: async (updates) => {
+    const previousPreferences = getPreferencesFromState(get());
+    const nextPreferences = { ...previousPreferences, ...updates };
+    const user = get().authUser ?? (await getCurrentUser());
 
-    if (typeof window !== "undefined") {
-      window.localStorage.setItem(hideBalancesStorageKey, String(nextValue));
+    persistPreferences(nextPreferences, user?.id);
+    set({ ...nextPreferences, isPreferencesReady: true });
+
+    if (!user) return;
+
+    const { error } = await supabase.from("user_preferences").upsert(
+      {
+        user_id: user.id,
+        default_currency: nextPreferences.defaultCurrency,
+        date_format: nextPreferences.dateFormat,
+        hide_balances_by_default: nextPreferences.hideBalancesByDefault,
+        invoice_reminder: nextPreferences.invoiceReminder,
+        weekly_summary: nextPreferences.weeklySummary,
+      },
+      { onConflict: "user_id" },
+    );
+
+    if (error) {
+      setPendingPreferenceSync(true);
+      throw error;
     }
 
-    set({ hideBalancesByDefault: nextValue });
+    setPendingPreferenceSync(false);
+  },
+
+  setHideBalancesByDefault: async (hideBalances) => {
+    try {
+      await get().updatePreferences({ hideBalancesByDefault: hideBalances });
+    } catch (error) {
+      console.error("Erro ao sincronizar privacidade:", error);
+    }
+  },
+
+  toggleHideBalancesByDefault: async () => {
+    try {
+      await get().updatePreferences({
+        hideBalancesByDefault: !get().hideBalancesByDefault,
+      });
+    } catch (error) {
+      console.error("Erro ao sincronizar privacidade:", error);
+    }
   },
 
   updateAuthUser: (user) => set({ authUser: user }),
@@ -699,6 +931,7 @@ export const useFinanceStore = create<FinanceState>()((set, get) => ({
             get().fetchCards(),
             get().fetchDependents(),
             get().fetchCategories(),
+            get().fetchPreferences(),
             get().fetchTransactions(),
           ]).finally(() => {
             if (isFirstAuthCheck) {
@@ -725,6 +958,8 @@ export const useFinanceStore = create<FinanceState>()((set, get) => ({
           isLoading: false,
           isFetching: false,
           hasInitializedFinancialMonth: false,
+          isPreferencesReady: false,
+          ...defaultUserPreferences,
         });
       }
     });
@@ -749,6 +984,8 @@ export const useFinanceStore = create<FinanceState>()((set, get) => ({
       isLoading: false,
       isFetching: false,
       hasInitializedFinancialMonth: false,
+      isPreferencesReady: false,
+      ...defaultUserPreferences,
     });
   },
 

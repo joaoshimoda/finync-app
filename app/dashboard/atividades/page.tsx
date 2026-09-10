@@ -48,6 +48,7 @@ const entityPresentation: Record<
     plural: "Acertos de dependentes",
   },
   category_budgets: { singular: "Orçamento", plural: "Orçamentos" },
+  user_preferences: { singular: "Preferência", plural: "Preferências" },
 };
 
 const actionPresentation: Record<
@@ -108,6 +109,11 @@ const fieldLabels: Record<string, string> = {
   card_id: "Cartão",
   category_id: "Categoria",
   alert_threshold_percent: "Alerta",
+  default_currency: "Moeda padrão",
+  date_format: "Formato de data",
+  hide_balances_by_default: "Ocultar saldos",
+  invoice_reminder: "Lembrete de fatura",
+  weekly_summary: "Resumo semanal",
   competence_month: "Competência",
   installment_number: "Parcela atual",
   installments_total: "Total de parcelas",
