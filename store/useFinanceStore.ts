@@ -195,6 +195,8 @@ export type CreateCardInput = Omit<Card, "id" | "createdAt" | "updatedAt">;
 export type UpdateCardInput = Partial<CreateCardInput>;
 export type CreateDependentInput = Pick<Dependent, "name">;
 export type CreateCategoryInput = Pick<Category, "label" | "kind" | "icon">;
+export type UpdateDependentInput = Partial<CreateDependentInput>;
+export type UpdateCategoryInput = Partial<CreateCategoryInput>;
 
 type CardRow = Tables<"cards">;
 type CardInvoiceRow = Tables<"card_invoices">;
@@ -246,12 +248,20 @@ interface FinanceState {
   fetchCategories: () => Promise<void>;
   fetchCategoryBudgets: () => Promise<void>;
   addCategory: (category: CreateCategoryInput) => Promise<void>;
+  editCategory: (
+    categoryId: string,
+    category: UpdateCategoryInput,
+  ) => Promise<void>;
   deleteCategory: (categoryId: string) => Promise<void>;
   upsertCategoryBudget: (
     budget: UpsertCategoryBudgetInput,
   ) => Promise<CategoryBudget>;
   deleteCategoryBudget: (budgetId: string) => Promise<void>;
   addDependent: (dependent: CreateDependentInput) => Promise<void>;
+  editDependent: (
+    dependentId: string,
+    dependent: UpdateDependentInput,
+  ) => Promise<void>;
   deleteDependent: (dependentId: string) => Promise<void>;
   addCard: (card: CreateCardInput) => Promise<void>;
   editCard: (cardId: string, card: UpdateCardInput) => Promise<void>;
@@ -1102,6 +1112,73 @@ export const useFinanceStore = create<FinanceState>()((set, get) => ({
     }));
   },
 
+  editCategory: async (categoryId, category) => {
+    const currentCategory = get().categories.find(
+      (item) => item.id === categoryId,
+    );
+    if (!currentCategory) throw new Error("Categoria não encontrada.");
+    if (isEssentialCategory(currentCategory.label)) {
+      throw new Error("Esta categoria é essencial e não pode ser alterada.");
+    }
+
+    const user = await getCurrentUser();
+    if (!user) throw new Error("Usuário não autenticado.");
+
+    const nextLabel = category.label?.trim() || currentCategory.label;
+    const nextKind = category.kind ?? currentCategory.kind;
+    const nextIcon = category.icon ?? currentCategory.icon;
+    const { data, error } = await supabase
+      .from("categories")
+      .update({
+        name: nextLabel,
+        label: nextLabel,
+        kind: nextKind,
+        icon: nextIcon,
+      })
+      .eq("id", categoryId)
+      .eq("user_id", user.id)
+      .select("id, name, label, kind, icon, created_at")
+      .single();
+
+    if (error) throw error;
+
+    if (nextLabel !== currentCategory.label) {
+      const { error: transactionsError } = await supabase
+        .from("transactions")
+        .update({ category: nextLabel })
+        .eq("user_id", user.id)
+        .eq("category", currentCategory.label);
+
+      if (transactionsError) {
+        await supabase
+          .from("categories")
+          .update({
+            name: currentCategory.label,
+            label: currentCategory.label,
+            kind: currentCategory.kind,
+            icon: currentCategory.icon,
+          })
+          .eq("id", categoryId)
+          .eq("user_id", user.id);
+        throw transactionsError;
+      }
+    }
+
+    const savedCategory = mapCategory(data as CategoryRow);
+    set((state) => ({
+      categories: mergeCategories(
+        state.categories.map((item) =>
+          item.id === categoryId ? savedCategory : item,
+        ),
+      ),
+      transactions: state.transactions.map((transaction) =>
+        transaction.category === currentCategory.label
+          ? { ...transaction, category: nextLabel }
+          : transaction,
+      ),
+    }));
+  },
+
   deleteCategory: async (categoryId) => {
     const category = get().categories.find((item) => item.id === categoryId);
     if (!category) throw new Error("Categoria não encontrada.");
@@ -1247,6 +1324,38 @@ export const useFinanceStore = create<FinanceState>()((set, get) => ({
       }));
     } catch (error) {
       reportFinanceError("Adicionar dependente", error);
+      throw error;
+    }
+  },
+
+  editDependent: async (dependentId, dependent) => {
+    try {
+      const user = await getCurrentUser();
+      if (!user) throw new Error("Usuário não autenticado.");
+
+      const name = dependent.name?.trim();
+      if (!name) throw new Error("Informe o nome do dependente.");
+
+      const { data, error } = await supabase
+        .from("dependents")
+        .update({ name })
+        .eq("id", dependentId)
+        .eq("user_id", user.id)
+        .select("*")
+        .single();
+
+      if (error) throw error;
+
+      const savedDependent = mapDependent(data as DependentRow);
+      set((state) => ({
+        dependents: state.dependents
+          .map((item) =>
+            item.id === dependentId ? savedDependent : item,
+          )
+          .sort((left, right) => left.name.localeCompare(right.name, "pt-BR")),
+      }));
+    } catch (error) {
+      reportFinanceError("Editar dependente", error);
       throw error;
     }
   },

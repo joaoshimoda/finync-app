@@ -1,9 +1,17 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import { Loader2, PlusCircle, Tag, Trash2 } from "lucide-react";
+import {
+  Loader2,
+  LockKeyhole,
+  Pencil,
+  PlusCircle,
+  Trash2,
+} from "lucide-react";
 import { toast } from "sonner";
 
+import { CategoryGlyph } from "@/components/finance/categoryIcons";
+import { ManageCategoryModal } from "@/components/modals/ManageCategoryModal";
 import { Button } from "@/components/ui/button";
 import {
   Card,
@@ -12,29 +20,24 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
-import { useFinanceStore } from "@/store/useFinanceStore";
+import { ConfirmDialog } from "@/components/ui/ConfirmDialog";
 import {
   isEssentialCategory,
   type CategoryKind,
 } from "@/lib/categories";
+import { cn } from "@/lib/utils";
+import {
+  useFinanceStore,
+  type Category,
+} from "@/store/useFinanceStore";
 
 export function CategoryManager() {
   const categories = useFinanceStore((state) => state.categories);
   const fetchCategories = useFinanceStore((state) => state.fetchCategories);
-  const addCategory = useFinanceStore((state) => state.addCategory);
   const deleteCategory = useFinanceStore((state) => state.deleteCategory);
-  const [label, setLabel] = useState("");
   const [kind, setKind] = useState<CategoryKind>("expense");
-  const [isSaving, setIsSaving] = useState(false);
+  const [editingCategory, setEditingCategory] = useState<Category | null>(null);
+  const [isModalOpen, setIsModalOpen] = useState(false);
   const [deletingCategoryId, setDeletingCategoryId] = useState<string | null>(
     null,
   );
@@ -43,43 +46,28 @@ export function CategoryManager() {
     void fetchCategories();
   }, [fetchCategories]);
 
+  const categoryCounts = useMemo(
+    () => ({
+      expense: categories.filter((category) => category.kind === "expense")
+        .length,
+      income: categories.filter((category) => category.kind === "income")
+        .length,
+    }),
+    [categories],
+  );
   const visibleCategories = useMemo(
     () => categories.filter((category) => category.kind === kind),
     [categories, kind],
   );
 
-  async function handleAddCategory() {
-    const normalizedLabel = label.trim();
+  function openCreateModal() {
+    setEditingCategory(null);
+    setIsModalOpen(true);
+  }
 
-    if (!normalizedLabel) {
-      toast.error("Informe o nome da categoria.");
-      return;
-    }
-
-    if (
-      categories.some(
-        (category) =>
-          category.kind === kind &&
-          category.label.toLocaleLowerCase("pt-BR") ===
-            normalizedLabel.toLocaleLowerCase("pt-BR"),
-      )
-    ) {
-      toast.error("Essa categoria já existe.");
-      return;
-    }
-
-    setIsSaving(true);
-
-    try {
-      await addCategory({ label: normalizedLabel, kind, icon: "Tag" });
-      setLabel("");
-      toast.success("Categoria adicionada!");
-    } catch (error) {
-      console.error("Erro ao adicionar categoria:", error);
-      toast.error("Não foi possível adicionar a categoria.");
-    } finally {
-      setIsSaving(false);
-    }
+  function openEditModal(category: Category) {
+    setEditingCategory(category);
+    setIsModalOpen(true);
   }
 
   async function handleDeleteCategory(categoryId: string) {
@@ -91,103 +79,173 @@ export function CategoryManager() {
     } catch (error) {
       console.error("Erro ao remover categoria:", error);
       const databaseError = error as { code?: string; message?: string };
+      const normalizedMessage = databaseError.message?.toLocaleLowerCase(
+        "pt-BR",
+      );
       const isCategoryInUse =
         databaseError.code === "23503" ||
-        databaseError.message?.toLocaleLowerCase("pt-BR").includes("foreign key") ||
-        databaseError.message?.toLocaleLowerCase("pt-BR").includes("referenced");
+        normalizedMessage?.includes("foreign key") ||
+        normalizedMessage?.includes("referenced");
 
       toast.error(
         isCategoryInUse
           ? "Não é possível excluir uma categoria que possui transações."
           : databaseError.message || "Não foi possível remover a categoria.",
       );
+      throw error;
     } finally {
       setDeletingCategoryId(null);
     }
   }
 
   return (
-    <Card className="border-zinc-800/80 bg-zinc-900/50 shadow-none lg:col-span-12">
-      <CardHeader className="border-b border-zinc-800/80 px-6 py-6">
-        <CardTitle>Categorias personalizadas</CardTitle>
-        <CardDescription>
-          Organize lançamentos com categorias que fazem sentido para você.
-        </CardDescription>
-      </CardHeader>
-      <CardContent className="grid gap-6 px-6 py-6 lg:grid-cols-[minmax(0,360px)_1fr]">
-        <div className="space-y-4">
-          <div className="space-y-2">
-            <Label htmlFor="category-name">Nome</Label>
-            <Input
-              id="category-name"
-              value={label}
-              onChange={(event) => setLabel(event.target.value)}
-              placeholder="Ex: Pets"
-              maxLength={60}
-              className="h-11 border-zinc-700 bg-zinc-950"
-            />
-          </div>
-          <div className="space-y-2">
-            <Label>Tipo</Label>
-            <Select
-              value={kind}
-              onValueChange={(value) => setKind(value as CategoryKind)}
-            >
-              <SelectTrigger className="h-11 border-zinc-700 bg-zinc-950">
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="expense">Despesa</SelectItem>
-                <SelectItem value="income">Receita</SelectItem>
-              </SelectContent>
-            </Select>
+    <>
+      <Card className="border-zinc-800/80 bg-zinc-900/50 shadow-none lg:col-span-12">
+        <CardHeader className="flex flex-row items-center justify-between gap-4 border-b border-zinc-800/80 px-5 py-5 sm:px-6">
+          <div className="min-w-0">
+            <CardTitle>Categorias</CardTitle>
+            <CardDescription className="mt-1">
+              {categories.length} opções disponíveis para seus lançamentos.
+            </CardDescription>
           </div>
           <Button
             type="button"
-            className="h-11 w-full bg-emerald-600 text-white hover:bg-emerald-700"
-            onClick={() => void handleAddCategory()}
-            disabled={isSaving}
+            onClick={openCreateModal}
+            className="h-11 shrink-0 bg-emerald-600 px-4 font-semibold text-white hover:bg-emerald-700"
           >
             <PlusCircle className="size-4" />
-            {isSaving ? "Adicionando..." : "Adicionar categoria"}
+            <span className="max-sm:hidden">Nova categoria</span>
+            <span className="sm:hidden">Adicionar</span>
           </Button>
-        </div>
+        </CardHeader>
 
-        <div className="grid content-start gap-2 sm:grid-cols-2">
-          {visibleCategories.map((category) => (
-            <div
-              key={category.id}
-              className="flex min-h-12 items-center justify-between gap-3 rounded-xl border border-zinc-800 bg-zinc-950/60 px-3 py-2"
-            >
-              <div className="flex min-w-0 items-center gap-3">
-                <span className="flex size-8 shrink-0 items-center justify-center rounded-lg bg-zinc-800 text-zinc-400">
-                  <Tag className="size-4" />
-                </span>
-                <span className="truncate text-sm text-zinc-200">
-                  {category.label}
-                </span>
-              </div>
-              {!isEssentialCategory(category.label) ? (
-                <Button
+        <CardContent className="p-0">
+          <div className="flex items-center justify-between gap-4 border-b border-zinc-800/80 px-5 py-3 sm:px-6">
+            <div className="inline-flex rounded-lg bg-zinc-950 p-1">
+              {([
+                ["expense", "Despesas"],
+                ["income", "Receitas"],
+              ] as const).map(([value, label]) => (
+                <button
+                  key={value}
                   type="button"
-                  variant="ghost"
-                  size="icon"
-                  className="size-10 shrink-0 text-zinc-500 hover:text-red-300"
-                  onClick={() => void handleDeleteCategory(category.id)}
-                  disabled={deletingCategoryId === category.id}
-                  aria-label={`Remover categoria ${category.label}`}
-                >
-                  {deletingCategoryId === category.id ? (
-                    <Loader2 className="size-4 animate-spin" />
-                  ) : (
-                    <Trash2 className="size-4" />
+                  onClick={() => setKind(value)}
+                  className={cn(
+                    "h-9 rounded-md px-3 text-xs font-medium transition-colors",
+                    kind === value
+                      ? "bg-zinc-800 text-zinc-100"
+                      : "text-zinc-500 hover:text-zinc-300",
                   )}
-                </Button>
-              ) : null}
+                >
+                  {label}
+                  <span className="ml-2 text-[10px] text-zinc-500">
+                    {categoryCounts[value]}
+                  </span>
+                </button>
+              ))}
             </div>
-          ))}
-        </div>
-      </CardContent>
-    </Card>
+            <span className="text-xs text-zinc-600">
+              {visibleCategories.length} nesta lista
+            </span>
+          </div>
+
+          {visibleCategories.length ? (
+            <div className="divide-y divide-zinc-800/80">
+              {visibleCategories.map((category) => {
+                const isEssential = isEssentialCategory(category.label);
+
+                return (
+                  <div
+                    key={category.id}
+                    className="flex min-h-16 items-center gap-3 px-5 py-3 transition-colors hover:bg-zinc-950/45 sm:px-6"
+                  >
+                    <span
+                      className={cn(
+                        "flex size-10 shrink-0 items-center justify-center rounded-lg",
+                        kind === "expense"
+                          ? "bg-rose-500/10 text-rose-300"
+                          : "bg-emerald-500/10 text-emerald-300",
+                      )}
+                    >
+                      <CategoryGlyph name={category.icon} className="size-4" />
+                    </span>
+
+                    <div className="min-w-0 flex-1">
+                      <p className="truncate text-sm font-medium text-zinc-100">
+                        {category.label}
+                      </p>
+                      <p className="mt-0.5 flex items-center gap-1.5 text-xs text-zinc-500">
+                        {isEssential ? (
+                          <>
+                            <LockKeyhole className="size-3" /> Essencial
+                          </>
+                        ) : (
+                          "Personalizada"
+                        )}
+                      </p>
+                    </div>
+
+                    {!isEssential ? (
+                      <div className="flex shrink-0 items-center gap-1">
+                        <Button
+                          type="button"
+                          variant="ghost"
+                          size="icon"
+                          className="size-10 text-zinc-500 hover:bg-zinc-800 hover:text-zinc-100"
+                          onClick={() => openEditModal(category)}
+                          aria-label={`Editar categoria ${category.label}`}
+                        >
+                          <Pencil className="size-4" />
+                        </Button>
+                        <ConfirmDialog
+                          title="Excluir categoria?"
+                          description={`A categoria ${category.label} será removida. Categorias em uso são protegidas pelo banco.`}
+                          confirmLabel="Excluir categoria"
+                          onConfirm={() => handleDeleteCategory(category.id)}
+                        >
+                          <Button
+                            type="button"
+                            variant="ghost"
+                            size="icon"
+                            className="size-10 text-zinc-500 hover:bg-rose-500/10 hover:text-rose-300"
+                            disabled={deletingCategoryId === category.id}
+                            aria-label={`Excluir categoria ${category.label}`}
+                          >
+                            {deletingCategoryId === category.id ? (
+                              <Loader2 className="size-4 animate-spin" />
+                            ) : (
+                              <Trash2 className="size-4" />
+                            )}
+                          </Button>
+                        </ConfirmDialog>
+                      </div>
+                    ) : null}
+                  </div>
+                );
+              })}
+            </div>
+          ) : (
+            <div className="px-6 py-10 text-center">
+              <p className="text-sm font-medium text-zinc-300">
+                Nenhuma categoria nesta lista
+              </p>
+              <p className="mt-1 text-xs text-zinc-500">
+                Adicione uma categoria para começar.
+              </p>
+            </div>
+          )}
+        </CardContent>
+      </Card>
+
+      <ManageCategoryModal
+        category={editingCategory}
+        defaultKind={kind}
+        open={isModalOpen}
+        onOpenChange={(open) => {
+          setIsModalOpen(open);
+          if (!open) setEditingCategory(null);
+        }}
+      />
+    </>
   );
 }
