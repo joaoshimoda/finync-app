@@ -1241,10 +1241,18 @@ export default function TransactionsPage() {
       <AddIncomeModal
         isOpen={isAddIncomeModalOpen}
         onClose={handleCloseIncomeModal}
+        onSelectExpense={() => {
+          setIsAddIncomeModalOpen(false);
+          setIsAddTransactionModalOpen(true);
+        }}
       />
       <AddTransactionModal
         isOpen={isAddTransactionModalOpen}
         onClose={handleCloseTransactionModal}
+        onSelectIncome={() => {
+          setIsAddTransactionModalOpen(false);
+          setIsAddIncomeModalOpen(true);
+        }}
       />
     </div>
   );

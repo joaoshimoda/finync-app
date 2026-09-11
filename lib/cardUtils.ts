@@ -1,4 +1,16 @@
-export function getCardGradient(cardName: string) {
+const cardColorGradients: Record<string, string> = {
+  "#18181b": "bg-gradient-to-br from-zinc-700 via-zinc-900 to-black",
+  "#6d28d9": "bg-gradient-to-br from-violet-500 via-violet-700 to-purple-950",
+  "#1d4ed8": "bg-gradient-to-br from-blue-500 via-blue-700 to-blue-950",
+  "#ea580c": "bg-gradient-to-br from-orange-400 via-orange-600 to-orange-950",
+  "#047857": "bg-gradient-to-br from-emerald-500 via-emerald-700 to-emerald-950",
+  "#be123c": "bg-gradient-to-br from-rose-500 via-rose-700 to-rose-950",
+};
+
+export function getCardGradient(cardName: string, cardColor?: string) {
+  const customGradient = cardColorGradients[cardColor?.toLowerCase() ?? ""];
+  if (customGradient) return customGradient;
+
   const lowerName = cardName.toLowerCase();
   const normalizedName = lowerName
     .normalize("NFD")

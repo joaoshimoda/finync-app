@@ -252,7 +252,7 @@ function FlippableManagedCard({
           onKeyDown={(event) => onKeyDown(event, card.id)}
           className={cn(
             "absolute inset-0 cursor-pointer overflow-hidden rounded-2xl border-2 p-4 text-left text-white shadow-lg transition-all duration-300 ease-in-out [backface-visibility:hidden]",
-            getCardGradient(card.name),
+            getCardGradient(card.name, card.color),
             isSelected
               ? "border-white/80 opacity-100 shadow-2xl lg:scale-105"
               : "border-transparent opacity-60 hover:opacity-80 lg:scale-95 lg:hover:scale-100",
@@ -312,7 +312,7 @@ function FlippableManagedCard({
         <div
           className={cn(
             "absolute inset-0 flex flex-col justify-between overflow-hidden rounded-2xl border-2 border-white/80 p-4 text-white shadow-2xl [backface-visibility:hidden] [transform:rotateY(180deg)]",
-            getCardGradient(card.name),
+            getCardGradient(card.name, card.color),
           )}
         >
           <div className="pointer-events-none absolute -left-10 -top-10 size-28 rounded-full bg-white/10" />

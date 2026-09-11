@@ -293,6 +293,7 @@ function calculatePendingExpenses(
 interface CardSpendingSummary {
   id: string;
   name: string;
+  color?: string;
   closingDay?: number;
   dueDay?: number;
   dueDate?: string;
@@ -339,7 +340,21 @@ function getCardAccentClassName(cardName: string) {
   return "border-l-slate-500";
 }
 
-function getCardGradientClassName(cardName: string) {
+function getCardGradientClassName(cardName: string, cardColor?: string) {
+  const normalizedColor = cardColor?.toLowerCase();
+  if (normalizedColor === "#18181b")
+    return "bg-gradient-to-br from-zinc-700 via-zinc-900 to-black";
+  if (normalizedColor === "#6d28d9")
+    return "bg-gradient-to-br from-violet-500 via-violet-700 to-purple-950";
+  if (normalizedColor === "#1d4ed8")
+    return "bg-gradient-to-br from-blue-500 via-blue-700 to-blue-950";
+  if (normalizedColor === "#ea580c")
+    return "bg-gradient-to-br from-orange-400 via-orange-600 to-orange-950";
+  if (normalizedColor === "#047857")
+    return "bg-gradient-to-br from-emerald-500 via-emerald-700 to-emerald-950";
+  if (normalizedColor === "#be123c")
+    return "bg-gradient-to-br from-rose-500 via-rose-700 to-rose-950";
+
   const name = cardName.toLowerCase();
   if (name.includes("nubank"))
     return "bg-gradient-to-br from-fuchsia-950 via-purple-950 to-black";
@@ -384,7 +399,7 @@ function FlippableWalletCard({
         <div
           className={cn(
             "absolute inset-0 flex flex-col overflow-hidden rounded-xl border border-white/[0.1] p-4 text-zinc-100 shadow-xl shadow-black/30 sm:p-5 [backface-visibility:hidden]",
-            getCardGradientClassName(cardSummary.name),
+            getCardGradientClassName(cardSummary.name, cardSummary.color),
           )}
           onClick={() => setIsFlipped(true)}
         >
@@ -901,6 +916,7 @@ export default function DashboardPage() {
         return {
           id: card.id,
           name: card.name,
+          color: card.color,
           closingDay: card.closingDay,
           dueDay: card.dueDay,
           dueDate: persistedInvoice?.dueDate,
@@ -1940,6 +1956,10 @@ export default function DashboardPage() {
       <AddIncomeModal
         isOpen={isAddIncomeModalOpen}
         onClose={handleCloseIncomeModal}
+        onSelectExpense={() => {
+          setIsAddIncomeModalOpen(false);
+          setIsAddTransactionModalOpen(true);
+        }}
         editingTransaction={
           editingTransaction?.type === "income" ? editingTransaction : null
         }
@@ -1947,6 +1967,10 @@ export default function DashboardPage() {
       <AddTransactionModal
         isOpen={isAddTransactionModalOpen}
         onClose={handleCloseTransactionModal}
+        onSelectIncome={() => {
+          setIsAddTransactionModalOpen(false);
+          setIsAddIncomeModalOpen(true);
+        }}
         editingTransaction={
           editingTransaction && editingTransaction.type !== "income"
             ? editingTransaction
