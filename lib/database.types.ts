@@ -683,6 +683,7 @@ export type Database = {
           default_currency: string
           hide_balances_by_default: boolean
           invoice_reminder: boolean
+          navigation_preferences: Json
           updated_at: string
           user_id: string
           weekly_summary: boolean
@@ -693,6 +694,7 @@ export type Database = {
           default_currency?: string
           hide_balances_by_default?: boolean
           invoice_reminder?: boolean
+          navigation_preferences?: Json
           updated_at?: string
           user_id: string
           weekly_summary?: boolean
@@ -703,6 +705,7 @@ export type Database = {
           default_currency?: string
           hide_balances_by_default?: boolean
           invoice_reminder?: boolean
+          navigation_preferences?: Json
           updated_at?: string
           user_id?: string
           weekly_summary?: boolean

@@ -19,7 +19,7 @@ import {
   isEssentialCategory,
   type CategoryKind,
 } from "@/lib/categories";
-import type { Tables, TablesUpdate } from "@/lib/database.types";
+import type { Json, Tables, TablesUpdate } from "@/lib/database.types";
 import {
   fromDbTransactionStatus,
   getCanonicalTransactionStatus,
@@ -49,12 +49,19 @@ export type DependentSettlementMethod =
 export type DefaultCurrency = "BRL" | "USD" | "EUR";
 export type UserDateFormat = "DD/MM/AAAA" | "MM/DD/AAAA";
 
+export interface NavigationPreferences {
+  pinnedHrefs: string[];
+  itemOrder: string[];
+  collapsedSections: string[];
+}
+
 export interface UserPreferences {
   defaultCurrency: DefaultCurrency;
   dateFormat: UserDateFormat;
   hideBalancesByDefault: boolean;
   invoiceReminder: boolean;
   weeklySummary: boolean;
+  navigationPreferences: NavigationPreferences;
 }
 
 export type UpdateUserPreferencesInput = Partial<UserPreferences>;
@@ -228,6 +235,7 @@ interface FinanceState {
   hideBalancesByDefault: boolean;
   invoiceReminder: boolean;
   weeklySummary: boolean;
+  navigationPreferences: NavigationPreferences;
   currentMonth: number;
   currentYear: number;
   fetchedMonth: number;
@@ -632,7 +640,14 @@ const preferenceStorageKeys = {
   hideBalancesByDefault: "finync-hide-balances-by-default",
   invoiceReminder: "finync-invoice-reminder",
   weeklySummary: "finync-weekly-summary",
+  navigationPreferences: "finync-navigation-preferences",
 } as const;
+
+const defaultNavigationPreferences: NavigationPreferences = {
+  pinnedHrefs: [],
+  itemOrder: [],
+  collapsedSections: [],
+};
 
 const defaultUserPreferences: UserPreferences = {
   defaultCurrency: "BRL",
@@ -640,6 +655,7 @@ const defaultUserPreferences: UserPreferences = {
   hideBalancesByDefault: false,
   invoiceReminder: false,
   weeklySummary: false,
+  navigationPreferences: defaultNavigationPreferences,
 };
 
 function isDefaultCurrency(value: string | null): value is DefaultCurrency {
@@ -648,6 +664,26 @@ function isDefaultCurrency(value: string | null): value is DefaultCurrency {
 
 function isUserDateFormat(value: string | null): value is UserDateFormat {
   return value === "DD/MM/AAAA" || value === "MM/DD/AAAA";
+}
+
+function normalizeNavigationPreferences(
+  value: unknown,
+): NavigationPreferences {
+  if (!value || typeof value !== "object" || Array.isArray(value)) {
+    return defaultNavigationPreferences;
+  }
+
+  const preferences = value as Record<string, unknown>;
+  const normalizeStringArray = (candidate: unknown) =>
+    Array.isArray(candidate)
+      ? [...new Set(candidate.filter((item): item is string => typeof item === "string"))]
+      : [];
+
+  return {
+    pinnedHrefs: normalizeStringArray(preferences.pinnedHrefs),
+    itemOrder: normalizeStringArray(preferences.itemOrder),
+    collapsedSections: normalizeStringArray(preferences.collapsedSections),
+  };
 }
 
 function getStoredPreferences(userId?: string): UserPreferences {
@@ -664,6 +700,20 @@ function getStoredPreferences(userId?: string): UserPreferences {
   const storedDateFormat = window.localStorage.getItem(
     preferenceStorageKeys.dateFormat,
   );
+  const storedNavigationPreferences = window.localStorage.getItem(
+    preferenceStorageKeys.navigationPreferences,
+  );
+
+  let navigationPreferences = defaultNavigationPreferences;
+  try {
+    navigationPreferences = normalizeNavigationPreferences(
+      storedNavigationPreferences
+        ? JSON.parse(storedNavigationPreferences)
+        : null,
+    );
+  } catch {
+    navigationPreferences = defaultNavigationPreferences;
+  }
 
   return {
     defaultCurrency: isDefaultCurrency(storedCurrency)
@@ -680,6 +730,7 @@ function getStoredPreferences(userId?: string): UserPreferences {
       "true",
     weeklySummary:
       window.localStorage.getItem(preferenceStorageKeys.weeklySummary) === "true",
+    navigationPreferences,
   };
 }
 
@@ -710,6 +761,10 @@ function persistPreferences(preferences: UserPreferences, userId?: string) {
     preferenceStorageKeys.weeklySummary,
     String(preferences.weeklySummary),
   );
+  window.localStorage.setItem(
+    preferenceStorageKeys.navigationPreferences,
+    JSON.stringify(preferences.navigationPreferences),
+  );
 }
 
 function hasPendingPreferenceSync(userId: string) {
@@ -737,6 +792,9 @@ function mapUserPreferences(row: UserPreferencesRow): UserPreferences {
     hideBalancesByDefault: row.hide_balances_by_default,
     invoiceReminder: row.invoice_reminder,
     weeklySummary: row.weekly_summary,
+    navigationPreferences: normalizeNavigationPreferences(
+      row.navigation_preferences,
+    ),
   };
 }
 
@@ -747,6 +805,7 @@ function getPreferencesFromState(state: FinanceState): UserPreferences {
     hideBalancesByDefault: state.hideBalancesByDefault,
     invoiceReminder: state.invoiceReminder,
     weeklySummary: state.weeklySummary,
+    navigationPreferences: state.navigationPreferences,
   };
 }
 
@@ -809,6 +868,8 @@ export const useFinanceStore = create<FinanceState>()((set, get) => ({
               hide_balances_by_default: localPreferences.hideBalancesByDefault,
               invoice_reminder: localPreferences.invoiceReminder,
               weekly_summary: localPreferences.weeklySummary,
+              navigation_preferences:
+                localPreferences.navigationPreferences as unknown as Json,
             },
             { onConflict: "user_id" },
           );
@@ -836,6 +897,8 @@ export const useFinanceStore = create<FinanceState>()((set, get) => ({
           hide_balances_by_default: localPreferences.hideBalancesByDefault,
           invoice_reminder: localPreferences.invoiceReminder,
           weekly_summary: localPreferences.weeklySummary,
+          navigation_preferences:
+            localPreferences.navigationPreferences as unknown as Json,
         });
 
       if (insertError) throw insertError;
@@ -867,6 +930,8 @@ export const useFinanceStore = create<FinanceState>()((set, get) => ({
         hide_balances_by_default: nextPreferences.hideBalancesByDefault,
         invoice_reminder: nextPreferences.invoiceReminder,
         weekly_summary: nextPreferences.weeklySummary,
+        navigation_preferences:
+          nextPreferences.navigationPreferences as unknown as Json,
       },
       { onConflict: "user_id" },
     );

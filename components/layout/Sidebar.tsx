@@ -1,10 +1,20 @@
 "use client";
 
+import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
-import { ChevronsUpDown, LogOut, Search, UserRound } from "lucide-react";
+import {
+  ChevronDown,
+  ChevronsUpDown,
+  LogOut,
+  Pin,
+  Search,
+  SlidersHorizontal,
+  UserRound,
+} from "lucide-react";
 import { FinyncLogo } from "@/components/branding/FinyncLogo";
 import { useDashboardActions } from "@/components/layout/DashboardActionsProvider";
+import { SidebarCustomizationSheet } from "@/components/layout/SidebarCustomizationSheet";
 import { navigationItems, navigationSections } from "./navigationItems";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import {
@@ -17,6 +27,7 @@ import {
 import { supabase } from "@/lib/supabaseClient";
 import { useFinanceStore } from "@/store/useFinanceStore";
 import { toast } from "sonner";
+import { PRODUCT_TOUR_EVENT } from "@/components/onboarding/tourSteps";
 
 function isActiveRoute(pathname: string, href: string) {
   if (href === "/dashboard") return pathname === href;
@@ -28,7 +39,13 @@ export function Sidebar() {
   const router = useRouter();
   const { setCommandPaletteOpen } = useDashboardActions();
   const authUser = useFinanceStore((state) => state.authUser);
+  const navigationPreferences = useFinanceStore(
+    (state) => state.navigationPreferences,
+  );
+  const updatePreferences = useFinanceStore((state) => state.updatePreferences);
   const clearFinanceState = useFinanceStore((state) => state.clearFinanceState);
+  const [customizationOpen, setCustomizationOpen] = useState(false);
+  const [expandForTour, setExpandForTour] = useState(false);
   const metadataName = authUser?.user_metadata?.name;
   const displayName =
     typeof metadataName === "string" && metadataName.trim()
@@ -46,6 +63,87 @@ export function Sidebar() {
       .map((part) => part[0])
       .join("")
       .toUpperCase() || "US";
+  const expandAllSections =
+    expandForTour || authUser?.user_metadata?.onboarding_completed === false;
+
+  const orderedNavigationItems = useMemo(() => {
+    const validHrefs = new Set(navigationItems.map((item) => item.href));
+    const order = navigationPreferences.itemOrder.filter((href) =>
+      validHrefs.has(href),
+    );
+
+    navigationItems.forEach((item) => {
+      if (!order.includes(item.href)) order.push(item.href);
+    });
+
+    const positions = new Map(order.map((href, index) => [href, index]));
+    return [...navigationItems].sort(
+      (left, right) =>
+        (positions.get(left.href) ?? Number.MAX_SAFE_INTEGER) -
+        (positions.get(right.href) ?? Number.MAX_SAFE_INTEGER),
+    );
+  }, [navigationPreferences.itemOrder]);
+
+  const pinnedItems = orderedNavigationItems.filter((item) =>
+    navigationPreferences.pinnedHrefs.includes(item.href),
+  );
+
+  useEffect(() => {
+    const expandNavigation = () => setExpandForTour(true);
+    window.addEventListener(PRODUCT_TOUR_EVENT, expandNavigation);
+
+    return () => window.removeEventListener(PRODUCT_TOUR_EVENT, expandNavigation);
+  }, []);
+
+  function renderNavigationItem(item: (typeof navigationItems)[number]) {
+    const active = isActiveRoute(pathname, item.href);
+    const Icon = item.icon;
+
+    return (
+      <Link
+        key={item.href}
+        href={item.href}
+        data-tour={item.tourId}
+        className={[
+          "group flex h-10 items-center gap-3 rounded-lg border px-3 text-sm font-medium transition-colors",
+          active
+            ? "border-emerald-500/15 bg-emerald-500/10 text-emerald-100"
+            : "border-transparent text-zinc-400 hover:bg-white/[0.05] hover:text-zinc-100",
+        ].join(" ")}
+      >
+        <Icon
+          className={[
+            "size-[18px] shrink-0 transition-colors",
+            active
+              ? "text-emerald-400"
+              : "text-zinc-600 group-hover:text-zinc-300",
+          ].join(" ")}
+        />
+        <span className="truncate">{item.label}</span>
+      </Link>
+    );
+  }
+
+  async function toggleSection(sectionKey: string) {
+    const collapsedSections = navigationPreferences.collapsedSections.includes(
+      sectionKey,
+    )
+      ? navigationPreferences.collapsedSections.filter(
+          (section) => section !== sectionKey,
+        )
+      : [...navigationPreferences.collapsedSections, sectionKey];
+
+    try {
+      await updatePreferences({
+        navigationPreferences: {
+          ...navigationPreferences,
+          collapsedSections,
+        },
+      });
+    } catch {
+      toast.error("Preferência salva localmente, mas ainda não sincronizada.");
+    }
+  }
 
   async function handleSignOut() {
     const { error } = await supabase.auth.signOut();
@@ -62,7 +160,8 @@ export function Sidebar() {
   }
 
   return (
-    <aside className="hidden h-screen w-72 shrink-0 flex-col justify-between border-r border-white/[0.08] bg-white/[0.045] px-5 py-6 shadow-2xl shadow-black/20 backdrop-blur-2xl md:sticky md:top-0 md:flex">
+    <>
+      <aside className="hidden h-screen w-72 shrink-0 flex-col justify-between border-r border-white/[0.08] bg-white/[0.045] px-5 py-6 shadow-2xl shadow-black/20 backdrop-blur-2xl md:sticky md:top-0 md:flex">
       <Link
         href="/dashboard"
         className="mb-7 flex min-h-12 items-center gap-3 px-2"
@@ -75,57 +174,67 @@ export function Sidebar() {
       </Link>
 
       <nav className="flex min-h-0 flex-1 flex-col gap-5 overflow-y-auto pr-1 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
-        {navigationSections.map((section) => (
-          <div key={section.key} className="space-y-1">
-            <div className="flex items-center gap-3 px-3 pb-1">
-              <span className="text-[10px] font-semibold uppercase text-zinc-600">
-                {section.label}
-              </span>
+        {pinnedItems.length ? (
+          <div className="space-y-1">
+            <div className="flex items-center gap-2 px-3 pb-1 text-[10px] font-semibold uppercase text-zinc-600">
+              <Pin className="size-3" />
+              Fixados
               <span className="h-px flex-1 bg-white/[0.06]" />
             </div>
-
-            {navigationItems
-              .filter((item) => item.section === section.key)
-              .map((item) => {
-                const active = isActiveRoute(pathname, item.href);
-                const Icon = item.icon;
-
-                return (
-                  <Link
-                    key={item.href}
-                    href={item.href}
-                    data-tour={item.tourId}
-                    className={[
-                      "group flex h-10 items-center gap-3 rounded-lg border px-3 text-sm font-medium transition-colors",
-                      active
-                        ? "border-emerald-500/15 bg-emerald-500/10 text-emerald-100"
-                        : "border-transparent text-zinc-400 hover:bg-white/[0.05] hover:text-zinc-100",
-                    ].join(" ")}
-                  >
-                    <Icon
-                      className={[
-                        "size-[18px] shrink-0 transition-colors",
-                        active
-                          ? "text-emerald-400"
-                          : "text-zinc-600 group-hover:text-zinc-300",
-                      ].join(" ")}
-                    />
-                    <span className="truncate">{item.label}</span>
-                  </Link>
-                );
-              })}
+            {pinnedItems.map(renderNavigationItem)}
           </div>
-        ))}
+        ) : null}
+
+        {navigationSections.map((section) => {
+          const sectionItems = orderedNavigationItems.filter(
+            (item) =>
+              item.section === section.key &&
+              !navigationPreferences.pinnedHrefs.includes(item.href),
+          );
+          if (!sectionItems.length) return null;
+
+          const collapsed =
+            !expandAllSections &&
+            navigationPreferences.collapsedSections.includes(section.key);
+
+          return (
+            <div key={section.key} className="space-y-1">
+              <button
+                type="button"
+                className="flex h-7 w-full items-center gap-2 px-3 text-[10px] font-semibold uppercase text-zinc-600 transition-colors hover:text-zinc-400"
+                aria-expanded={!collapsed}
+                onClick={() => void toggleSection(section.key)}
+              >
+                <span>{section.label}</span>
+                <span className="h-px flex-1 bg-white/[0.06]" />
+                <ChevronDown
+                  className={`size-3 transition-transform ${collapsed ? "-rotate-90" : ""}`}
+                />
+              </button>
+              {!collapsed ? sectionItems.map(renderNavigationItem) : null}
+            </div>
+          );
+        })}
       </nav>
 
-      <button
-        type="button"
-        className="mt-4 flex h-10 w-full items-center gap-3 rounded-lg border border-white/[0.08] bg-white/[0.025] px-3 text-sm font-medium text-zinc-500 transition-colors hover:bg-white/[0.055] hover:text-zinc-200"
-        onClick={() => setCommandPaletteOpen(true)}
-      >
-        <Search className="size-[18px]" />
-        <span>Buscar no Finync</span>
-      </button>
+      <div className="mt-4 flex gap-2">
+        <button
+          type="button"
+          className="flex h-10 min-w-0 flex-1 items-center gap-3 rounded-lg border border-white/[0.08] bg-white/[0.025] px-3 text-sm font-medium text-zinc-500 transition-colors hover:bg-white/[0.055] hover:text-zinc-200"
+          onClick={() => setCommandPaletteOpen(true)}
+        >
+          <Search className="size-[18px] shrink-0" />
+          <span className="truncate">Buscar</span>
+        </button>
+        <button
+          type="button"
+          className="flex size-10 shrink-0 items-center justify-center rounded-lg border border-white/[0.08] bg-white/[0.025] text-zinc-500 transition-colors hover:bg-white/[0.055] hover:text-zinc-200"
+          onClick={() => setCustomizationOpen(true)}
+          aria-label="Personalizar navegação"
+        >
+          <SlidersHorizontal className="size-[18px]" />
+        </button>
+      </div>
 
       <DropdownMenu>
         <DropdownMenuTrigger asChild>
@@ -168,6 +277,13 @@ export function Sidebar() {
           </DropdownMenuItem>
         </DropdownMenuContent>
       </DropdownMenu>
-    </aside>
+      </aside>
+
+      {customizationOpen ? (
+        <SidebarCustomizationSheet
+          onClose={() => setCustomizationOpen(false)}
+        />
+      ) : null}
+    </>
   );
 }
