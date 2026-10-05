@@ -11,6 +11,7 @@ import {
   Repeat2,
   Tag,
   UserRound,
+  UsersRound,
   X,
 } from "lucide-react";
 import { toast } from "sonner";
@@ -20,7 +21,9 @@ import { getInstallmentInvoiceMonthStart } from "@/lib/cardBilling";
 import {
   addMonthsToDateOnly,
   splitAmountIntoInstallments,
+  splitInstallmentsByOwner,
 } from "@/lib/transactionProjection";
+import { formatCurrency, parseCurrencyValue } from "@/lib/financeUtils";
 import { Button } from "@/components/ui/button";
 import { TransactionLivePreview } from "@/components/modals/TransactionLivePreview";
 import {
@@ -132,6 +135,8 @@ function TransactionModalContent({
   const [selectedDependentId, setSelectedDependentId] = useState(
     editingTransaction?.dependentId ?? "",
   );
+  const [isSplitExpense, setIsSplitExpense] = useState(false);
+  const [dependentShare, setDependentShare] = useState("");
   const [isInstallmentPurchase, setIsInstallmentPurchase] = useState(false);
   const [installmentCount, setInstallmentCount] = useState("2");
   const [isRecurring, setIsRecurring] = useState(
@@ -165,12 +170,30 @@ function TransactionModalContent({
     return cards.find((card) => card.id === selectedCardId) ?? null;
   }, [cards, selectedCardId, transactionType]);
 
-  const selectedDependentName = useMemo(
-    () =>
-      dependents.find((dependent) => dependent.id === selectedDependentId)
-        ?.name ?? "Gasto pessoal",
-    [dependents, selectedDependentId],
+  const selectedDependentName = useMemo(() => {
+    const dependentName = dependents.find(
+      (dependent) => dependent.id === selectedDependentId,
+    )?.name;
+
+    if (!dependentName) return "Gasto pessoal";
+    return isSplitExpense ? `Você + ${dependentName}` : dependentName;
+  }, [dependents, isSplitExpense, selectedDependentId]);
+
+  const totalAmountPreview = useMemo(
+    () => parseCurrencyValue(amount),
+    [amount],
   );
+  const dependentShareAmount = useMemo(
+    () => parseCurrencyValue(dependentShare),
+    [dependentShare],
+  );
+  const personalShareAmount =
+    Number.isFinite(totalAmountPreview) && Number.isFinite(dependentShareAmount)
+      ? Math.max(
+          Number((totalAmountPreview - dependentShareAmount).toFixed(2)),
+          0,
+        )
+      : 0;
 
   const transactionCardId =
     transactionType === "card" ? selectedCardId || null : null;
@@ -237,8 +260,38 @@ function TransactionModalContent({
     }
 
     const normalizedDate = normalizeDateOnly(date);
-    const totalAmount = Number(amount.replace(",", ".")) || 0;
+    const totalAmount = parseCurrencyValue(amount);
     const parsedInstallmentCount = Math.max(Number(installmentCount) || 2, 2);
+    const shouldSplitExpense =
+      !editingTransaction && isSplitExpense && Boolean(selectedDependentId);
+
+    if (!Number.isFinite(totalAmount) || totalAmount <= 0) {
+      toast.error("Informe um valor maior que zero.");
+      return;
+    }
+
+    if (
+      shouldSplitExpense &&
+      (!Number.isFinite(dependentShareAmount) ||
+        dependentShareAmount <= 0 ||
+        dependentShareAmount >= totalAmount)
+    ) {
+      toast.error("A parte do dependente deve ser menor que o valor total.");
+      return;
+    }
+
+    if (
+      shouldSplitExpense &&
+      transactionType === "card" &&
+      isInstallmentPurchase &&
+      (Math.round(dependentShareAmount * 100) < parsedInstallmentCount ||
+        Math.round((totalAmount - dependentShareAmount) * 100) <
+          parsedInstallmentCount)
+    ) {
+      toast.error("Cada parte precisa ter ao menos R$ 0,01 por parcela.");
+      return;
+    }
+
     const shouldCreateRecurringProjection =
       transactionType === "fixed" && (isFixedMode || isRecurring);
     const shouldCreateCreditCardSubscription =
@@ -258,9 +311,11 @@ function TransactionModalContent({
       type: transactionType,
       status: baseStatus,
       cardId: transactionCardId,
-      dependentId: selectedDependentId || null,
+      dependentId: shouldSplitExpense ? null : selectedDependentId || null,
       owner: "eu",
-      dependentIds: [selectedDependentId || "eu"],
+      dependentIds: shouldSplitExpense
+        ? ["eu", selectedDependentId]
+        : [selectedDependentId || "eu"],
       installments: 1,
       current_installment: 1,
       installmentsTotal: 1,
@@ -273,6 +328,43 @@ function TransactionModalContent({
           ? "Gasto fixo"
           : "Débito/PIX",
     };
+    const splitGroupId = shouldSplitExpense ? crypto.randomUUID() : null;
+    const ownershipShares = shouldSplitExpense
+      ? [
+          {
+            key: "personal",
+            amount: personalShareAmount,
+            dependentId: null,
+          },
+          {
+            key: "dependent",
+            amount: dependentShareAmount,
+            dependentId: selectedDependentId,
+          },
+        ]
+      : [
+          {
+            key: selectedDependentId || "personal",
+            amount: totalAmount,
+            dependentId: selectedDependentId || null,
+          },
+        ];
+
+    function withOwnership(
+      payload: CreateTransactionInput,
+      share: (typeof ownershipShares)[number],
+      shareAmount = share.amount,
+    ): CreateTransactionInput {
+      return {
+        ...payload,
+        amount: shareAmount,
+        dependentId: share.dependentId,
+        dependentIds: shouldSplitExpense
+          ? ["eu", selectedDependentId]
+          : [share.dependentId || "eu"],
+        splitGroupId,
+      };
+    }
 
     setIsSubmitting(true);
 
@@ -289,29 +381,37 @@ function TransactionModalContent({
 
         await updateTransaction(editingTransaction.id, transactionPayload);
       } else if (shouldCreateCreditCardSubscription) {
-        const groupId = crypto.randomUUID();
+        const ownerStreams = ownershipShares.map((share) => ({
+          ...share,
+          groupId: crypto.randomUUID(),
+        }));
         const subscriptionTransactions = Array.from(
           { length: 12 },
-          (_, index): CreateTransactionInput => {
+          (_, index) => {
             const subscriptionDate = addMonthsToDateOnly(normalizedDate, index);
 
-            return {
-              ...transactionPayload,
-              groupId,
-              cardId: transactionCardId,
-              date: subscriptionDate,
-              status:
-                subscriptionDate <= getLocalTodayDateOnly()
-                  ? "confirmed"
-                  : "pending",
-              installments: 1,
-              current_installment: 1,
-              installmentsTotal: 1,
-              installmentNumber: 1,
-              is_recurring: true,
-            };
+            return ownerStreams.map((share) =>
+              withOwnership(
+                {
+                  ...transactionPayload,
+                  groupId: share.groupId,
+                  cardId: transactionCardId,
+                  date: subscriptionDate,
+                  status:
+                    subscriptionDate <= getLocalTodayDateOnly()
+                      ? "confirmed"
+                      : "pending",
+                  installments: 1,
+                  current_installment: 1,
+                  installmentsTotal: 1,
+                  installmentNumber: 1,
+                  is_recurring: true,
+                },
+                share,
+              ),
+            );
           },
-        );
+        ).flat();
 
         await addTransactions(subscriptionTransactions);
       } else if (
@@ -319,47 +419,94 @@ function TransactionModalContent({
         isInstallmentPurchase &&
         parsedInstallmentCount >= 2
       ) {
-        const groupId = crypto.randomUUID();
-        const installmentAmounts = splitAmountIntoInstallments(
-          totalAmount,
-          parsedInstallmentCount,
-        );
-        const installmentTransactions = installmentAmounts.map(
-          (installmentAmount, index): CreateTransactionInput => ({
-            ...transactionPayload,
-            groupId,
-            amount: installmentAmount,
-            date: addMonthsToDateOnly(normalizedDate, index),
-            billingMonthStart: getInstallmentInvoiceMonthStart(
-              normalizedDate,
-              selectedCard?.closingDay,
-              index,
-            ),
-            installments: parsedInstallmentCount,
-            current_installment: index + 1,
-            installmentsTotal: parsedInstallmentCount,
-            installmentNumber: index + 1,
-            is_recurring: false,
-          }),
-        );
+        const groupIds = {
+          personal: crypto.randomUUID(),
+          dependent: crypto.randomUUID(),
+        };
+        const installmentTransactions = shouldSplitExpense
+          ? splitInstallmentsByOwner(
+              totalAmount,
+              dependentShareAmount,
+              parsedInstallmentCount,
+            ).flatMap((split, index) =>
+              ownershipShares.map((share) =>
+                withOwnership(
+                  {
+                    ...transactionPayload,
+                    groupId:
+                      groupIds[share.key as keyof typeof groupIds] ??
+                      groupIds.personal,
+                    date: addMonthsToDateOnly(normalizedDate, index),
+                    billingMonthStart: getInstallmentInvoiceMonthStart(
+                      normalizedDate,
+                      selectedCard?.closingDay,
+                      index,
+                    ),
+                    installments: parsedInstallmentCount,
+                    current_installment: index + 1,
+                    installmentsTotal: parsedInstallmentCount,
+                    installmentNumber: index + 1,
+                    is_recurring: false,
+                  },
+                  share,
+                  share.key === "dependent"
+                    ? split.dependentAmount
+                    : split.personalAmount,
+                ),
+              ),
+            )
+          : splitAmountIntoInstallments(
+              totalAmount,
+              parsedInstallmentCount,
+            ).map((installmentAmount, index): CreateTransactionInput => ({
+              ...transactionPayload,
+              groupId: groupIds.personal,
+              amount: installmentAmount,
+              date: addMonthsToDateOnly(normalizedDate, index),
+              billingMonthStart: getInstallmentInvoiceMonthStart(
+                normalizedDate,
+                selectedCard?.closingDay,
+                index,
+              ),
+              installments: parsedInstallmentCount,
+              current_installment: index + 1,
+              installmentsTotal: parsedInstallmentCount,
+              installmentNumber: index + 1,
+              is_recurring: false,
+            }));
 
         await addTransactions(installmentTransactions);
       } else if (shouldCreateRecurringProjection) {
-        const groupId = crypto.randomUUID();
-        const recurringTransactions = Array.from(
-          { length: 12 },
-          (_, index): CreateTransactionInput => ({
-            ...transactionPayload,
-            groupId,
-            date: addMonthsToDateOnly(normalizedDate, index),
-            status: "pending",
-            is_recurring: true,
-          }),
-        );
+        const ownerStreams = ownershipShares.map((share) => ({
+          ...share,
+          groupId: crypto.randomUUID(),
+        }));
+        const recurringTransactions = Array.from({ length: 12 }, (_, index) =>
+          ownerStreams.map((share) =>
+            withOwnership(
+              {
+                ...transactionPayload,
+                groupId: share.groupId,
+                date: addMonthsToDateOnly(normalizedDate, index),
+                status: "pending",
+                is_recurring: true,
+              },
+              share,
+            ),
+          ),
+        ).flat();
 
         await addTransactions(recurringTransactions);
       } else {
-        await addTransaction(transactionPayload);
+        const transactions = ownershipShares.map((share) =>
+          withOwnership(transactionPayload, share),
+        );
+
+        if (transactions.length === 1) {
+          await addTransaction(transactions[0]);
+        } else {
+          await addTransactions(transactions);
+        }
       }
 
       await fetchTransactions();
@@ -647,7 +794,10 @@ function TransactionModalContent({
                         value={date}
                         onChange={(event) => setDate(event.target.value)}
                         type="date"
-                        className={cn(pillFieldClassName, "[color-scheme:dark]")}
+                        className={cn(
+                          pillFieldClassName,
+                          "[color-scheme:dark]",
+                        )}
                         required
                       />
                     </div>
@@ -687,11 +837,16 @@ function TransactionModalContent({
                       </Label>
                       <Select
                         value={selectedDependentId || "__no_dependent__"}
-                        onValueChange={(nextValue) =>
-                          setSelectedDependentId(
-                            nextValue === "__no_dependent__" ? "" : nextValue,
-                          )
-                        }
+                        onValueChange={(nextValue) => {
+                          const nextDependentId =
+                            nextValue === "__no_dependent__" ? "" : nextValue;
+
+                          setSelectedDependentId(nextDependentId);
+                          if (!nextDependentId) {
+                            setIsSplitExpense(false);
+                            setDependentShare("");
+                          }
+                        }}
                       >
                         <SelectTrigger
                           id="transaction-owner"
@@ -747,6 +902,72 @@ function TransactionModalContent({
                       </div>
                     </div>
                   </div>
+
+                  {!editingTransaction && selectedDependentId ? (
+                    <div className="border-t border-zinc-800 pt-3">
+                      <div className="flex items-center justify-between gap-4">
+                        <span className="flex items-center gap-2.5">
+                          <span className="flex size-8 items-center justify-center rounded-full bg-zinc-900 text-zinc-400">
+                            <UsersRound className="size-4" />
+                          </span>
+                          <span>
+                            <span className="block text-xs font-semibold text-zinc-100">
+                              Dividir comigo
+                            </span>
+                            <span className="block text-[10px] text-zinc-500">
+                              Separe a parte pessoal e do dependente
+                            </span>
+                          </span>
+                        </span>
+                        <Switch
+                          id="expense-split-toggle"
+                          aria-label="Dividir gasto com dependente"
+                          checked={isSplitExpense}
+                          onCheckedChange={(checked) => {
+                            setIsSplitExpense(checked);
+                            if (!checked) setDependentShare("");
+                          }}
+                        />
+                      </div>
+
+                      {isSplitExpense ? (
+                        <div className="mt-3 grid grid-cols-2 gap-3 rounded-lg border border-zinc-800 bg-zinc-900/45 p-3">
+                          <div className="space-y-1">
+                            <Label
+                              htmlFor="dependent-share"
+                              className="text-[10px] font-bold uppercase text-zinc-500"
+                            >
+                              Parte de{" "}
+                              {selectedDependentName.replace("Você + ", "")}
+                            </Label>
+                            <div className="flex h-9 items-center border-b border-zinc-700">
+                              <span className="text-[11px] font-semibold text-zinc-500">
+                                R$
+                              </span>
+                              <Input
+                                id="dependent-share"
+                                value={dependentShare}
+                                onChange={(event) =>
+                                  setDependentShare(event.target.value)
+                                }
+                                inputMode="decimal"
+                                placeholder="0,00"
+                                className="h-8 rounded-none border-0 bg-transparent px-2 text-sm font-semibold text-zinc-100 shadow-none focus-visible:ring-0 dark:bg-transparent"
+                              />
+                            </div>
+                          </div>
+                          <div className="space-y-1 border-l border-zinc-800 pl-3">
+                            <p className="text-[10px] font-bold uppercase text-zinc-500">
+                              Sua parte
+                            </p>
+                            <p className="pt-2 text-sm font-semibold text-zinc-100">
+                              {formatCurrency(personalShareAmount)}
+                            </p>
+                          </div>
+                        </div>
+                      ) : null}
+                    </div>
+                  ) : null}
 
                   {transactionType === "card" ? (
                     <div className="space-y-2">
@@ -856,13 +1077,18 @@ function TransactionModalContent({
 
                   {transactionType === "card" && isInstallmentPurchase ? (
                     <div className="flex items-center justify-between gap-4 border-t border-zinc-800 pt-3">
-                      <Label htmlFor="installments" className="text-xs text-zinc-300">
+                      <Label
+                        htmlFor="installments"
+                        className="text-xs text-zinc-300"
+                      >
                         Número de parcelas
                       </Label>
                       <Input
                         id="installments"
                         value={installmentCount}
-                        onChange={(event) => setInstallmentCount(event.target.value)}
+                        onChange={(event) =>
+                          setInstallmentCount(event.target.value)
+                        }
                         type="number"
                         min={2}
                         step={1}
@@ -922,7 +1148,8 @@ function TransactionModalContent({
                   {isSubmitting
                     ? "Salvando..."
                     : editingTransaction?.groupId &&
-                        (editingTransaction.is_recurring || isEditingInstallment)
+                        (editingTransaction.is_recurring ||
+                          isEditingInstallment)
                       ? "Revisar mudanças"
                       : isFixedMode
                         ? "Salvar recorrência"

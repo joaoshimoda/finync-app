@@ -5,6 +5,7 @@ import {
   addMonthsToDateOnly,
   buildMonthlyProjectionDates,
   splitAmountIntoInstallments,
+  splitInstallmentsByOwner,
 } from "../lib/transactionProjection.ts";
 
 test("mantem o dia ancora ao projetar recorrencias", () => {
@@ -37,4 +38,33 @@ test("parcelamento preserva exatamente o total em centavos", () => {
 
 test("rejeita quantidade de parcelas invalida", () => {
   assert.throws(() => splitAmountIntoInstallments(100, 0), RangeError);
+});
+
+test("divide parcelas por responsavel sem alterar o total", () => {
+  const split = splitInstallmentsByOwner(100, 65, 3);
+
+  assert.deepEqual(split, [
+    { personalAmount: 11.67, dependentAmount: 21.67 },
+    { personalAmount: 11.66, dependentAmount: 21.67 },
+    { personalAmount: 11.67, dependentAmount: 21.66 },
+  ]);
+  assert.equal(
+    split.reduce(
+      (total, installment) =>
+        total + installment.personalAmount + installment.dependentAmount,
+      0,
+    ),
+    100,
+  );
+  assert.equal(
+    split.reduce(
+      (total, installment) => total + installment.dependentAmount,
+      0,
+    ),
+    65,
+  );
+});
+
+test("rejeita divisao sem uma parte pessoal", () => {
+  assert.throws(() => splitInstallmentsByOwner(100, 100, 2), RangeError);
 });

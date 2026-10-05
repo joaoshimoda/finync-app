@@ -33,6 +33,44 @@ export function splitAmountIntoInstallments(
   });
 }
 
+export function splitInstallmentsByOwner(
+  totalAmount: number,
+  dependentAmount: number,
+  installments: number,
+) {
+  const totalCents = Math.round(totalAmount * 100);
+  const dependentCents = Math.round(dependentAmount * 100);
+
+  if (dependentCents <= 0 || dependentCents >= totalCents) {
+    throw new RangeError(
+      "Dependent amount must be greater than zero and lower than the total.",
+    );
+  }
+
+  const installmentTotals = splitAmountIntoInstallments(
+    totalAmount,
+    installments,
+  );
+  const dependentInstallments = splitAmountIntoInstallments(
+    dependentAmount,
+    installments,
+  );
+
+  return installmentTotals.map((installmentTotal, index) => {
+    const installmentCents = Math.round(installmentTotal * 100);
+    const dependentInstallmentCents = Math.round(
+      dependentInstallments[index] * 100,
+    );
+
+    return {
+      personalAmount: Number(
+        ((installmentCents - dependentInstallmentCents) / 100).toFixed(2),
+      ),
+      dependentAmount: Number((dependentInstallmentCents / 100).toFixed(2)),
+    };
+  });
+}
+
 export function buildMonthlyProjectionDates(date: string, occurrences: number) {
   if (!Number.isInteger(occurrences) || occurrences < 1) {
     throw new RangeError("Occurrences must be a positive integer.");

@@ -4,7 +4,6 @@ import { supabase } from "@/lib/supabaseClient";
 import {
   getCardInvoiceMonthStart,
   getCurrentFinancialMonthStart,
-  getInstallmentInvoiceMonthStart,
 } from "@/lib/cardBilling";
 import {
   getDateOnlyParts,
@@ -172,6 +171,7 @@ export interface Transaction {
   invoiceId?: string | null;
   dependentId?: string | null;
   groupId?: string | null;
+  splitGroupId?: string | null;
   owner?: string;
   dependentIds?: string[];
   installments?: number;
@@ -474,6 +474,7 @@ function mapTransaction(row: TransactionRow): Transaction {
     invoiceId: row.invoice_id ?? null,
     dependentId: row.dependent_id,
     groupId: row.group_id,
+    splitGroupId: row.split_group_id,
     owner: row.owner ?? "eu",
     dependentIds: row.split_with ?? ["eu"],
     installments: row.installments_total ?? undefined,
@@ -514,6 +515,9 @@ function toTransactionInsertPayload(
     card_id: transaction.type === "card" ? (transaction.cardId ?? null) : null,
     dependent_id: transaction.dependentId ?? null,
     group_id: transaction.groupId ?? null,
+    ...(transaction.splitGroupId
+      ? { split_group_id: transaction.splitGroupId }
+      : {}),
     month_start: monthStart,
     transaction_date: normalizedDate,
     type: transaction.type,
@@ -1828,26 +1832,9 @@ export const useFinanceStore = create<FinanceState>()((set, get) => ({
         const cardClosingDay = nextCardId
           ? get().cards.find((card) => card.id === nextCardId)?.closingDay
           : undefined;
-        const installmentIndex = Math.max(
-          (currentTransaction?.installmentNumber ??
-            currentTransaction?.current_installment ??
-            1) - 1,
-          0,
-        );
-        const isInstallment =
-          (currentTransaction?.installmentsTotal ??
-            currentTransaction?.installments ??
-            1) > 1;
-
         updatePayload.month_start =
           nextType === "card"
-            ? isInstallment && dateChanged
-              ? getInstallmentInvoiceMonthStart(
-                  normalizedNextDate,
-                  cardClosingDay,
-                  installmentIndex,
-                )
-              : getCardInvoiceMonthStart(normalizedNextDate, cardClosingDay)
+            ? getCardInvoiceMonthStart(normalizedNextDate, cardClosingDay)
             : getMonthStart(normalizedNextDate);
       }
 
@@ -1867,6 +1854,10 @@ export const useFinanceStore = create<FinanceState>()((set, get) => ({
         updatePayload.dependent_id = transaction.dependentId;
       }
 
+      if (transaction.splitGroupId !== undefined) {
+        updatePayload.split_group_id = transaction.splitGroupId;
+      }
+
       if (transaction.status !== undefined) {
         updatePayload.status = toDbTransactionStatus(
           getCanonicalTransactionStatus({
@@ -1876,6 +1867,11 @@ export const useFinanceStore = create<FinanceState>()((set, get) => ({
             is_recurring:
               transaction.is_recurring ?? currentTransaction?.is_recurring,
             cardId: nextCardId,
+            installments:
+              transaction.installments ?? currentTransaction?.installments,
+            installmentsTotal:
+              transaction.installmentsTotal ??
+              currentTransaction?.installmentsTotal,
             notes: transaction.notes ?? currentTransaction?.notes,
           }),
         );
@@ -1950,10 +1946,37 @@ export const useFinanceStore = create<FinanceState>()((set, get) => ({
       if (!user) throw new Error("Usuário não autenticado.");
 
       const normalizedFromDate = normalizeDateOnly(fromDate);
-      const sourceDay =
+      const sourceTransaction = get().transactions.find(
+        (currentTransaction) =>
+          currentTransaction.groupId === groupId &&
+          normalizeDateOnly(currentTransaction.date) === normalizedFromDate,
+      );
+      const requestedDate =
         transaction.date !== undefined
-          ? getDayFromDate(transaction.date)
-          : null;
+          ? normalizeDateOnly(transaction.date)
+          : normalizedFromDate;
+      const dateChanged =
+        transaction.date !== undefined && requestedDate !== normalizedFromDate;
+      const typeChanged =
+        transaction.type !== undefined &&
+        transaction.type !== sourceTransaction?.type;
+      const cardChanged =
+        transaction.cardId !== undefined &&
+        (transaction.cardId ?? null) !== (sourceTransaction?.cardId ?? null);
+      const descriptionChanged =
+        transaction.description !== undefined &&
+        transaction.description !== sourceTransaction?.description;
+      const amountChanged =
+        transaction.amount !== undefined &&
+        transaction.amount !== sourceTransaction?.amount;
+      const categoryChanged =
+        transaction.category !== undefined &&
+        transaction.category !== sourceTransaction?.category;
+      const dependentChanged =
+        transaction.dependentId !== undefined &&
+        (transaction.dependentId ?? null) !==
+          (sourceTransaction?.dependentId ?? null);
+      const sourceDay = dateChanged ? getDayFromDate(requestedDate) : null;
       const groupTransactions = get()
         .transactions.filter(
           (currentTransaction) =>
@@ -1985,68 +2008,54 @@ export const useFinanceStore = create<FinanceState>()((set, get) => ({
             transaction.cardId !== undefined
               ? transaction.cardId
               : currentTransaction.cardId;
-          const currentInstallmentIndex = Math.max(
-            (currentTransaction.installmentNumber ??
-              currentTransaction.current_installment ??
-              1) - 1,
-            0,
-          );
           const nextDate =
             sourceDay === null
               ? normalizeDateOnly(currentTransaction.date)
               : replaceDateOnlyDay(currentTransaction.date, sourceDay);
           const updatePayload: TablesUpdate<"transactions"> = {};
 
-          if (transaction.description !== undefined) {
+          if (descriptionChanged) {
             updatePayload.description = transaction.description;
           }
 
-          if (transaction.amount !== undefined) {
+          if (amountChanged) {
             updatePayload.amount = transaction.amount;
           }
 
-          if (transaction.date !== undefined) {
+          if (dateChanged) {
             updatePayload.day = getDayFromDate(nextDate);
             updatePayload.transaction_date = nextDate;
           }
 
-          if (
-            transaction.date !== undefined ||
-            transaction.type !== undefined ||
-            transaction.cardId !== undefined
-          ) {
+          if (dateChanged || typeChanged || cardChanged) {
             const cardClosingDay = nextCardId
               ? get().cards.find((card) => card.id === nextCardId)?.closingDay
               : undefined;
 
             updatePayload.month_start =
               nextType === "card"
-                ? currentTransaction.is_recurring
-                  ? getCardInvoiceMonthStart(nextDate, cardClosingDay)
-                  : transaction.date !== undefined
-                    ? getInstallmentInvoiceMonthStart(
-                        normalizeDateOnly(transaction.date),
-                        cardClosingDay,
-                        currentInstallmentIndex,
-                      )
-                    : getCardInvoiceMonthStart(nextDate, cardClosingDay)
+                ? getCardInvoiceMonthStart(nextDate, cardClosingDay)
                 : getMonthStart(nextDate);
           }
 
-          if (transaction.category !== undefined) {
+          if (categoryChanged) {
             updatePayload.category = transaction.category;
           }
 
-          if (transaction.type !== undefined) {
+          if (typeChanged) {
             updatePayload.type = transaction.type;
             updatePayload.card_id =
               transaction.type === "card" ? (transaction.cardId ?? null) : null;
-          } else if (transaction.cardId !== undefined) {
+          } else if (cardChanged) {
             updatePayload.card_id = transaction.cardId;
           }
 
-          if (transaction.dependentId !== undefined) {
+          if (dependentChanged) {
             updatePayload.dependent_id = transaction.dependentId;
+          }
+
+          if (transaction.splitGroupId !== undefined) {
+            updatePayload.split_group_id = transaction.splitGroupId;
           }
 
           if (transaction.status !== undefined) {
@@ -2058,6 +2067,11 @@ export const useFinanceStore = create<FinanceState>()((set, get) => ({
                 is_recurring:
                   transaction.is_recurring ?? currentTransaction.is_recurring,
                 cardId: nextCardId,
+                installments:
+                  transaction.installments ?? currentTransaction.installments,
+                installmentsTotal:
+                  transaction.installmentsTotal ??
+                  currentTransaction.installmentsTotal,
                 notes: transaction.notes ?? currentTransaction.notes,
               }),
             );
@@ -2093,6 +2107,10 @@ export const useFinanceStore = create<FinanceState>()((set, get) => ({
 
           if (transaction.dependentIds !== undefined) {
             updatePayload.split_with = transaction.dependentIds;
+          }
+
+          if (!Object.keys(updatePayload).length) {
+            return currentTransaction;
           }
 
           const { data, error } = await supabase

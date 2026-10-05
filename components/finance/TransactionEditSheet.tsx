@@ -155,6 +155,10 @@ export function TransactionEditSheet({
   function buildPayload(): UpdateTransactionInput | null {
     const normalizedDescription = description.trim();
     const parsedAmount = parseCurrencyValue(amount);
+    const normalizedDate = normalizeDateOnly(date);
+    const nextType = isIncome ? "income" : origin;
+    const nextCardId = !isIncome && origin === "card" ? cardId : null;
+    const nextDependentId = isIncome ? null : dependentId || null;
 
     if (!normalizedDescription) {
       toast.error("Informe uma descrição.");
@@ -176,21 +180,45 @@ export function TransactionEditSheet({
       return null;
     }
 
-    return {
-      description: normalizedDescription,
-      amount: parsedAmount,
-      date: normalizeDateOnly(date),
-      category,
-      type: isIncome ? "income" : origin,
-      status: activeTransaction.status,
-      cardId: !isIncome && origin === "card" ? cardId : null,
-      dependentId: isIncome ? null : dependentId || null,
-      dependentIds: isIncome
-        ? activeTransaction.dependentIds
-        : [dependentId || "eu"],
-      is_recurring: activeTransaction.is_recurring,
-      notes: activeTransaction.notes,
-    };
+    const payload: UpdateTransactionInput = {};
+
+    if (normalizedDescription !== activeTransaction.description) {
+      payload.description = normalizedDescription;
+    }
+
+    if (parsedAmount !== activeTransaction.amount) {
+      payload.amount = parsedAmount;
+    }
+
+    if (normalizedDate !== normalizeDateOnly(activeTransaction.date)) {
+      payload.date = normalizedDate;
+    }
+
+    if (category !== activeTransaction.category) {
+      payload.category = category;
+    }
+
+    if (nextType !== activeTransaction.type) {
+      payload.type = nextType;
+      payload.cardId = nextCardId;
+    } else if ((nextCardId ?? null) !== (activeTransaction.cardId ?? null)) {
+      payload.cardId = nextCardId;
+    }
+
+    if (
+      (nextDependentId ?? null) !==
+      (activeTransaction.dependentId ?? null)
+    ) {
+      payload.dependentId = nextDependentId;
+      payload.dependentIds = isIncome ? ["eu"] : [nextDependentId || "eu"];
+    }
+
+    if (!Object.keys(payload).length) {
+      toast.info("Nenhuma alteração para salvar.");
+      return null;
+    }
+
+    return payload;
   }
 
   async function persist(payload: UpdateTransactionInput, scope: GroupEditScope) {

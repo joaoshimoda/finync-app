@@ -54,6 +54,7 @@ function createBackup(): FinyncBackup {
           notes: null,
           owner: null,
           recurring: false,
+          split_group_id: null,
           split_with: [],
           status: "PENDENTE",
           transaction_date: "2026-08-10",

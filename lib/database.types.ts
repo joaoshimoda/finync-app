@@ -581,6 +581,7 @@ export type Database = {
           notes: string | null
           owner: string | null
           recurring: boolean
+          split_group_id: string | null
           split_with: string[]
           status: string
           transaction_date: string
@@ -608,6 +609,7 @@ export type Database = {
           notes?: string | null
           owner?: string | null
           recurring?: boolean
+          split_group_id?: string | null
           split_with?: string[]
           status?: string
           transaction_date: string
@@ -635,6 +637,7 @@ export type Database = {
           notes?: string | null
           owner?: string | null
           recurring?: boolean
+          split_group_id?: string | null
           split_with?: string[]
           status?: string
           transaction_date?: string
