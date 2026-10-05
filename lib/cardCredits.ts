@@ -7,11 +7,25 @@ type CardCreditCandidate = {
   cardId?: string | null;
   category?: string | null;
   date?: string | null;
+  installments?: number | null;
+  installmentsTotal?: number | null;
+  installment_number?: number | null;
+  installments_total?: number | null;
   is_recurring?: boolean | null;
   notes?: string | null;
   status?: string | null;
   type?: string | null;
 };
+
+export function isCardInstallment(transaction: CardCreditCandidate) {
+  const installmentsTotal =
+    transaction.installmentsTotal ??
+    transaction.installments ??
+    transaction.installments_total ??
+    1;
+
+  return transaction.type === "card" && installmentsTotal > 1;
+}
 
 export function isCardCreditAdjustment(transaction: CardCreditCandidate) {
   if (transaction.type !== "card") return false;
@@ -43,6 +57,7 @@ export function shouldCountCardCharge(
 ) {
   if (transaction.type !== "card") return true;
   if (isCardCreditAdjustment(transaction)) return true;
+  if (isCardInstallment(transaction)) return true;
 
   return (
     transaction.is_recurring !== true ||

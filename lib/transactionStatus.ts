@@ -1,4 +1,5 @@
 import { getLocalTodayDateOnly, normalizeDateOnly } from "./dateUtils.ts";
+import { isCardInstallment } from "./cardCredits.ts";
 
 export type TransactionStatus = "pending" | "confirmed" | "paid";
 export type DbTransactionStatus = "PAGO" | "PENDENTE" | "CONFIRMADO";
@@ -9,6 +10,9 @@ type TransactionStatusCandidate = {
   date?: string | null;
   is_recurring?: boolean | null;
   cardId?: string | null;
+  installments?: number | null;
+  installmentsTotal?: number | null;
+  installments_total?: number | null;
   notes?: string | null;
 };
 
@@ -53,6 +57,8 @@ export function getCanonicalTransactionStatus(
   todayDate = getLocalTodayDateOnly(),
 ): TransactionStatus {
   if (transaction.type === "card") {
+    if (isCardInstallment(transaction)) return "confirmed";
+
     return transaction.is_recurring === true &&
       transaction.date &&
       normalizeDateOnly(transaction.date) > todayDate
@@ -75,6 +81,7 @@ export function getCanonicalTransactionStatus(
 export function isCardSubscription(transaction: TransactionStatusCandidate) {
   return (
     transaction.type === "card" &&
+    !isCardInstallment(transaction) &&
     transaction.is_recurring === true &&
     Boolean(transaction.cardId)
   );

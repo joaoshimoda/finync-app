@@ -52,6 +52,22 @@ test("parcelas nao usam a trava temporal exclusiva de assinaturas", () => {
   );
 });
 
+test("parcela legada marcada como recorrente continua entrando na fatura", () => {
+  assert.equal(
+    shouldCountCardCharge(
+      {
+        type: "card",
+        is_recurring: true,
+        installmentsTotal: 10,
+        date: "2026-10-10",
+        status: "pending",
+      },
+      "2026-10-04",
+    ),
+    true,
+  );
+});
+
 test("pagamentos da fatura e estornos reduzem o total sem alterar compras", () => {
   const transactions = [
     {

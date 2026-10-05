@@ -53,6 +53,22 @@ test("compra de cartao nunca usa status pago da transacao", () => {
   );
 });
 
+test("parcela sempre fica confirmada desde a abertura da fatura", () => {
+  assert.equal(
+    getCanonicalTransactionStatus(
+      {
+        type: "card",
+        is_recurring: true,
+        installmentsTotal: 8,
+        date: "2026-10-10",
+        status: "pending",
+      },
+      "2026-10-04",
+    ),
+    "confirmed",
+  );
+});
+
 test("somente conta fixa recorrente aceita baixa manual", () => {
   assert.equal(
     getCanonicalTransactionStatus({
