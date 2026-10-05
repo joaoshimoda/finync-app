@@ -82,6 +82,10 @@ export type Database = {
           entity_type: string
           id: string
           origin: string
+          reversal_log_id: string | null
+          reverted_at: string | null
+          reverted_by: string | null
+          reverts_log_id: string | null
           user_id: string
         }
         Insert: {
@@ -95,6 +99,10 @@ export type Database = {
           entity_type: string
           id?: string
           origin?: string
+          reversal_log_id?: string | null
+          reverted_at?: string | null
+          reverted_by?: string | null
+          reverts_log_id?: string | null
           user_id: string
         }
         Update: {
@@ -108,6 +116,10 @@ export type Database = {
           entity_type?: string
           id?: string
           origin?: string
+          reversal_log_id?: string | null
+          reverted_at?: string | null
+          reverted_by?: string | null
+          reverts_log_id?: string | null
           user_id?: string
         }
         Relationships: [
@@ -116,6 +128,27 @@ export type Database = {
             columns: ["actor_id"]
             isOneToOne: false
             referencedRelation: "users"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "audit_logs_reversal_log_id_fkey"
+            columns: ["reversal_log_id"]
+            isOneToOne: true
+            referencedRelation: "audit_logs"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "audit_logs_reverted_by_fkey"
+            columns: ["reverted_by"]
+            isOneToOne: false
+            referencedRelation: "users"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "audit_logs_reverts_log_id_fkey"
+            columns: ["reverts_log_id"]
+            isOneToOne: true
+            referencedRelation: "audit_logs"
             referencedColumns: ["id"]
           },
           {
@@ -775,6 +808,10 @@ export type Database = {
       finync_refresh_card_invoice_totals: {
         Args: { selected_invoice_id: string }
         Returns: undefined
+      }
+      finync_revert_audit_log: {
+        Args: { selected_audit_log_id: string }
+        Returns: Json
       }
       finync_report_error: {
         Args: {

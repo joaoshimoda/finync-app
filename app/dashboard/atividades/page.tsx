@@ -8,10 +8,21 @@ import {
   PencilLine,
   RefreshCw,
   Trash2,
+  Undo2,
 } from "lucide-react";
 import { toast } from "sonner";
 
 import { Badge } from "@/components/ui/badge";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import {
@@ -26,7 +37,9 @@ import type { Json, Tables } from "@/lib/database.types";
 import { reportAppError } from "@/lib/errorMonitoring";
 import { supabase } from "@/lib/supabaseClient";
 import { useCurrencyFormatter } from "@/hooks/useCurrencyFormatter";
+import { canRevertAuditLog } from "@/lib/auditReversion";
 import { cn } from "@/lib/utils";
+import { useFinanceStore } from "@/store/useFinanceStore";
 
 type AuditLog = Tables<"audit_logs">;
 type AuditAction = AuditLog["action"];
@@ -200,14 +213,52 @@ function formatChangedValue(
   return String(value);
 }
 
+function getReversionErrorMessage(error: unknown) {
+  const message =
+    error && typeof error === "object" && "message" in error
+      ? String(error.message)
+      : "";
+
+  if (message.includes("FINYNC_REVERT_STALE")) {
+    return "Esse registro recebeu novas alterações e não pode mais ser desfeito por aqui.";
+  }
+  if (message.includes("FINYNC_REVERT_ALREADY_REVERTED")) {
+    return "Essa alteração já foi desfeita.";
+  }
+  if (message.includes("FINYNC_REVERT_TARGET_MISSING")) {
+    return "O registro original não existe mais.";
+  }
+  if (message.includes("FINYNC_REVERT_TARGET_EXISTS")) {
+    return "Já existe um registro ocupando o lugar do item excluído.";
+  }
+  if (message.includes("FINYNC_REVERT_GROUPED_TRANSACTION")) {
+    return "Parcelas, recorrências e gastos divididos precisam ser corrigidos pelo fluxo do grupo.";
+  }
+  if (message.includes("FINYNC_REVERT_DEPENDENCY_MISSING")) {
+    return "Um cartão, dependente ou categoria necessário para restaurar esse registro não existe mais.";
+  }
+  if (message.includes("FINYNC_REVERT_UNSUPPORTED")) {
+    return "Essa operação não pode ser desfeita com segurança.";
+  }
+
+  return "Não foi possível desfazer essa alteração.";
+}
+
 export default function AtividadesPage() {
   const { formatCurrency } = useCurrencyFormatter();
+  const fetchCards = useFinanceStore((state) => state.fetchCards);
+  const fetchCategories = useFinanceStore((state) => state.fetchCategories);
+  const fetchDependents = useFinanceStore((state) => state.fetchDependents);
+  const fetchPreferences = useFinanceStore((state) => state.fetchPreferences);
+  const fetchTransactions = useFinanceStore((state) => state.fetchTransactions);
   const [logs, setLogs] = useState<AuditLog[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [loadedAt, setLoadedAt] = useState<number | null>(null);
   const [entityFilter, setEntityFilter] = useState<EntityType | "all">("all");
   const [actionFilter, setActionFilter] = useState<AuditAction | "all">("all");
   const [periodFilter, setPeriodFilter] = useState("30");
+  const [logToRevert, setLogToRevert] = useState<AuditLog | null>(null);
+  const [revertingLogId, setRevertingLogId] = useState<string | null>(null);
 
   const fetchAuditLogs = useCallback(async () => {
     setIsLoading(true);
@@ -241,6 +292,54 @@ export default function AtividadesPage() {
     return () => window.clearTimeout(timeoutId);
   }, [fetchAuditLogs]);
 
+  const handleRevert = useCallback(async () => {
+    if (!logToRevert || revertingLogId) return;
+
+    setRevertingLogId(logToRevert.id);
+
+    try {
+      const { error } = await supabase.rpc("finync_revert_audit_log", {
+        selected_audit_log_id: logToRevert.id,
+      });
+
+      if (error) throw error;
+
+      toast.success(
+        logToRevert.action === "DELETE"
+          ? "Registro restaurado."
+          : "Alteração desfeita.",
+      );
+      setLogToRevert(null);
+
+      await Promise.all([
+        fetchCards(),
+        fetchCategories(),
+        fetchDependents(),
+        fetchPreferences(),
+        fetchTransactions(),
+        fetchAuditLogs(),
+      ]);
+    } catch (error) {
+      void reportAppError(error, {
+        source: "SUPABASE",
+        context: { operation: "Desfazer alteração do histórico" },
+      });
+      toast.error(getReversionErrorMessage(error));
+      await fetchAuditLogs();
+    } finally {
+      setRevertingLogId(null);
+    }
+  }, [
+    fetchAuditLogs,
+    fetchCards,
+    fetchCategories,
+    fetchDependents,
+    fetchPreferences,
+    fetchTransactions,
+    logToRevert,
+    revertingLogId,
+  ]);
+
   const filteredLogs = useMemo(() => {
     const cutoff =
       periodFilter === "all" || loadedAt === null
@@ -266,6 +365,17 @@ export default function AtividadesPage() {
     }),
     [filteredLogs],
   );
+
+  const latestLogByEntity = useMemo(() => {
+    const latest = new Map<string, string>();
+
+    logs.forEach((log) => {
+      const key = `${log.entity_type}:${log.entity_id}`;
+      if (!latest.has(key)) latest.set(key, log.id);
+    });
+
+    return latest;
+  }, [logs]);
 
   return (
     <div className="flex w-full flex-col gap-6 md:gap-8" data-tour="activity-dashboard">
@@ -385,6 +495,10 @@ export default function AtividadesPage() {
               const visibleFields = log.changed_fields.filter(
                 (field) => !hiddenChangedFields.has(field),
               );
+              const entityKey = `${log.entity_type}:${log.entity_id}`;
+              const canRevert =
+                latestLogByEntity.get(entityKey) === log.id &&
+                canRevertAuditLog(log);
 
               return (
                 <article key={log.id} className="px-4 py-5 transition-colors hover:bg-zinc-900/40 sm:px-6">
@@ -410,9 +524,39 @@ export default function AtividadesPage() {
                             {entity.singular} {action.verb}
                           </p>
                         </div>
-                        <time className="shrink-0 text-xs text-zinc-500" dateTime={log.created_at}>
-                          {dateTimeFormatter.format(new Date(log.created_at))}
-                        </time>
+                        <div className="flex shrink-0 flex-wrap items-center gap-2 sm:justify-end">
+                          {log.reverted_at ? (
+                            <Badge
+                              variant="outline"
+                              className="border-zinc-700 bg-zinc-900 text-zinc-400"
+                            >
+                              Desfeito
+                            </Badge>
+                          ) : null}
+                          {log.reverts_log_id ? (
+                            <Badge
+                              variant="outline"
+                              className="border-emerald-500/20 bg-emerald-500/10 text-emerald-300"
+                            >
+                              Reversão
+                            </Badge>
+                          ) : null}
+                          <time className="text-xs text-zinc-500" dateTime={log.created_at}>
+                            {dateTimeFormatter.format(new Date(log.created_at))}
+                          </time>
+                          {canRevert ? (
+                            <Button
+                              type="button"
+                              variant="outline"
+                              className="h-9 border-zinc-700 bg-zinc-950 px-3 text-zinc-200 hover:border-zinc-600 hover:bg-zinc-900 hover:text-white"
+                              onClick={() => setLogToRevert(log)}
+                              disabled={revertingLogId !== null}
+                            >
+                              <Undo2 className="size-4" />
+                              Desfazer
+                            </Button>
+                          ) : null}
+                        </div>
                       </div>
 
                       {log.action === "UPDATE" && visibleFields.length ? (
@@ -452,6 +596,55 @@ export default function AtividadesPage() {
           </CardContent>
         )}
       </Card>
+
+      <AlertDialog
+        open={logToRevert !== null}
+        onOpenChange={(open) => {
+          if (!open && !revertingLogId) setLogToRevert(null);
+        }}
+      >
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>
+              {logToRevert?.action === "DELETE"
+                ? "Restaurar registro?"
+                : "Desfazer alteração?"}
+            </AlertDialogTitle>
+            <AlertDialogDescription>
+              {logToRevert?.action === "DELETE"
+                ? `${logToRevert ? getLogName(logToRevert) : "O registro"} será restaurado com os dados anteriores à exclusão.`
+                : `${logToRevert ? getLogName(logToRevert) : "O registro"} voltará ao estado anterior a esta edição.`}
+              {" "}A ação será registrada no histórico.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel asChild>
+              <Button
+                type="button"
+                variant="outline"
+                disabled={revertingLogId !== null}
+              >
+                Cancelar
+              </Button>
+            </AlertDialogCancel>
+            <AlertDialogAction asChild>
+              <Button
+                type="button"
+                className="bg-emerald-600 text-white hover:bg-emerald-500"
+                onClick={() => void handleRevert()}
+                disabled={revertingLogId !== null}
+              >
+                <Undo2 className={cn("size-4", revertingLogId && "animate-pulse")} />
+                {revertingLogId
+                  ? "Processando..."
+                  : logToRevert?.action === "DELETE"
+                    ? "Restaurar"
+                    : "Desfazer"}
+              </Button>
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }

@@ -260,9 +260,9 @@ export const guideSections: GuideSection[] = [
       "Abra Atividades para consultar os eventos mais recentes da sua conta.",
       "Filtre por área, tipo de ação ou período para encontrar uma mudança específica.",
       "Nas edições, abra os detalhes para comparar o valor anterior com o novo.",
-      "Use a data e a origem do evento para diferenciar ações manuais de atualizações automáticas.",
+      "Use Desfazer em alterações individuais que possam ser revertidas com segurança.",
     ],
-    tip: "O histórico começa a ser preenchido após a ativação da Fase 7 e não pode ser editado pelo aplicativo.",
+    tip: "Faturas automáticas, operações em grupo e exclusões com efeito em cascata ficam protegidas contra reversão parcial.",
   },
   {
     id: "backup",
