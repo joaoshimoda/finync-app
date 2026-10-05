@@ -39,7 +39,6 @@ import { MobileTransactionItem } from "@/components/finance/MobileTransactionIte
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Progress } from "@/components/ui/progress";
 import {
   Card,
   CardContent,
@@ -74,8 +73,6 @@ import {
   toDateOnly,
 } from "@/lib/dateUtils";
 import {
-  calculateAvailableCardLimit,
-  calculateCardDebt,
   getCardSignedAmount,
   isCardCreditAdjustment,
   shouldCountCardCharge,
@@ -291,43 +288,10 @@ interface CardSpendingSummary {
   invoice?: CardInvoice;
   cycleEndDate: string;
   cycleStartDate: string;
-  accentClassName: string;
-  availableLimit: number;
   current: number;
-  debtTotal: number;
-  limitAmount: number;
-  limitUsage: number;
+  dependentCurrent: number;
+  personalCurrent: number;
   projected: number;
-}
-
-function getCardAccentClassName(cardName: string) {
-  const normalizedName = cardName.toLowerCase();
-
-  if (normalizedName.includes("nubank")) return "border-l-purple-500";
-  if (normalizedName.includes("itaú") || normalizedName.includes("itau")) {
-    return "border-l-orange-500";
-  }
-  if (normalizedName.includes("c6") || normalizedName.includes("black")) {
-    return "border-l-zinc-500";
-  }
-  if (
-    normalizedName.includes("mercado pago") ||
-    normalizedName.includes("mercadopago")
-  ) {
-    return "border-l-cyan-400";
-  }
-  if (normalizedName.includes("inter")) return "border-l-orange-400";
-  if (normalizedName.includes("bradesco")) return "border-l-red-600";
-  if (normalizedName.includes("santander")) return "border-l-red-500";
-  if (
-    normalizedName.includes("banco do brasil") ||
-    normalizedName.includes("bb")
-  ) {
-    return "border-l-yellow-400";
-  }
-  if (normalizedName.includes("caixa")) return "border-l-blue-500";
-
-  return "border-l-slate-500";
 }
 
 function getCardGradientClassName(cardName: string, cardColor?: string) {
@@ -413,20 +377,23 @@ function FlippableWalletCard({
             </button>
           </div>
           <div className="relative mt-3 flex flex-1 flex-col justify-between">
-            <strong className="block text-2xl font-bold leading-none tracking-tight text-white">
-              {formatPrivateCurrency(cardSummary.current)}
-            </strong>
             <div>
-              <div className="flex items-center justify-between gap-3 text-[11px] text-zinc-400 sm:text-xs">
-                <span className="whitespace-nowrap">Limite disponível</span>
-                <span className="shrink-0 text-xs text-zinc-300">
-                  {formatPrivateCurrency(cardSummary.limitAmount)}
-                </span>
-              </div>
-              <Progress
-                value={cardSummary.limitUsage}
-                className="mt-1.5 h-1 bg-white/15 [&>div]:bg-emerald-300"
-              />
+              <p className="text-[10px] font-medium uppercase tracking-wider text-white/55">
+                Fatura atual
+              </p>
+              <strong className="mt-1 block text-2xl font-bold leading-none tracking-tight text-white">
+                {formatPrivateCurrency(cardSummary.current)}
+              </strong>
+            </div>
+            <div className="flex items-center justify-between gap-3 border-t border-white/10 pt-2 text-[10px] text-white/55 sm:text-[11px]">
+              <span>{cycleLabel}</span>
+              <span className="shrink-0">
+                {cardSummary.dueDate
+                  ? `Vence ${formatDateOnlyBR(cardSummary.dueDate)}`
+                  : cardSummary.dueDay
+                    ? `Vence dia ${cardSummary.dueDay}`
+                    : "Sem vencimento"}
+              </span>
             </div>
           </div>
         </div>
@@ -451,33 +418,31 @@ function FlippableWalletCard({
                 <RotateCcw className="size-3" /> Desvirar
               </span>
             </div>
-            <div className="mt-2 flex items-end justify-between gap-3">
-              <div>
-                <p className="text-[10px] uppercase tracking-wider text-zinc-500">
-                  Disponível
+            <div className="mt-2">
+              <p className="text-[10px] uppercase tracking-wider text-zinc-500">
+                Total lançado
+              </p>
+              <strong className="mt-0.5 block text-lg font-semibold leading-tight text-zinc-100">
+                {formatPrivateCurrency(cardSummary.current)}
+              </strong>
+            </div>
+            <div className="mt-2 grid grid-cols-2 gap-2">
+              <div className="rounded-lg border border-white/[0.07] bg-white/[0.035] px-2.5 py-2">
+                <p className="text-[9px] uppercase tracking-wider text-zinc-500">
+                  Minha parte
                 </p>
-                <strong className="block text-lg font-semibold leading-tight text-zinc-100">
-                  {formatPrivateCurrency(cardSummary.availableLimit)}
+                <strong className="mt-0.5 block truncate text-xs font-semibold text-zinc-100">
+                  {formatPrivateCurrency(cardSummary.personalCurrent)}
                 </strong>
               </div>
-              <div className="text-right">
-                <p className="text-[10px] uppercase tracking-wider text-zinc-500">
-                  Utilizado
+              <div className="rounded-lg border border-white/[0.07] bg-white/[0.035] px-2.5 py-2">
+                <p className="text-[9px] uppercase tracking-wider text-zinc-500">
+                  Dependentes
                 </p>
-                <span className="text-sm font-medium text-zinc-300">
-                  {formatPrivateCurrency(cardSummary.debtTotal)}
-                </span>
+                <strong className="mt-0.5 block truncate text-xs font-semibold text-zinc-100">
+                  {formatPrivateCurrency(cardSummary.dependentCurrent)}
+                </strong>
               </div>
-            </div>
-            <div className="mt-2 flex items-center justify-between gap-3 text-[10px] text-zinc-500">
-              <span>{cycleLabel}</span>
-              <span>
-                {cardSummary.dueDate
-                  ? `Vence ${formatDateOnlyBR(cardSummary.dueDate)}`
-                  : cardSummary.dueDay
-                    ? `Vence dia ${cardSummary.dueDay}`
-                    : "Sem vencimento"}
-              </span>
             </div>
           </div>
           <div className="relative grid gap-2">
@@ -845,16 +810,16 @@ export default function DashboardPage() {
   const cardSpendingSummaries = useMemo(
     () =>
       cards.map((card) => {
-        const limitAmount = card.limitAmount ?? 0;
-        const fallbackInvoiceTotals = invoiceCycleTransactions
-          .filter((transaction) => {
+        const cardInvoiceTransactions = invoiceCycleTransactions.filter(
+          (transaction) => {
             const dbCardId =
               (transaction as Transaction & { card_id?: string | null })
                 .card_id ?? transaction.cardId;
 
             return transaction.type === "card" && dbCardId === card.id;
-          })
-          .reduce(
+          },
+        );
+        const fallbackInvoiceTotals = cardInvoiceTransactions.reduce(
             (totals, transaction) => {
               const signedAmount = getCardSignedAmount(transaction);
 
@@ -868,27 +833,26 @@ export default function DashboardPage() {
             },
             { current: 0, projected: 0 },
           );
+        const currentBreakdown = cardInvoiceTransactions
+          .filter((transaction) =>
+            shouldCountCardCharge(transaction, todayDate),
+          )
+          .reduce(
+            (totals, transaction) => {
+              const signedAmount = getCardSignedAmount(transaction);
+
+              if (hasDependent(transaction)) {
+                totals.dependents += signedAmount;
+              } else {
+                totals.personal += signedAmount;
+              }
+
+              return totals;
+            },
+            { dependents: 0, personal: 0 },
+          );
         const persistedInvoice = selectedCardInvoices.find(
           (invoice) => invoice.cardId === card.id,
-        );
-        const loadedInvoiceIds = new Set(
-          transactions
-            .filter(
-              (transaction) =>
-                transaction.cardId === card.id && transaction.invoiceId,
-            )
-            .map((transaction) => transaction.invoiceId),
-        );
-        const confirmedPayments = cardInvoices
-          .filter(
-            (invoice) =>
-              invoice.cardId === card.id && loadedInvoiceIds.has(invoice.id),
-          )
-          .reduce((sum, invoice) => sum + invoice.paidAmount, 0);
-        const debtTotal = calculateCardDebt(
-          transactions,
-          card.id,
-          confirmedPayments,
         );
         const fallbackInvoiceCycle = getCardInvoiceCycle(
           toDateOnly(displayYear, displayMonth, 1),
@@ -908,34 +872,21 @@ export default function DashboardPage() {
             persistedInvoice?.cycleEnd ?? fallbackInvoiceCycle.endDate,
           cycleStartDate:
             persistedInvoice?.cycleStart ?? fallbackInvoiceCycle.startDate,
-          accentClassName: getCardAccentClassName(card.name),
-          availableLimit: calculateAvailableCardLimit(
-            transactions,
-            card.id,
-            limitAmount,
-            confirmedPayments,
-          ),
-          debtTotal,
-          limitAmount,
-          limitUsage:
-            limitAmount > 0
-              ? Math.min((debtTotal / limitAmount) * 100, 100)
-              : 0,
           current:
             persistedInvoice?.postedAmount ?? fallbackInvoiceTotals.current,
+          dependentCurrent: Math.max(currentBreakdown.dependents, 0),
+          personalCurrent: Math.max(currentBreakdown.personal, 0),
           projected:
             persistedInvoice?.totalAmount ?? fallbackInvoiceTotals.projected,
         };
       }),
     [
       cards,
-      cardInvoices,
       displayMonth,
       displayYear,
       invoiceCycleTransactions,
       selectedCardInvoices,
       todayDate,
-      transactions,
     ],
   );
 
@@ -1473,7 +1424,7 @@ export default function DashboardPage() {
                     Minha Carteira
                   </CardTitle>
                   <CardDescription className="mt-0.5 text-[10px]">
-                    Acompanhe seus cartões e limites.
+                    Faturas e divisão por responsável.
                   </CardDescription>
                 </div>
               </div>

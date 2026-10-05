@@ -2,12 +2,17 @@
 
 import { KeyboardEvent, useCallback, useEffect, useMemo, useState } from "react";
 import {
+  CalendarClock,
   CreditCard,
   Edit3,
+  Gauge,
+  ListFilter,
   PlusCircle,
   Receipt,
   RotateCcw,
+  Search,
   Trash2,
+  UsersRound,
   X,
 } from "lucide-react";
 import { toast } from "sonner";
@@ -17,6 +22,7 @@ import { PayInvoiceModal } from "@/components/modals/PayInvoiceModal";
 import { PRODUCT_TOUR_PREVIEW_EVENTS } from "@/components/onboarding/tourSteps";
 import { TransactionDescription } from "@/components/finance/TransactionDescription";
 import { MobileTransactionItem } from "@/components/finance/MobileTransactionItem";
+import { AnimatedMonthSelector } from "@/components/finance/AnimatedMonthSelector";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { ConfirmDialog } from "@/components/ui/ConfirmDialog";
@@ -33,8 +39,17 @@ import {
   CarouselItem,
   CarouselNext,
   CarouselPrevious,
+  type CarouselApi,
 } from "@/components/ui/carousel";
+import { Input } from "@/components/ui/input";
 import { Progress } from "@/components/ui/progress";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import {
   Table,
   TableBody,
@@ -75,6 +90,24 @@ interface InvoiceBreakdown {
     name: string;
     total: number;
   }>;
+}
+
+type TransactionViewFilter =
+  | "all"
+  | "purchase"
+  | "subscription"
+  | "installment"
+  | "last-installment"
+  | "scheduled"
+  | "dependent"
+  | "credit";
+
+function getInstallmentProgress(transaction: Transaction) {
+  const current =
+    transaction.installmentNumber ?? transaction.current_installment ?? 1;
+  const total = transaction.installmentsTotal ?? transaction.installments ?? 1;
+
+  return { current, total };
 }
 
 function getInvoiceBreakdown(
@@ -223,7 +256,7 @@ function FlippableManagedCard({
     : "Sem lançamentos";
 
   return (
-    <div className="h-[190px] w-full max-w-[340px] perspective-[1000px] sm:w-[304px]">
+    <div className="aspect-[1.586/1] h-auto min-h-[205px] w-full max-w-[360px] perspective-[1000px]">
       <div
         className={cn(
           "relative h-full w-full transition-all duration-500 [transform-style:preserve-3d]",
@@ -236,31 +269,19 @@ function FlippableManagedCard({
           onClick={() => onSelect(card.id)}
           onKeyDown={(event) => onKeyDown(event, card.id)}
           className={cn(
-            "absolute inset-0 cursor-pointer overflow-hidden rounded-2xl border-2 p-4 text-left text-white shadow-lg transition-all duration-300 ease-in-out [backface-visibility:hidden]",
+            "absolute inset-0 cursor-pointer overflow-hidden rounded-xl border p-4 text-left text-white shadow-lg shadow-black/20 transition-colors sm:p-5 [backface-visibility:hidden]",
             getCardGradient(card.name, card.color),
             isSelected
-              ? "border-white/80 opacity-100 shadow-2xl lg:scale-105"
-              : "border-transparent opacity-60 hover:opacity-80 lg:scale-95 lg:hover:scale-100",
+              ? "border-emerald-300/55 ring-2 ring-emerald-400/15"
+              : "border-white/10 hover:border-white/25",
           )}
         >
-          <div className="pointer-events-none absolute -right-10 -top-10 size-28 rounded-full bg-white/10" />
-          <div className="pointer-events-none absolute -bottom-12 left-8 size-28 rounded-full bg-black/20" />
-
-          <div className="relative flex items-start justify-between gap-4">
+          <div className="flex items-start justify-between gap-4">
             <div>
-              <div className="mb-3 h-6 w-9 rounded-md border border-white/25 bg-gradient-to-br from-white/45 to-white/10 shadow-inner" />
-              <h2 className="max-w-36 truncate text-sm font-semibold text-white">
+              <div className="mb-4 h-7 w-10 rounded-md border border-white/25 bg-white/20 shadow-inner" />
+              <h2 className="max-w-48 truncate text-base font-semibold text-white">
                 {card.name}
               </h2>
-              <p className="mt-1 text-xs text-white/65">
-                Ciclo: {cycleLabel}
-                {" • "}
-                {invoice?.dueDate
-                  ? `Vence ${formatDateOnlyBR(invoice.dueDate)}`
-                  : card.dueDay
-                    ? `Vence dia ${card.dueDay}`
-                    : "Sem vencimento"}
-              </p>
             </div>
 
             <button
@@ -269,20 +290,29 @@ function FlippableManagedCard({
                 event.stopPropagation();
                 setIsFlipped(true);
               }}
-              className="inline-flex size-8 items-center justify-center rounded-full bg-white/10 text-white transition hover:bg-white/20"
+              className="inline-flex size-9 items-center justify-center rounded-lg border border-white/15 bg-black/10 text-white/70 transition hover:bg-white/15 hover:text-white"
               aria-label={`Virar cartão ${card.name}`}
             >
               <RotateCcw className="size-4" />
             </button>
           </div>
 
-          <div className="relative mt-6 flex items-end justify-between gap-3">
-            <CreditCard className="size-5 text-white/70" />
-            <div className="text-right">
-              <p className="text-xs font-medium uppercase text-white/60">
-                Limite disponível
+          <div className="mt-7 flex items-end justify-between gap-3">
+            <div className="space-y-1 text-[11px] text-white/60">
+              <p>{cycleLabel}</p>
+              <p>
+                {invoice?.dueDate
+                  ? `Vence ${formatDateOnlyBR(invoice.dueDate)}`
+                  : card.dueDay
+                    ? `Vence dia ${card.dueDay}`
+                    : "Sem vencimento"}
               </p>
-              <strong className="mt-1 block text-lg font-bold tracking-normal">
+            </div>
+            <div className="text-right">
+              <p className="text-[10px] font-medium uppercase tracking-wide text-white/55">
+                Disponível
+              </p>
+              <strong className="mt-1 block text-xl font-semibold tracking-normal">
                 {formatPrivateCurrency(availableLimit)}
               </strong>
               {card.limitAmount ? (
@@ -296,17 +326,16 @@ function FlippableManagedCard({
 
         <div
           className={cn(
-            "absolute inset-0 flex flex-col justify-between overflow-hidden rounded-2xl border-2 border-white/80 p-4 text-white shadow-2xl [backface-visibility:hidden] [transform:rotateY(180deg)]",
+            "absolute inset-0 flex flex-col justify-between overflow-hidden rounded-xl border border-emerald-300/55 p-4 text-white shadow-lg shadow-black/20 sm:p-5 [backface-visibility:hidden] [transform:rotateY(180deg)]",
             getCardGradient(card.name, card.color),
           )}
         >
-          <div className="pointer-events-none absolute -left-10 -top-10 size-28 rounded-full bg-white/10" />
-          <div className="relative flex items-start justify-between gap-3">
+          <div className="flex items-start justify-between gap-3">
             <div>
-              <p className="text-xs font-medium uppercase text-white/60">
+              <p className="text-[10px] font-medium uppercase tracking-wide text-white/60">
                 Fatura atual · {invoiceStatusLabel}
               </p>
-              <strong className="mt-1 block text-xl font-bold text-white">
+              <strong className="mt-1 block text-2xl font-semibold text-white">
                 {formatPrivateCurrency(invoiceTotal)}
               </strong>
             </div>
@@ -314,7 +343,7 @@ function FlippableManagedCard({
               type="button"
               size="icon-sm"
               variant="outline"
-              className="size-8 border-white/25 bg-white/10 text-white hover:bg-white/20 hover:text-white"
+              className="size-9 border-white/20 bg-black/10 text-white hover:bg-white/15 hover:text-white"
               onClick={() => setIsFlipped(false)}
               aria-label="Voltar para frente do cartão"
             >
@@ -322,9 +351,9 @@ function FlippableManagedCard({
             </Button>
           </div>
 
-          <div className="relative max-h-[58px] space-y-1 overflow-y-auto pr-1 text-[11px] [scrollbar-color:rgba(255,255,255,0.25)_transparent] [scrollbar-width:thin]">
-            <div className="flex items-center justify-between gap-3 rounded-md bg-black/15 px-2 py-1">
-              <span className="text-white/65">Meus Gastos</span>
+          <div className="max-h-[70px] space-y-1 overflow-y-auto pr-1 text-xs [scrollbar-color:rgba(255,255,255,0.25)_transparent] [scrollbar-width:thin]">
+            <div className="flex items-center justify-between gap-3 rounded-md border border-white/10 bg-black/10 px-2.5 py-1.5">
+              <span className="text-white/65">Minha parte</span>
               <strong className="font-semibold text-white">
                 {formatPrivateCurrency(invoiceBreakdown.personal)}
               </strong>
@@ -332,7 +361,7 @@ function FlippableManagedCard({
             {invoiceBreakdown.dependents.map((dependent) => (
               <div
                 key={dependent.id}
-                className="flex items-center justify-between gap-3 rounded-md bg-black/15 px-2 py-1"
+                className="flex items-center justify-between gap-3 rounded-md border border-white/10 bg-black/10 px-2.5 py-1.5"
               >
                 <span className="truncate text-white/65">{dependent.name}</span>
                 <strong className="shrink-0 font-semibold text-white">
@@ -342,11 +371,11 @@ function FlippableManagedCard({
             ))}
           </div>
 
-          <div className="relative flex gap-2">
+          <div className="flex gap-2">
             <Button
               type="button"
               size="sm"
-              className="h-8 flex-1 bg-white text-zinc-950 hover:bg-white/90"
+              className="h-9 flex-1 bg-white text-zinc-950 hover:bg-zinc-100"
               disabled={
                 !invoice ||
                 invoice.status === "paid" ||
@@ -360,7 +389,7 @@ function FlippableManagedCard({
               type="button"
               size="icon-sm"
               variant="outline"
-              className="size-8 border-white/25 bg-white/10 text-white hover:bg-white/20 hover:text-white"
+              className="size-9 border-white/20 bg-black/10 text-white hover:bg-white/15 hover:text-white"
               onClick={() => onEdit(card)}
               aria-label={`Editar ${card.name}`}
             >
@@ -370,7 +399,7 @@ function FlippableManagedCard({
               type="button"
               size="icon-sm"
               variant="outline"
-              className="size-8 border-white/25 bg-white/10 text-white hover:bg-red-500/30 hover:text-white"
+              className="size-9 border-white/20 bg-black/10 text-white hover:bg-rose-500/25 hover:text-white"
               onClick={() => onDelete(card)}
               aria-label={`Excluir ${card.name}`}
             >
@@ -395,6 +424,11 @@ export default function CardsPage() {
     invoice: CardInvoice;
     cardName: string;
   } | null>(null);
+  const [carouselApi, setCarouselApi] = useState<CarouselApi>();
+  const [transactionSearch, setTransactionSearch] = useState("");
+  const [categoryFilter, setCategoryFilter] = useState("all");
+  const [transactionViewFilter, setTransactionViewFilter] =
+    useState<TransactionViewFilter>("all");
 
   const cards = useFinanceStore((state) => state.cards);
   const cardInvoices = useFinanceStore((state) => state.cardInvoices);
@@ -405,6 +439,9 @@ export default function CardsPage() {
   const deleteCard = useFinanceStore((state) => state.deleteCard);
   const currentMonth = useFinanceStore((state) => state.currentMonth);
   const currentYear = useFinanceStore((state) => state.currentYear);
+  const isFetching = useFinanceStore((state) => state.isFetching);
+  const nextMonth = useFinanceStore((state) => state.nextMonth);
+  const prevMonth = useFinanceStore((state) => state.prevMonth);
   const hideBalancesByDefault = useFinanceStore(
     (state) => state.hideBalancesByDefault,
   );
@@ -458,6 +495,74 @@ export default function CardsPage() {
         : [],
     [monthlyTransactions, selectedCard],
   );
+
+  const transactionCategoryOptions = useMemo(
+    () =>
+      Array.from(
+        new Set(
+          selectedCardTransactions.map(
+            (transaction) => transaction.category?.trim() || "Sem categoria",
+          ),
+        ),
+      ).sort((left, right) => left.localeCompare(right, "pt-BR")),
+    [selectedCardTransactions],
+  );
+
+  const filteredSelectedCardTransactions = useMemo(() => {
+    const normalizedSearch = transactionSearch.trim().toLocaleLowerCase("pt-BR");
+    const today = getLocalTodayDateOnly();
+
+    return selectedCardTransactions.filter((transaction) => {
+      const dependentName = transaction.dependentId
+        ? dependents.find((dependent) => dependent.id === transaction.dependentId)
+            ?.name
+        : "";
+      const category = transaction.category?.trim() || "Sem categoria";
+      const { current, total } = getInstallmentProgress(transaction);
+      const matchesSearch =
+        !normalizedSearch ||
+        [transaction.description, category, dependentName]
+          .filter(Boolean)
+          .some((value) =>
+            value?.toLocaleLowerCase("pt-BR").includes(normalizedSearch),
+          );
+      const matchesCategory =
+        categoryFilter === "all" || category === categoryFilter;
+
+      let matchesView = true;
+      if (transactionViewFilter === "purchase") {
+        matchesView =
+          !transaction.is_recurring &&
+          total <= 1 &&
+          !isCardCreditAdjustment(transaction);
+      } else if (transactionViewFilter === "subscription") {
+        matchesView = transaction.is_recurring === true;
+      } else if (transactionViewFilter === "installment") {
+        matchesView = total > 1;
+      } else if (transactionViewFilter === "last-installment") {
+        matchesView = total > 1 && current === total;
+      } else if (transactionViewFilter === "scheduled") {
+        matchesView = !shouldCountCardCharge(transaction, today);
+      } else if (transactionViewFilter === "dependent") {
+        matchesView = Boolean(transaction.dependentId);
+      } else if (transactionViewFilter === "credit") {
+        matchesView = Boolean(isCardCreditAdjustment(transaction));
+      }
+
+      return matchesSearch && matchesCategory && matchesView;
+    });
+  }, [
+    categoryFilter,
+    dependents,
+    selectedCardTransactions,
+    transactionSearch,
+    transactionViewFilter,
+  ]);
+
+  const hasActiveTransactionFilters =
+    transactionSearch.trim().length > 0 ||
+    categoryFilter !== "all" ||
+    transactionViewFilter !== "all";
 
   const selectedChargeableCardTransactions = useMemo(() => {
     const today = getLocalTodayDateOnly();
@@ -643,6 +748,52 @@ export default function CardsPage() {
     transactions,
   ]);
 
+  const resetTransactionFilters = useCallback(() => {
+    setTransactionSearch("");
+    setCategoryFilter("all");
+    setTransactionViewFilter("all");
+  }, []);
+
+  useEffect(() => {
+    if (!carouselApi) return;
+
+    const syncSelectedCard = () => {
+      const card = cards[carouselApi.selectedScrollSnap()];
+      if (card) {
+        setSelectedCardId(card.id);
+        resetTransactionFilters();
+      }
+    };
+
+    carouselApi.on("select", syncSelectedCard);
+    carouselApi.on("reInit", syncSelectedCard);
+
+    return () => {
+      carouselApi.off("select", syncSelectedCard);
+      carouselApi.off("reInit", syncSelectedCard);
+    };
+  }, [cards, carouselApi, resetTransactionFilters]);
+
+  const handleSelectCard = useCallback(
+    (cardId: string) => {
+      setSelectedCardId(cardId);
+      resetTransactionFilters();
+      const cardIndex = cards.findIndex((card) => card.id === cardId);
+      if (cardIndex >= 0) carouselApi?.scrollTo(cardIndex);
+    },
+    [cards, carouselApi, resetTransactionFilters],
+  );
+
+  const handlePreviousMonth = useCallback(() => {
+    resetTransactionFilters();
+    prevMonth();
+  }, [prevMonth, resetTransactionFilters]);
+
+  const handleNextMonth = useCallback(() => {
+    resetTransactionFilters();
+    nextMonth();
+  }, [nextMonth, resetTransactionFilters]);
+
   const openCreateModal = useCallback(() => {
     setEditingCard(null);
     setIsAddCardModalOpen(true);
@@ -718,329 +869,353 @@ export default function CardsPage() {
 
   return (
     <div className="flex w-full flex-col gap-6 md:gap-8">
-      <div className="flex items-start justify-between gap-4">
-        <div>
-          <h1 className="text-2xl font-bold tracking-tight md:text-3xl">
-            Meus Cartões
+      <header className="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
+        <div className="max-w-2xl">
+          <p className="text-xs font-medium uppercase tracking-wide text-emerald-400">
+            Crédito
+          </p>
+          <h1 className="mt-2 text-2xl font-bold tracking-tight text-zinc-50 md:text-3xl">
+            Cartões e faturas
           </h1>
-          <p className="mt-2 text-sm text-muted-foreground">
-            Gerencie cartões, limites, fechamento e vencimento.
+          <p className="mt-2 text-sm text-zinc-400">
+            Limites, ciclos e cobranças em uma única leitura.
           </p>
         </div>
 
-        <div className="flex items-center gap-3">
+        <div className="flex flex-col gap-2 min-[460px]:flex-row min-[460px]:items-center">
+          <AnimatedMonthSelector
+            currentMonth={currentMonth}
+            currentYear={currentYear}
+            onPreviousMonth={handlePreviousMonth}
+            onNextMonth={handleNextMonth}
+            isLoading={isFetching}
+          />
           <Button
             type="button"
             aria-label="Adicionar cartão"
             data-tour="cards-add"
             onClick={openCreateModal}
-            className="h-11 gap-2 bg-emerald-600 px-3.5 text-sm font-semibold text-white hover:bg-emerald-700 md:h-12 md:px-6 md:text-base"
+            className="h-11 gap-2 bg-emerald-600 px-4 font-semibold text-white hover:bg-emerald-700"
           >
-            <PlusCircle className="size-5" />
-            <span className="hidden min-[410px]:inline">Adicionar Cartão</span>
+            <PlusCircle className="size-4" />
+            <span className="hidden min-[410px]:inline">Novo cartão</span>
           </Button>
         </div>
-      </div>
+      </header>
 
-      <section className="min-w-0 space-y-4 overflow-visible px-2 py-2 sm:px-4">
-        <Carousel opts={{ align: "start", dragFree: true }} className="min-w-0 w-full">
-          <CarouselContent className="!ml-0 px-3 py-5 sm:px-4">
-            {cards.map((card) => {
-              const limitAmount = card.limitAmount ?? 0;
-              const cardSummary = cardInvoiceSummaries.get(card.id) ?? {
-                debtTotal: 0,
-                invoiceBreakdown: { personal: 0, dependents: [] },
-                invoice: undefined,
-                invoiceTotal: 0,
-                limitUsage: 0,
-              };
-              const isSelected = selectedCard?.id === card.id;
-
-              return (
-                <CarouselItem
-                  key={card.id}
-                  className="basis-full !pl-0 pr-4 sm:basis-auto"
-                >
-                  <FlippableManagedCard
-                    card={card}
-                    availableLimit={Math.max(limitAmount - cardSummary.debtTotal, 0)}
-                    invoiceTotal={cardSummary.invoiceTotal}
-                    invoiceBreakdown={cardSummary.invoiceBreakdown}
-                    limitUsage={cardSummary.limitUsage}
-                    isSelected={isSelected}
-                    onSelect={setSelectedCardId}
-                    onKeyDown={handleCardKeyDown}
-                    onEdit={openEditModal}
-                    onDelete={setDeleteTargetCard}
-                    onPayInvoice={handlePayInvoiceClick}
-                    invoiceMonthStart={toDateOnly(currentYear, currentMonth, 1)}
-                    invoice={cardSummary.invoice}
-                  />
-                </CarouselItem>
-              );
-            })}
-          </CarouselContent>
-          <CarouselPrevious className="absolute !left-2 z-50 hidden bg-background/90 lg:inline-flex" />
-          <CarouselNext className="absolute !right-2 z-50 hidden bg-background/90 lg:inline-flex" />
-        </Carousel>
-
-        {!cards.length ? (
-          <Card className="rounded-lg border-dashed border-border bg-card shadow-none">
-            <CardContent className="flex min-h-52 items-center justify-center text-center text-muted-foreground">
-              Nenhum cartão cadastrado ainda.
-            </CardContent>
-          </Card>
-        ) : null}
-      </section>
-
-      <section className="grid gap-4 lg:grid-cols-[360px_minmax(0,1fr)]">
-        <Card className="rounded-lg border border-border/50 bg-card shadow-none lg:sticky lg:top-24 lg:self-start">
-          <CardHeader className="border-b">
-            <CardDescription>Detalhe do cartão</CardDescription>
-            <div className="mt-1 flex items-center gap-2">
-              <CardTitle className="text-xl tracking-normal">
-                {selectedCard?.name ?? "Nenhum cartão selecionado"}
-              </CardTitle>
-              {selectedInvoice ? (
-                <Badge variant="outline" className="text-[10px] text-zinc-400">
-                  {{
-                    open: "Aberta",
-                    closed: "Fechada",
-                    partially_paid: "Parcialmente paga",
-                    paid: "Paga",
-                  }[selectedInvoice.status]}
-                </Badge>
-              ) : null}
-            </div>
-            <p className="mt-2 text-xs text-muted-foreground">
-              Ciclo: {formatDateOnlyBR(selectedInvoiceCycle.startDate)} -{" "}
-              {formatDateOnlyBR(selectedInvoiceCycle.endDate)}
-              {selectedInvoice?.dueDate
-                ? ` • Vence ${formatDateOnlyBR(selectedInvoice.dueDate)}`
-                : selectedCard?.dueDay
-                  ? ` • Vence dia ${selectedCard.dueDay}`
-                  : ""}
-            </p>
-          </CardHeader>
-
-          <CardContent className="space-y-5 pt-5">
-            <div>
-              <p className="text-xs font-medium uppercase tracking-wide text-zinc-500">
-                Fatura atual
-              </p>
-              <p className="mt-2 text-3xl font-bold tracking-tight text-foreground">
-                {formatPrivateCurrency(selectedInvoiceTotal)}
-              </p>
-              <p className="mt-1 text-xs text-muted-foreground">
-                Projetado: {formatPrivateCurrency(selectedProjectedInvoiceTotal)}
-              </p>
+      {cards.length ? (
+        <section className="grid min-w-0 overflow-hidden rounded-xl border border-zinc-800/80 bg-zinc-900/45 lg:grid-cols-[minmax(0,420px)_minmax(0,1fr)]">
+          <div className="min-w-0 border-b border-zinc-800/80 p-4 sm:p-5 lg:border-b-0 lg:border-r">
+            <div className="flex items-center justify-between gap-3">
+              <div>
+                <p className="text-sm font-medium text-zinc-200">Sua carteira</p>
+                <p className="mt-0.5 text-xs text-zinc-500">
+                  {cards.length} {cards.length === 1 ? "cartão" : "cartões"}
+                </p>
+              </div>
             </div>
 
-            <div className="space-y-2">
-              <div className="flex items-center justify-between text-xs text-muted-foreground">
-                <span>Limite consumido</span>
+            <Carousel
+              opts={{ align: "start", dragFree: true }}
+              setApi={setCarouselApi}
+              className="mt-4 min-w-0 w-full"
+            >
+              <CarouselContent className="-ml-2 py-1">
+                {cards.map((card) => {
+                  const limitAmount = card.limitAmount ?? 0;
+                  const cardSummary = cardInvoiceSummaries.get(card.id) ?? {
+                    debtTotal: 0,
+                    invoiceBreakdown: { personal: 0, dependents: [] },
+                    invoice: undefined,
+                    invoiceTotal: 0,
+                    limitUsage: 0,
+                  };
+
+                  return (
+                    <CarouselItem key={card.id} className="basis-full pl-2">
+                      <div className="flex justify-center">
+                        <FlippableManagedCard
+                          card={card}
+                          availableLimit={Math.max(
+                            limitAmount - cardSummary.debtTotal,
+                            0,
+                          )}
+                          invoiceTotal={cardSummary.invoiceTotal}
+                          invoiceBreakdown={cardSummary.invoiceBreakdown}
+                          limitUsage={cardSummary.limitUsage}
+                          isSelected={selectedCard?.id === card.id}
+                          onSelect={handleSelectCard}
+                          onKeyDown={handleCardKeyDown}
+                          onEdit={openEditModal}
+                          onDelete={setDeleteTargetCard}
+                          onPayInvoice={handlePayInvoiceClick}
+                          invoiceMonthStart={selectedInvoiceMonthStart}
+                          invoice={cardSummary.invoice}
+                        />
+                      </div>
+                    </CarouselItem>
+                  );
+                })}
+              </CarouselContent>
+              <CarouselPrevious
+                variant="secondary"
+                className="-top-10 left-auto right-12 hidden size-10 translate-y-0 border border-emerald-300/40 bg-emerald-600 text-white shadow-md shadow-black/30 hover:bg-emerald-500 hover:text-white disabled:border-zinc-700 disabled:bg-zinc-800 disabled:text-zinc-500 [&_svg]:size-5 sm:inline-flex"
+              />
+              <CarouselNext
+                variant="secondary"
+                className="-top-10 right-0 hidden size-10 translate-y-0 border border-emerald-300/40 bg-emerald-600 text-white shadow-md shadow-black/30 hover:bg-emerald-500 hover:text-white disabled:border-zinc-700 disabled:bg-zinc-800 disabled:text-zinc-500 [&_svg]:size-5 sm:inline-flex"
+              />
+            </Carousel>
+          </div>
+
+          <div className="min-w-0 p-4 sm:p-6">
+            <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+              <div className="min-w-0">
+                <div className="flex flex-wrap items-center gap-2">
+                  <h2 className="truncate text-lg font-semibold text-zinc-100">
+                    {selectedCard?.name}
+                  </h2>
+                  {selectedInvoice ? (
+                    <Badge variant="outline" className="border-zinc-700 text-zinc-400">
+                      {{
+                        open: "Aberta",
+                        closed: "Fechada",
+                        partially_paid: "Parcialmente paga",
+                        paid: "Paga",
+                      }[selectedInvoice.status]}
+                    </Badge>
+                  ) : null}
+                </div>
+                <p className="mt-1 text-xs text-zinc-500">
+                  {formatDateOnlyBR(selectedInvoiceCycle.startDate)} -{" "}
+                  {formatDateOnlyBR(selectedInvoiceCycle.endDate)}
+                  {selectedInvoice?.dueDate
+                    ? ` · vence ${formatDateOnlyBR(selectedInvoice.dueDate)}`
+                    : selectedCard?.dueDay
+                      ? ` · vence dia ${selectedCard.dueDay}`
+                      : ""}
+                </p>
+              </div>
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                className="shrink-0 border-zinc-700"
+                disabled={!selectedCard}
+                onClick={() => selectedCard && openEditModal(selectedCard)}
+              >
+                <Edit3 className="size-4" />
+                Editar
+              </Button>
+            </div>
+
+            <div className="mt-6 flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
+              <div>
+                <p className="text-[10px] font-medium uppercase tracking-wide text-zinc-500">
+                  Fatura lançada
+                </p>
+                <p className="mt-1 text-3xl font-semibold tracking-tight text-zinc-50">
+                  {formatPrivateCurrency(selectedInvoiceTotal)}
+                </p>
+                <p className="mt-1 text-xs text-zinc-500">
+                  Projeção de fechamento: {formatPrivateCurrency(selectedProjectedInvoiceTotal)}
+                </p>
+              </div>
+              <Button
+                type="button"
+                className="h-10 bg-emerald-600 px-5 font-semibold text-white hover:bg-emerald-700"
+                disabled={
+                  !selectedCard ||
+                  !selectedInvoice ||
+                  selectedInvoice.status === "paid" ||
+                  selectedInvoice.totalAmount <= selectedInvoice.paidAmount
+                }
+                onClick={() => {
+                  if (selectedInvoice && selectedCard) {
+                    handlePayInvoiceClick(selectedInvoice, selectedCard.name);
+                  }
+                }}
+              >
+                {selectedInvoice?.status === "paid" ? "Fatura paga" : "Pagar fatura"}
+              </Button>
+            </div>
+
+            <div className="mt-6 grid grid-cols-1 divide-y divide-zinc-800 border-y border-zinc-800 sm:grid-cols-3 sm:divide-x sm:divide-y-0">
+              {[
+                {
+                  icon: CalendarClock,
+                  label: "Em aberto",
+                  value: selectedInvoiceSummary.open,
+                  tone: "text-amber-300",
+                },
+                {
+                  icon: Gauge,
+                  label: "Minha parte",
+                  value: selectedInvoiceSummary.personalTotal,
+                  tone: "text-zinc-100",
+                },
+                {
+                  icon: UsersRound,
+                  label: "Dependentes",
+                  value: selectedInvoiceSummary.dependentsTotal,
+                  tone: "text-zinc-100",
+                },
+              ].map((item) => {
+                const Icon = item.icon;
+
+                return (
+                  <div key={item.label} className="flex items-center gap-3 py-3 sm:px-4 sm:first:pl-0">
+                    <Icon className="size-4 shrink-0 text-zinc-600" />
+                    <div className="min-w-0">
+                      <p className="text-[10px] uppercase tracking-wide text-zinc-500">
+                        {item.label}
+                      </p>
+                      <strong className={cn("mt-0.5 block truncate text-sm font-semibold", item.tone)}>
+                        {formatPrivateCurrency(item.value)}
+                      </strong>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+
+            <div className="mt-5">
+              <div className="flex flex-wrap items-center justify-between gap-2 text-xs text-zinc-500">
+                <span>Uso do limite</span>
                 <span>
                   {selectedLimit > 0
-                    ? `${selectedUsage.toFixed(0)}%`
-                    : "Sem limite definido"}
+                    ? `${formatPrivateCurrency(selectedDebtTotal)} de ${formatPrivateCurrency(selectedLimit)} · ${selectedUsage.toFixed(0)}%`
+                    : "Limite não informado"}
                 </span>
               </div>
-              <Progress value={selectedUsage} className="h-2" />
-              <p className="text-xs text-zinc-500">
-                {selectedLimit > 0
-                  ? `${formatPrivateCurrency(selectedDebtTotal)} de ${formatPrivateCurrency(selectedLimit)}`
-                  : "Defina um limite para acompanhar uso e disponibilidade."}
-              </p>
+              <Progress value={selectedUsage} className="mt-2 h-1.5" />
+              <div className="mt-3 flex gap-2 overflow-x-auto pb-1 [&::-webkit-scrollbar]:hidden [-ms-overflow-style:none] [scrollbar-width:none]">
+                {[
+                  ["Assinaturas", selectedInvoiceSummary.subscriptionsTotal],
+                  ["Parcelas", selectedInvoiceSummary.installmentsTotal],
+                  ["Agendado", selectedInvoiceSummary.scheduled],
+                  ["Pago", selectedInvoiceSummary.paid],
+                ].map(([label, value]) => (
+                  <span
+                    key={label}
+                    className="shrink-0 rounded-lg border border-zinc-800 bg-zinc-950/40 px-2.5 py-1.5 text-xs text-zinc-500"
+                  >
+                    {label} ·{" "}
+                    <strong className="font-medium text-zinc-300">
+                      {formatPrivateCurrency(Number(value))}
+                    </strong>
+                  </span>
+                ))}
+              </div>
             </div>
+          </div>
+        </section>
+      ) : (
+        <section className="flex min-h-72 flex-col items-center justify-center rounded-xl border border-dashed border-zinc-800 bg-zinc-900/30 px-6 text-center">
+          <span className="flex size-11 items-center justify-center rounded-lg bg-zinc-900 text-zinc-500">
+            <CreditCard className="size-5" />
+          </span>
+          <h2 className="mt-4 text-base font-semibold text-zinc-200">
+            Nenhum cartão cadastrado
+          </h2>
+          <p className="mt-1 max-w-sm text-sm text-zinc-500">
+            Adicione seu primeiro cartão para acompanhar ciclos, limites e faturas.
+          </p>
+          <Button
+            type="button"
+            onClick={openCreateModal}
+            className="mt-5 bg-emerald-600 text-white hover:bg-emerald-700"
+          >
+            <PlusCircle className="size-4" />
+            Novo cartão
+          </Button>
+        </section>
+      )}
 
-            <div className="grid gap-2">
-              {[
-                ["Em aberto", selectedInvoiceSummary.open, "text-amber-300"],
-                ["Meu gasto", selectedInvoiceSummary.personalTotal, "text-zinc-100"],
-                ["Dependentes", selectedInvoiceSummary.dependentsTotal, "text-zinc-100"],
-                ["Agendado", selectedInvoiceSummary.scheduled, "text-zinc-100"],
-              ].map(([label, value, tone]) => (
-                <div
-                  key={label}
-                  className="flex items-center justify-between gap-3 rounded-xl border border-zinc-800 bg-zinc-950/50 px-3 py-2.5"
-                >
-                  <span className="text-sm text-zinc-500">{label}</span>
-                  <strong className={cn("text-sm font-semibold", tone)}>
-                    {formatPrivateCurrency(Number(value))}
-                  </strong>
-                </div>
-              ))}
-            </div>
-
-            <div className="grid grid-cols-2 gap-2">
-              {[
-                ["Assinaturas", selectedInvoiceSummary.subscriptionsTotal],
-                ["Parcelas", selectedInvoiceSummary.installmentsTotal],
-                ["Pago", selectedInvoiceSummary.paid],
-                ["Projetado", selectedInvoiceSummary.total],
-              ].map(([label, value]) => (
-                <div
-                  key={label}
-                  className="rounded-xl border border-zinc-800/80 bg-zinc-950/30 p-3"
-                >
-                  <p className="text-[11px] text-zinc-500">{label}</p>
-                  <strong className="mt-1 block text-sm font-semibold text-zinc-200">
-                    {formatPrivateCurrency(Number(value))}
-                  </strong>
-                </div>
-              ))}
-            </div>
-
-            <Button
-              type="button"
-              className="h-11 w-full bg-emerald-600 font-semibold text-white hover:bg-emerald-700"
-              disabled={
-                !selectedCard ||
-                !selectedInvoice ||
-                selectedInvoice.status === "paid" ||
-                selectedInvoice.totalAmount <= selectedInvoice.paidAmount
-              }
-              onClick={() => {
-                if (selectedInvoice && selectedCard) {
-                  handlePayInvoiceClick(selectedInvoice, selectedCard.name);
-                }
-              }}
-            >
-              {selectedInvoice?.status === "paid"
-                ? "Fatura paga"
-                : "Pagar fatura"}
-            </Button>
-          </CardContent>
-        </Card>
-
-        <Card className="min-w-0 rounded-lg border border-border/50 bg-card shadow-none">
-          <CardHeader className="border-b">
-            <CardDescription>Movimentações do cartão</CardDescription>
-            <CardTitle className="mt-1 text-xl tracking-normal">
-              Compras da fatura
+      <Card className="min-w-0 rounded-xl border border-zinc-800/80 bg-zinc-900/45 py-0 shadow-none">
+        <CardHeader className="flex flex-row items-center justify-between gap-4 border-b border-zinc-800/80 px-4 py-4 sm:px-5">
+          <div className="min-w-0">
+            <CardDescription>Movimentações da fatura</CardDescription>
+            <CardTitle className="mt-1 truncate text-base tracking-normal sm:text-lg">
+              {selectedCard?.name ?? "Compras do cartão"}
             </CardTitle>
-          </CardHeader>
-
-        <CardHeader className="hidden">
-          <div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
-            <div>
-              <CardDescription>Visão da fatura</CardDescription>
-              <CardTitle className="mt-1 text-xl tracking-normal lg:text-2xl">
-                {selectedCard?.name ?? "Nenhum cartão selecionado"}
-              </CardTitle>
-              <p className="mt-2 text-xs text-muted-foreground">
-                Ciclo: {formatDateOnlyBR(selectedInvoiceCycle.startDate)} -{" "}
-                {formatDateOnlyBR(selectedInvoiceCycle.endDate)}
-                {selectedCard?.dueDay ? ` • Vence dia ${selectedCard.dueDay}` : ""}
-              </p>
-            </div>
-            <div className="text-left lg:text-right">
-              <p className="text-sm text-muted-foreground">Fatura atual</p>
-              <p className="mt-1 text-2xl font-bold text-foreground lg:text-3xl">
-                {formatPrivateCurrency(selectedInvoiceTotal)}
-              </p>
-              <p className="mt-1 text-xs text-muted-foreground">
-                Projetado: {formatPrivateCurrency(selectedProjectedInvoiceTotal)}
-              </p>
-            </div>
           </div>
-
-          <div className="mt-5 space-y-2">
-            <div className="flex items-center justify-between text-xs text-muted-foreground">
-              <span>Limite consumido</span>
-              <span>
-                {selectedLimit > 0
-                  ? `${selectedUsage.toFixed(0)}% de ${formatPrivateCurrency(selectedLimit)}`
-                  : "Sem limite definido"}
-              </span>
-            </div>
-            <Progress value={selectedUsage} className="h-2" />
-          </div>
-
-          <div className="mt-5 grid grid-cols-1 gap-3 md:grid-cols-3">
-            {[
-              {
-                label: "Fatura atual",
-                help: "Já lançado no cartão",
-                value: selectedInvoiceSummary.posted,
-                tone: "text-zinc-50",
-              },
-              {
-                label: "Projeção",
-                help: "Fatura completa do ciclo",
-                value: selectedInvoiceSummary.total,
-                tone: "text-zinc-50",
-              },
-              {
-                label: "Em aberto",
-                help: "Ainda não liquidado",
-                value: selectedInvoiceSummary.open,
-                tone: "text-amber-300",
-              },
-            ].map((item) => (
-              <div
-                key={item.label}
-                className="rounded-xl border border-zinc-800 bg-zinc-950/50 p-4"
-              >
-                <p className="truncate text-[11px] font-medium uppercase tracking-wide text-zinc-500">
-                  {item.label}
-                </p>
-                <strong className={cn("mt-2 block text-xl font-semibold", item.tone)}>
-                  {formatPrivateCurrency(item.value)}
-                </strong>
-                <span className="mt-1 block text-xs text-zinc-500">
-                  {item.help}
-                </span>
-              </div>
-            ))}
-          </div>
-
-          <div className="mt-3 flex gap-2 overflow-x-auto pb-1 [&::-webkit-scrollbar]:hidden [-ms-overflow-style:none] [scrollbar-width:none]">
-            {[
-              {
-                label: "Meu",
-                value: selectedInvoiceSummary.personalTotal,
-              },
-              {
-                label: "Dependentes",
-                value: selectedInvoiceSummary.dependentsTotal,
-              },
-              {
-                label: "Agendado",
-                value: selectedInvoiceSummary.scheduled,
-              },
-              {
-                label: "Assinaturas",
-                value: selectedInvoiceSummary.subscriptionsTotal,
-              },
-              {
-                label: "Parcelas",
-                value: selectedInvoiceSummary.installmentsTotal,
-              },
-              {
-                label: "Pago",
-                value: selectedInvoiceSummary.paid,
-              },
-            ].map((item) => (
-              <div
-                key={item.label}
-                className="flex shrink-0 items-center gap-2 rounded-full border border-zinc-800/80 bg-zinc-950/40 px-3 py-1.5"
-              >
-                <span className="text-xs text-zinc-500">{item.label}</span>
-                <strong className="shrink-0 text-xs font-medium text-zinc-200">
-                  {formatPrivateCurrency(item.value)}
-                </strong>
-              </div>
-            ))}
-          </div>
+          <Badge variant="outline" className="shrink-0 border-zinc-800 text-zinc-500">
+            {hasActiveTransactionFilters
+              ? `${filteredSelectedCardTransactions.length} de ${selectedCardTransactions.length}`
+              : `${selectedCardTransactions.length} lançamentos`}
+          </Badge>
         </CardHeader>
 
-        <CardContent className="pt-4">
+        <CardContent className="px-4 pb-4 pt-3 sm:px-5 sm:pb-5">
           <TopCategories transactions={selectedCardTransactions} />
 
+          <div className="mb-4 grid gap-2 md:grid-cols-[minmax(220px,1fr)_minmax(170px,0.55fr)_minmax(180px,0.6fr)_auto]">
+            <div className="relative min-w-0">
+              <Search className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-zinc-600" />
+              <Input
+                value={transactionSearch}
+                onChange={(event) => setTransactionSearch(event.target.value)}
+                placeholder="Buscar lançamento"
+                aria-label="Buscar transações do cartão"
+                className="h-10 border-zinc-800 bg-zinc-950/45 pl-9"
+              />
+            </div>
+            <Select value={categoryFilter} onValueChange={setCategoryFilter}>
+              <SelectTrigger className="h-10 w-full border-zinc-800 bg-zinc-950/45">
+                <SelectValue placeholder="Categoria" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">Todas as categorias</SelectItem>
+                {transactionCategoryOptions.map((category) => (
+                  <SelectItem key={category} value={category}>
+                    {category}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+            <Select
+              value={transactionViewFilter}
+              onValueChange={(value) =>
+                setTransactionViewFilter(value as TransactionViewFilter)
+              }
+            >
+              <SelectTrigger className="h-10 w-full border-zinc-800 bg-zinc-950/45">
+                <ListFilter className="size-4 text-zinc-600" />
+                <SelectValue placeholder="Tipo" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">Todos os lançamentos</SelectItem>
+                <SelectItem value="purchase">Compras avulsas</SelectItem>
+                <SelectItem value="subscription">Assinaturas</SelectItem>
+                <SelectItem value="installment">Compras parceladas</SelectItem>
+                <SelectItem value="last-installment">Última parcela</SelectItem>
+                <SelectItem value="scheduled">Cobranças agendadas</SelectItem>
+                <SelectItem value="dependent">Gastos de dependentes</SelectItem>
+                <SelectItem value="credit">Créditos e estornos</SelectItem>
+              </SelectContent>
+            </Select>
+            <Button
+              type="button"
+              variant="ghost"
+              size="icon"
+              disabled={!hasActiveTransactionFilters}
+              onClick={() => {
+                setTransactionSearch("");
+                setCategoryFilter("all");
+                setTransactionViewFilter("all");
+              }}
+              aria-label="Limpar filtros da fatura"
+              title="Limpar filtros"
+              className="size-10 text-zinc-500"
+            >
+              <X className="size-4" />
+            </Button>
+          </div>
+
           <div className="space-y-2 md:hidden">
-            {selectedCardTransactions.length ? (
-              selectedCardTransactions.map((transaction) => {
+            {filteredSelectedCardTransactions.length ? (
+              filteredSelectedCardTransactions.map((transaction) => {
                 const isPositive = isCardCreditAdjustment(transaction);
 
                 return (
@@ -1057,7 +1232,9 @@ export default function CardsPage() {
             ) : (
               <div className="flex min-h-40 flex-col items-center justify-center text-center text-sm text-muted-foreground">
                 <Receipt className="mb-3 size-8" />
-                Nenhuma transação deste cartão no mês atual.
+                {hasActiveTransactionFilters
+                  ? "Nenhum lançamento corresponde aos filtros."
+                  : "Nenhuma transação deste cartão no mês atual."}
               </div>
             )}
           </div>
@@ -1072,18 +1249,14 @@ export default function CardsPage() {
               </TableRow>
             </TableHeader>
             <TableBody>
-              {selectedCardTransactions.length ? (
-                selectedCardTransactions.map((transaction) => {
+              {filteredSelectedCardTransactions.length ? (
+                filteredSelectedCardTransactions.map((transaction) => {
                   const statusPresentation =
                     getTransactionStatusPresentation(transaction);
-                  const installmentNumber =
-                    transaction.installmentNumber ??
-                    transaction.current_installment ??
-                    1;
-                  const installmentsTotal =
-                    transaction.installmentsTotal ??
-                    transaction.installments ??
-                    1;
+                  const {
+                    current: installmentNumber,
+                    total: installmentsTotal,
+                  } = getInstallmentProgress(transaction);
                   const isLastInstallment =
                     installmentsTotal > 1 &&
                     installmentNumber === installmentsTotal;
@@ -1186,7 +1359,11 @@ export default function CardsPage() {
                   >
                     <div className="flex flex-col items-center justify-center py-10 text-muted-foreground">
                       <Receipt className="mb-4 h-10 w-10 text-muted-foreground/50" />
-                      <span>Nenhuma transação deste cartão no mês atual.</span>
+                      <span>
+                        {hasActiveTransactionFilters
+                          ? "Nenhum lançamento corresponde aos filtros."
+                          : "Nenhuma transação deste cartão no mês atual."}
+                      </span>
                     </div>
                   </TableCell>
                 </TableRow>
@@ -1194,8 +1371,7 @@ export default function CardsPage() {
             </TableBody>
           </Table>
         </CardContent>
-        </Card>
-      </section>
+      </Card>
 
       <AddCardModal
         isOpen={isAddCardModalOpen}
