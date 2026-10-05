@@ -4,7 +4,7 @@ import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { ChevronsUpDown, LogOut, UserRound } from "lucide-react";
 import { FinyncLogo } from "@/components/branding/FinyncLogo";
-import { navigationItems } from "./navigationItems";
+import { navigationItems, navigationSections } from "./navigationItems";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import {
   DropdownMenu,
@@ -63,7 +63,7 @@ export function Sidebar() {
     <aside className="hidden h-screen w-72 shrink-0 flex-col justify-between border-r border-white/[0.08] bg-white/[0.045] px-5 py-6 shadow-2xl shadow-black/20 backdrop-blur-2xl md:sticky md:top-0 md:flex">
       <Link
         href="/dashboard"
-        className="mb-9 flex min-h-12 items-center gap-3 px-2"
+        className="mb-7 flex min-h-12 items-center gap-3 px-2"
         aria-label="Finync — Controle financeiro"
       >
         <FinyncLogo eager className="w-24 shrink-0 brightness-125" />
@@ -72,42 +72,55 @@ export function Sidebar() {
         </span>
       </Link>
 
-      <nav className="flex min-h-0 flex-1 flex-col gap-2 overflow-y-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
-        {navigationItems.map((item) => {
-          const active = isActiveRoute(pathname, item.href);
-          const Icon = item.icon;
+      <nav className="flex min-h-0 flex-1 flex-col gap-5 overflow-y-auto pr-1 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+        {navigationSections.map((section) => (
+          <div key={section.key} className="space-y-1">
+            <div className="flex items-center gap-3 px-3 pb-1">
+              <span className="text-[10px] font-semibold uppercase text-zinc-600">
+                {section.label}
+              </span>
+              <span className="h-px flex-1 bg-white/[0.06]" />
+            </div>
 
-          return (
-            <Link
-              key={item.href}
-              href={item.href}
-              data-tour={item.tourId}
-              className={[
-                "group flex h-12 items-center gap-3 rounded-2xl px-4 text-sm font-medium transition",
-                active
-                  ? "border border-brand-500/20 bg-brand-500/15 text-brand-100 shadow-[0_0_22px_rgba(16,185,129,0.08)]"
-                  : "border border-transparent text-zinc-400 hover:border-white/[0.08] hover:bg-white/[0.055] hover:text-white",
-              ].join(" ")}
-            >
-              <Icon
-                className={[
-                  "h-5 w-5 shrink-0 transition",
-                  active
-                    ? "text-brand-300"
-                    : "text-zinc-500 group-hover:text-zinc-200",
-                ].join(" ")}
-              />
-              {item.label}
-            </Link>
-          );
-        })}
+            {navigationItems
+              .filter((item) => item.section === section.key)
+              .map((item) => {
+                const active = isActiveRoute(pathname, item.href);
+                const Icon = item.icon;
+
+                return (
+                  <Link
+                    key={item.href}
+                    href={item.href}
+                    data-tour={item.tourId}
+                    className={[
+                      "group flex h-10 items-center gap-3 rounded-lg border px-3 text-sm font-medium transition-colors",
+                      active
+                        ? "border-emerald-500/15 bg-emerald-500/10 text-emerald-100"
+                        : "border-transparent text-zinc-400 hover:bg-white/[0.05] hover:text-zinc-100",
+                    ].join(" ")}
+                  >
+                    <Icon
+                      className={[
+                        "size-[18px] shrink-0 transition-colors",
+                        active
+                          ? "text-emerald-400"
+                          : "text-zinc-600 group-hover:text-zinc-300",
+                      ].join(" ")}
+                    />
+                    <span className="truncate">{item.label}</span>
+                  </Link>
+                );
+              })}
+          </div>
+        ))}
       </nav>
 
       <DropdownMenu>
         <DropdownMenuTrigger asChild>
           <button
             type="button"
-            className="flex w-full cursor-pointer items-center gap-3 rounded-2xl border border-white/[0.08] bg-white/[0.045] p-3 text-left transition hover:border-white/[0.14] hover:bg-white/[0.075]"
+            className="mt-5 flex w-full cursor-pointer items-center gap-3 rounded-xl border border-white/[0.08] bg-white/[0.035] p-3 text-left transition-colors hover:bg-white/[0.065]"
           >
             <Avatar>
               <AvatarImage src={avatarUrl} alt={displayName} />

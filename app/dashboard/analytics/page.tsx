@@ -324,7 +324,7 @@ function createEmptyAnalyticsData(month: number, year: number): AnalyticsData {
   return buildAnalyticsData([], month, year);
 }
 
-function useCountUp(target: number, duration = 900) {
+function useCountUp(target: number, duration = 650) {
   const shouldReduceMotion = useReducedMotion();
   const [value, setValue] = useState(shouldReduceMotion ? target : 0);
 

@@ -126,7 +126,7 @@ function useCountUp(
   targetValue: number,
   resetKey: string,
   reduceMotion: boolean,
-  duration = 2200,
+  duration = 850,
 ) {
   const [animatedValue, setAnimatedValue] = useState(
     reduceMotion ? targetValue : 0,
@@ -143,7 +143,7 @@ function useCountUp(
 
     const animate = (timestamp: number) => {
       startedAt ??= timestamp;
-      const elapsed = Math.max(timestamp - startedAt - 150, 0);
+      const elapsed = Math.max(timestamp - startedAt, 0);
       const progress = Math.min(elapsed / duration, 1);
       const easedProgress =
         progress < 0.5

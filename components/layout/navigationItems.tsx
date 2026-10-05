@@ -20,8 +20,25 @@ export interface NavigationItem {
   shortLabel: string;
   href: string;
   icon: LucideIcon;
+  section: NavigationSectionKey;
   tourId?: string;
 }
+
+export type NavigationSectionKey =
+  | "overview"
+  | "planning"
+  | "tools"
+  | "support";
+
+export const navigationSections: Array<{
+  key: NavigationSectionKey;
+  label: string;
+}> = [
+  { key: "overview", label: "Visão" },
+  { key: "planning", label: "Planejamento" },
+  { key: "tools", label: "Ferramentas" },
+  { key: "support", label: "Suporte" },
+];
 
 export const navigationItems: NavigationItem[] = [
   {
@@ -29,12 +46,14 @@ export const navigationItems: NavigationItem[] = [
     shortLabel: "Geral",
     href: "/dashboard",
     icon: LayoutDashboard,
+    section: "overview",
   },
   {
     label: "Transações",
     shortLabel: "Transações",
     href: "/dashboard/transactions",
     icon: Receipt,
+    section: "overview",
     tourId: "nav-transactions",
   },
   {
@@ -42,6 +61,7 @@ export const navigationItems: NavigationItem[] = [
     shortLabel: "Limites",
     href: "/dashboard/orcamentos",
     icon: Gauge,
+    section: "planning",
     tourId: "nav-budgets",
   },
   {
@@ -49,6 +69,7 @@ export const navigationItems: NavigationItem[] = [
     shortLabel: "Importar",
     href: "/dashboard/importar",
     icon: FileUp,
+    section: "tools",
     tourId: "nav-import",
   },
   {
@@ -56,6 +77,7 @@ export const navigationItems: NavigationItem[] = [
     shortLabel: "Backup",
     href: "/dashboard/exportar",
     icon: FileDown,
+    section: "tools",
     tourId: "nav-export",
   },
   {
@@ -63,6 +85,7 @@ export const navigationItems: NavigationItem[] = [
     shortLabel: "Dados",
     href: "/dashboard/analytics",
     icon: BarChart3,
+    section: "overview",
     tourId: "nav-analytics",
   },
   {
@@ -70,6 +93,7 @@ export const navigationItems: NavigationItem[] = [
     shortLabel: "Saúde",
     href: "/dashboard/integridade",
     icon: ShieldCheck,
+    section: "tools",
     tourId: "nav-integrity",
   },
   {
@@ -77,6 +101,7 @@ export const navigationItems: NavigationItem[] = [
     shortLabel: "Histórico",
     href: "/dashboard/atividades",
     icon: Activity,
+    section: "tools",
     tourId: "nav-activity",
   },
   {
@@ -84,6 +109,7 @@ export const navigationItems: NavigationItem[] = [
     shortLabel: "Deps.",
     href: "/dashboard/dependentes",
     icon: UsersRound,
+    section: "planning",
     tourId: "nav-dependents",
   },
   {
@@ -91,6 +117,7 @@ export const navigationItems: NavigationItem[] = [
     shortLabel: "Fixas",
     href: "/dashboard/fixed",
     icon: CalendarDays,
+    section: "planning",
     tourId: "nav-fixed",
   },
   {
@@ -98,6 +125,7 @@ export const navigationItems: NavigationItem[] = [
     shortLabel: "Cartões",
     href: "/dashboard/cards",
     icon: CreditCard,
+    section: "planning",
     tourId: "nav-cards",
   },
   {
@@ -105,6 +133,7 @@ export const navigationItems: NavigationItem[] = [
     shortLabel: "Guia",
     href: "/dashboard/ajuda",
     icon: CircleHelp,
+    section: "support",
     tourId: "nav-guide",
   },
   {
@@ -112,5 +141,6 @@ export const navigationItems: NavigationItem[] = [
     shortLabel: "Config.",
     href: "/configuracoes",
     icon: Settings,
+    section: "support",
   },
 ];
