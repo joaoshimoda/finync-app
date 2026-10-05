@@ -23,7 +23,8 @@ import {
   splitAmountIntoInstallments,
   splitInstallmentsByOwner,
 } from "@/lib/transactionProjection";
-import { formatCurrency, parseCurrencyValue } from "@/lib/financeUtils";
+import { parseCurrencyValue } from "@/lib/financeUtils";
+import { useCurrencyFormatter } from "@/hooks/useCurrencyFormatter";
 import { Button } from "@/components/ui/button";
 import { TransactionLivePreview } from "@/components/modals/TransactionLivePreview";
 import {
@@ -93,6 +94,7 @@ function TransactionModalContent({
   onSelectIncome?: () => void;
   mode: "expense" | "fixed";
 }) {
+  const { formatCurrency, currencySymbol } = useCurrencyFormatter();
   const cards = useFinanceStore((state) => state.cards);
   const dependents = useFinanceStore((state) => state.dependents);
   const categories = useFinanceStore((state) => state.categories);
@@ -288,7 +290,9 @@ function TransactionModalContent({
         Math.round((totalAmount - dependentShareAmount) * 100) <
           parsedInstallmentCount)
     ) {
-      toast.error("Cada parte precisa ter ao menos R$ 0,01 por parcela.");
+      toast.error(
+        `Cada parte precisa ter ao menos ${formatCurrency(0.01)} por parcela.`,
+      );
       return;
     }
 
@@ -735,7 +739,7 @@ function TransactionModalContent({
                     </Label>
                     <div className="flex items-center border-b border-zinc-700">
                       <span className="shrink-0 text-xs font-semibold text-rose-400">
-                        R$
+                        {currencySymbol}
                       </span>
                       <Input
                         id="transaction-amount"
@@ -942,7 +946,7 @@ function TransactionModalContent({
                             </Label>
                             <div className="flex h-9 items-center border-b border-zinc-700">
                               <span className="text-[11px] font-semibold text-zinc-500">
-                                R$
+                                {currencySymbol}
                               </span>
                               <Input
                                 id="dependent-share"

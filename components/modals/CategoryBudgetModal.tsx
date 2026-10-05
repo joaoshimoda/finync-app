@@ -37,11 +37,7 @@ import {
   useFinanceStore,
   type CategoryBudget,
 } from "@/store/useFinanceStore";
-
-const currencyFormatter = new Intl.NumberFormat("pt-BR", {
-  style: "currency",
-  currency: "BRL",
-});
+import { useCurrencyFormatter } from "@/hooks/useCurrencyFormatter";
 
 const competenceFormatter = new Intl.DateTimeFormat("pt-BR", {
   month: "long",
@@ -111,6 +107,7 @@ function CategoryBudgetForm({
   competenceMonth: string;
   onClose: () => void;
 }) {
+  const { formatCurrency, currencySymbol } = useCurrencyFormatter();
   const categories = useFinanceStore((state) => state.categories);
   const transactions = useFinanceStore((state) => state.transactions);
   const categoryBudgets = useFinanceStore((state) => state.categoryBudgets);
@@ -275,7 +272,7 @@ function CategoryBudgetForm({
                     : "Disponível"}
                 </p>
                 <strong className="mt-1 block truncate text-2xl font-semibold text-white md:text-3xl">
-                  {currencyFormatter.format(
+                  {formatCurrency(
                     metrics.status === "exceeded"
                       ? metrics.exceededBy
                       : metrics.available,
@@ -311,7 +308,7 @@ function CategoryBudgetForm({
                   Consumido
                 </dt>
                 <dd className="mt-1 truncate text-xs font-semibold text-white">
-                  {currencyFormatter.format(spent)}
+                  {formatCurrency(spent)}
                 </dd>
               </div>
               <div>
@@ -319,7 +316,7 @@ function CategoryBudgetForm({
                   Planejado
                 </dt>
                 <dd className="mt-1 truncate text-xs font-semibold text-white">
-                  {currencyFormatter.format(safePreviewAmount)}
+                  {formatCurrency(safePreviewAmount)}
                 </dd>
               </div>
               <div>
@@ -346,7 +343,7 @@ function CategoryBudgetForm({
                 </Label>
                 <div className="flex items-center border-b border-zinc-700">
                   <span className="shrink-0 text-xs font-semibold text-amber-400">
-                    R$
+                    {currencySymbol}
                   </span>
                   <Input
                     id="budget-amount"

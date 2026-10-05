@@ -1,6 +1,9 @@
+"use client";
+
 import { ArrowDownLeft, ArrowUpRight, CalendarDays } from "lucide-react";
 
 import { formatDateOnlyBR } from "@/lib/dateUtils";
+import { useCurrencyFormatter } from "@/hooks/useCurrencyFormatter";
 
 interface TransactionLivePreviewProps {
   type: "expense" | "income";
@@ -12,11 +15,6 @@ interface TransactionLivePreviewProps {
   date: string;
   recurring: boolean;
 }
-
-const brlFormatter = new Intl.NumberFormat("pt-BR", {
-  style: "currency",
-  currency: "BRL",
-});
 
 function parsePreviewAmount(value: string) {
   const sanitizedValue = value.trim().replace(/\s/g, "");
@@ -38,8 +36,9 @@ export function TransactionLivePreview({
   date,
   recurring,
 }: TransactionLivePreviewProps) {
+  const { formatCurrency } = useCurrencyFormatter();
   const isExpense = type === "expense";
-  const previewAmount = brlFormatter.format(parsePreviewAmount(amount));
+  const previewAmount = formatCurrency(parsePreviewAmount(amount));
   const Icon = isExpense ? ArrowDownLeft : ArrowUpRight;
 
   return (

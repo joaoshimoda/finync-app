@@ -1,6 +1,6 @@
 "use client";
 
-import { formatCurrency } from "@/lib/financeUtils";
+import { useCurrencyFormatter } from "@/hooks/useCurrencyFormatter";
 import {
   getCardInvoiceCycle,
   getCardInvoiceMonthStart,
@@ -21,13 +21,12 @@ interface WalletSliderProps {
   transactions?: Transaction[];
 }
 
-const hiddenCurrencyLabel = "R$ ••••";
-
 export function WalletSlider({ cards = [], transactions = [] }: WalletSliderProps) {
   const deleteCard = useFinanceStore((state) => state.deleteCard);
   const hideBalancesByDefault = useFinanceStore(
     (state) => state.hideBalancesByDefault,
   );
+  const { formatCurrency, hiddenCurrencyLabel } = useCurrencyFormatter();
   const formatPrivateCurrency = (value: number) =>
     hideBalancesByDefault ? hiddenCurrencyLabel : formatCurrency(value);
 

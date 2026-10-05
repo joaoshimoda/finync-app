@@ -25,6 +25,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import type { Json, Tables } from "@/lib/database.types";
 import { reportAppError } from "@/lib/errorMonitoring";
 import { supabase } from "@/lib/supabaseClient";
+import { useCurrencyFormatter } from "@/hooks/useCurrencyFormatter";
 import { cn } from "@/lib/utils";
 
 type AuditLog = Tables<"audit_logs">;
@@ -129,11 +130,6 @@ const hiddenChangedFields = new Set([
   "import_signature",
 ]);
 
-const currencyFormatter = new Intl.NumberFormat("pt-BR", {
-  style: "currency",
-  currency: "BRL",
-});
-
 const dateTimeFormatter = new Intl.DateTimeFormat("pt-BR", {
   day: "2-digit",
   month: "short",
@@ -170,7 +166,11 @@ function getLogName(log: AuditLog) {
   return entityPresentation[log.entity_type].singular;
 }
 
-function formatChangedValue(field: string, value: Json | undefined) {
+function formatChangedValue(
+  field: string,
+  value: Json | undefined,
+  formatCurrency: (value: number) => string,
+) {
   if (value === null || value === undefined || value === "") return "Vazio";
   if (typeof value === "boolean") return value ? "Sim" : "Não";
 
@@ -180,7 +180,7 @@ function formatChangedValue(field: string, value: Json | undefined) {
       field,
     )
   ) {
-    return currencyFormatter.format(value);
+    return formatCurrency(value);
   }
 
   if (
@@ -201,6 +201,7 @@ function formatChangedValue(field: string, value: Json | undefined) {
 }
 
 export default function AtividadesPage() {
+  const { formatCurrency } = useCurrencyFormatter();
   const [logs, setLogs] = useState<AuditLog[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [loadedAt, setLoadedAt] = useState<number | null>(null);
@@ -425,9 +426,9 @@ export default function AtividadesPage() {
                             {visibleFields.map((field) => (
                               <div key={field} className="grid gap-1 px-3 py-3 text-xs sm:grid-cols-[150px_1fr_20px_1fr] sm:items-center sm:gap-3">
                                 <span className="font-medium text-zinc-400">{fieldLabels[field] ?? field}</span>
-                                <span className="min-w-0 break-words text-zinc-500">{formatChangedValue(field, previousSnapshot[field])}</span>
+                                <span className="min-w-0 break-words text-zinc-500">{formatChangedValue(field, previousSnapshot[field], formatCurrency)}</span>
                                 <span className="hidden text-center text-zinc-700 sm:block">→</span>
-                                <span className="min-w-0 break-words text-zinc-200">{formatChangedValue(field, currentSnapshot[field])}</span>
+                                <span className="min-w-0 break-words text-zinc-200">{formatChangedValue(field, currentSnapshot[field], formatCurrency)}</span>
                               </div>
                             ))}
                           </div>

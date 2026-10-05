@@ -1,6 +1,6 @@
 "use client";
 
-import { formatCurrency } from "@/lib/financeUtils";
+import { useCurrencyFormatter } from "@/hooks/useCurrencyFormatter";
 import {
   getDateOnlyParts,
 } from "@/lib/dateUtils";
@@ -52,6 +52,7 @@ export function TransactionFeed({
   cards = [],
   onEdit,
 }: TransactionFeedProps) {
+  const { formatCurrency } = useCurrencyFormatter();
   const deleteTransaction = useFinanceStore((state) => state.deleteTransaction);
   const deleteTransactionGroup = useFinanceStore(
     (state) => state.deleteTransactionGroup,

@@ -43,11 +43,7 @@ import {
 import { isTransactionInSelectedCompetence } from "@/lib/transactionPeriod";
 import { cn } from "@/lib/utils";
 import { useFinanceStore, type Transaction } from "@/store/useFinanceStore";
-
-const brlFormatter = new Intl.NumberFormat("pt-BR", {
-  style: "currency",
-  currency: "BRL",
-});
+import { useCurrencyFormatter } from "@/hooks/useCurrencyFormatter";
 
 function getDayDifference(dateOnly: string) {
   const today = new Date(`${getLocalTodayDateOnly()}T00:00:00`);
@@ -102,6 +98,7 @@ function isInSelectedMonth(
 }
 
 export default function FixedExpensesPage() {
+  const { formatCurrency } = useCurrencyFormatter();
   const [activeTab, setActiveTab] = useState<RecurringTab>("fixed");
   const [selectedIds, setSelectedIds] = useState<string[]>([]);
   const [isPayingSelected, setIsPayingSelected] = useState(false);
@@ -417,7 +414,7 @@ export default function FixedExpensesPage() {
                       </p>
                     </div>
                     <strong className="shrink-0 text-sm text-zinc-100">
-                      {brlFormatter.format(transaction.amount)}
+                      {formatCurrency(transaction.amount)}
                     </strong>
                   </div>
 
@@ -558,7 +555,7 @@ export default function FixedExpensesPage() {
                       </button>
                     </TableCell>
                     <TableCell className="text-right font-semibold text-zinc-100">
-                      {brlFormatter.format(transaction.amount)}
+                      {formatCurrency(transaction.amount)}
                     </TableCell>
                     <TableCell>
                       <div className="flex justify-end gap-1">
@@ -652,7 +649,7 @@ export default function FixedExpensesPage() {
                       </p>
                     </div>
                     <strong className="shrink-0 text-sm text-zinc-100">
-                      {brlFormatter.format(transaction.amount)}
+                      {formatCurrency(transaction.amount)}
                     </strong>
                   </div>
 
@@ -660,7 +657,7 @@ export default function FixedExpensesPage() {
                     <div>
                       <p className="text-zinc-500">Projetado</p>
                       <p className="mt-1 font-medium text-zinc-200">
-                        {brlFormatter.format(group.projectedTotal)}
+                        {formatCurrency(group.projectedTotal)}
                       </p>
                     </div>
                     <div>
@@ -775,11 +772,11 @@ export default function FixedExpensesPage() {
                       </Badge>
                     </TableCell>
                     <TableCell className="text-right font-semibold text-zinc-100">
-                      {brlFormatter.format(transaction.amount)}
+                      {formatCurrency(transaction.amount)}
                     </TableCell>
                     <TableCell className="text-right">
                       <p className="font-medium text-zinc-100">
-                        {brlFormatter.format(group.projectedTotal)}
+                        {formatCurrency(group.projectedTotal)}
                       </p>
                       <p className="mt-1 text-xs text-zinc-500">
                         {group.postedCount} lançadas • {group.scheduledCount} agendadas
@@ -869,9 +866,9 @@ export default function FixedExpensesPage() {
               <Check className="size-4 text-emerald-300" />
             </div>
             <strong className="mt-3 block text-2xl font-semibold text-zinc-100">
-              {brlFormatter.format(paidAmount)}
+              {formatCurrency(paidAmount)}
               <span className="text-sm font-medium text-zinc-500">
-                {" "}/ {brlFormatter.format(totalAmount)}
+                {" "}/ {formatCurrency(totalAmount)}
               </span>
             </strong>
             <Progress value={paidProgress} className="mt-3 h-2" />
@@ -885,7 +882,7 @@ export default function FixedExpensesPage() {
             {nextFixedDue ? (
               <>
                 <strong className="mt-3 block truncate text-2xl font-semibold text-zinc-100">
-                  {brlFormatter.format(nextFixedDue.amount)}
+                  {formatCurrency(nextFixedDue.amount)}
                 </strong>
                 <p className="mt-1 truncate text-sm text-zinc-400">
                   {nextFixedDue.description}
@@ -921,7 +918,7 @@ export default function FixedExpensesPage() {
               <ReceiptText className="size-4 text-amber-300" />
             </div>
             <strong className="mt-3 block text-2xl font-semibold text-amber-300">
-              {brlFormatter.format(pendingAmount)}
+              {formatCurrency(pendingAmount)}
             </strong>
             <p className="mt-1 text-sm text-zinc-500">
               {fixedPendingTransactions.length}{" "}

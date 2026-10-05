@@ -36,13 +36,7 @@ import {
   useFinanceStore,
   type CategoryBudget,
 } from "@/store/useFinanceStore";
-
-const currencyFormatter = new Intl.NumberFormat("pt-BR", {
-  style: "currency",
-  currency: "BRL",
-});
-
-const hiddenCurrencyLabel = "R$ ••••";
+import { useCurrencyFormatter } from "@/hooks/useCurrencyFormatter";
 
 const statusPresentation = {
   on_track: {
@@ -63,6 +57,10 @@ const statusPresentation = {
 } as const;
 
 export default function OrcamentosPage() {
+  const {
+    formatCurrency: formatSelectedCurrency,
+    hiddenCurrencyLabel,
+  } = useCurrencyFormatter();
   const categories = useFinanceStore((state) => state.categories);
   const categoryBudgets = useFinanceStore((state) => state.categoryBudgets);
   const transactions = useFinanceStore((state) => state.transactions);
@@ -89,7 +87,9 @@ export default function OrcamentosPage() {
   const displayYear = isFetching ? fetchedYear : currentYear;
   const competenceMonth = toDateOnly(displayYear, displayMonth, 1);
   const formatCurrency = (value: number) =>
-    hideBalancesByDefault ? hiddenCurrencyLabel : currencyFormatter.format(value);
+    hideBalancesByDefault
+      ? hiddenCurrencyLabel
+      : formatSelectedCurrency(value);
 
   useEffect(() => {
     void fetchTransactions();

@@ -39,11 +39,7 @@ import {
   type CardInvoice,
   type InvoicePaymentMethod,
 } from "@/store/useFinanceStore";
-
-const currencyFormatter = new Intl.NumberFormat("pt-BR", {
-  style: "currency",
-  currency: "BRL",
-});
+import { useCurrencyFormatter } from "@/hooks/useCurrencyFormatter";
 
 const paymentMethodLabels: Record<InvoicePaymentMethod, string> = {
   PIX: "Pix",
@@ -89,6 +85,7 @@ function InvoicePaymentForm({
   cardName?: string;
   onClose: () => void;
 }) {
+  const { formatCurrency, currencySymbol } = useCurrencyFormatter();
   const payCardInvoice = useFinanceStore((state) => state.payCardInvoice);
   const invoicePayments = useFinanceStore((state) => state.invoicePayments);
   const outstanding = getInvoiceOutstanding(invoice);
@@ -210,7 +207,7 @@ function InvoicePaymentForm({
                   Falta pagar
                 </p>
                 <strong className="mt-1 block text-2xl font-semibold text-white md:text-3xl">
-                  {currencyFormatter.format(outstanding)}
+                  {formatCurrency(outstanding)}
                 </strong>
               </div>
             </div>
@@ -223,7 +220,7 @@ function InvoicePaymentForm({
             </div>
             <div className="mt-2 flex justify-between text-[10px] font-medium text-white/65">
               <span>{paymentProgress.toFixed(0)}% pago</span>
-              <span>Total {currencyFormatter.format(invoice.totalAmount)}</span>
+              <span>Total {formatCurrency(invoice.totalAmount)}</span>
             </div>
 
             <dl className="mt-4 grid grid-cols-3 gap-3 border-t border-white/15 pt-3">
@@ -232,7 +229,7 @@ function InvoicePaymentForm({
                   Lançado
                 </dt>
                 <dd className="mt-1 truncate text-xs font-semibold text-white">
-                  {currencyFormatter.format(invoice.postedAmount)}
+                  {formatCurrency(invoice.postedAmount)}
                 </dd>
               </div>
               <div>
@@ -240,7 +237,7 @@ function InvoicePaymentForm({
                   Já pago
                 </dt>
                 <dd className="mt-1 truncate text-xs font-semibold text-white">
-                  {currencyFormatter.format(invoice.paidAmount)}
+                  {formatCurrency(invoice.paidAmount)}
                 </dd>
               </div>
               <div>
@@ -268,13 +265,13 @@ function InvoicePaymentForm({
                   </Label>
                   {postedOutstanding < outstanding ? (
                     <span className="text-[10px] text-zinc-500">
-                      Hoje: {currencyFormatter.format(postedOutstanding)}
+                      Hoje: {formatCurrency(postedOutstanding)}
                     </span>
                   ) : null}
                 </div>
                 <div className="flex items-center border-b border-zinc-700">
                   <span className="shrink-0 text-xs font-semibold text-emerald-400">
-                    R$
+                    {currencySymbol}
                   </span>
                   <Input
                     id="invoice-payment-amount"
@@ -382,7 +379,7 @@ function InvoicePaymentForm({
                           </span>
                         </span>
                         <strong className="shrink-0 text-zinc-200">
-                          {currencyFormatter.format(payment.amount)}
+                          {formatCurrency(payment.amount)}
                         </strong>
                       </div>
                     ))}

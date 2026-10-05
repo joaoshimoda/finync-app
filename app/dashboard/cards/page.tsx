@@ -75,17 +75,7 @@ import {
   type Dependent,
   type Transaction,
 } from "@/store/useFinanceStore";
-
-const brlFormatter = new Intl.NumberFormat("pt-BR", {
-  style: "currency",
-  currency: "BRL",
-});
-
-const hiddenCurrencyLabel = "R$ ••••";
-
-function formatSensitiveCurrency(value: number, hideValue: boolean) {
-  return hideValue ? hiddenCurrencyLabel : brlFormatter.format(value);
-}
+import { useCurrencyFormatter } from "@/hooks/useCurrencyFormatter";
 
 interface InvoiceBreakdown {
   personal: number;
@@ -135,8 +125,9 @@ function TopCategories({ transactions }: { transactions: Transaction[] }) {
   const hideBalancesByDefault = useFinanceStore(
     (state) => state.hideBalancesByDefault,
   );
+  const { formatCurrency, hiddenCurrencyLabel } = useCurrencyFormatter();
   const formatPrivateCurrency = (value: number) =>
-    formatSensitiveCurrency(value, hideBalancesByDefault);
+    hideBalancesByDefault ? hiddenCurrencyLabel : formatCurrency(value);
   const categories = useMemo(() => {
     const totals = new Map<string, number>();
 
@@ -223,6 +214,9 @@ function FlippableManagedCard({
   const hideBalancesByDefault = useFinanceStore(
     (state) => state.hideBalancesByDefault,
   );
+  const { formatCurrency, hiddenCurrencyLabel } = useCurrencyFormatter();
+  const formatPrivateCurrency = (value: number) =>
+    hideBalancesByDefault ? hiddenCurrencyLabel : formatCurrency(value);
   const fallbackCycle = getCardInvoiceCycle(invoiceMonthStart, card.closingDay);
   const invoiceCycle = invoice
     ? { startDate: invoice.cycleStart, endDate: invoice.cycleEnd }
@@ -298,7 +292,7 @@ function FlippableManagedCard({
                 Limite disponível
               </p>
               <strong className="mt-1 block text-lg font-bold tracking-normal">
-                {formatSensitiveCurrency(availableLimit, hideBalancesByDefault)}
+                {formatPrivateCurrency(availableLimit)}
               </strong>
               {card.limitAmount ? (
                 <p className="mt-1 text-[11px] text-white/55">
@@ -322,7 +316,7 @@ function FlippableManagedCard({
                 Fatura atual · {invoiceStatusLabel}
               </p>
               <strong className="mt-1 block text-xl font-bold text-white">
-                {formatSensitiveCurrency(invoiceTotal, hideBalancesByDefault)}
+                {formatPrivateCurrency(invoiceTotal)}
               </strong>
             </div>
             <Button
@@ -341,10 +335,7 @@ function FlippableManagedCard({
             <div className="flex items-center justify-between gap-3 rounded-md bg-black/15 px-2 py-1">
               <span className="text-white/65">Meus Gastos</span>
               <strong className="font-semibold text-white">
-                {formatSensitiveCurrency(
-                  invoiceBreakdown.personal,
-                  hideBalancesByDefault,
-                )}
+                {formatPrivateCurrency(invoiceBreakdown.personal)}
               </strong>
             </div>
             {invoiceBreakdown.dependents.map((dependent) => (
@@ -354,10 +345,7 @@ function FlippableManagedCard({
               >
                 <span className="truncate text-white/65">{dependent.name}</span>
                 <strong className="shrink-0 font-semibold text-white">
-                  {formatSensitiveCurrency(
-                    dependent.total,
-                    hideBalancesByDefault,
-                  )}
+                  {formatPrivateCurrency(dependent.total)}
                 </strong>
               </div>
             ))}
@@ -429,8 +417,9 @@ export default function CardsPage() {
   const hideBalancesByDefault = useFinanceStore(
     (state) => state.hideBalancesByDefault,
   );
+  const { formatCurrency, hiddenCurrencyLabel } = useCurrencyFormatter();
   const formatPrivateCurrency = (value: number) =>
-    formatSensitiveCurrency(value, hideBalancesByDefault);
+    hideBalancesByDefault ? hiddenCurrencyLabel : formatCurrency(value);
 
   useEffect(() => {
     void fetchTransactions();

@@ -1,3 +1,8 @@
+import {
+  formatCompactCurrency,
+  formatCurrency,
+} from "@/lib/currency";
+
 export const MONTH_NAMES_PT_BR = [
   "Janeiro",
   "Fevereiro",
@@ -131,29 +136,7 @@ export function slugifyKey(value: string): string {
   return normalizeText(value).trim().replace(/\s+/g, "_").replace(/[^a-z0-9_]/g, "");
 }
 
-export function formatCurrency(value: number | null | undefined): string {
-  return `R$ ${(value || 0).toLocaleString("pt-BR", {
-    minimumFractionDigits: 2,
-    maximumFractionDigits: 2,
-  })}`;
-}
-
-export function formatCompactCurrency(value: number | null | undefined): string {
-  const numericValue = value || 0;
-  const absoluteValue = Math.abs(numericValue);
-
-  if (absoluteValue < 1000) {
-    return formatCurrency(numericValue);
-  }
-
-  return `R$${numericValue < 0 ? "-" : ""}${(absoluteValue / 1000).toLocaleString(
-    "pt-BR",
-    {
-      minimumFractionDigits: 1,
-      maximumFractionDigits: 1,
-    },
-  )}k`;
-}
+export { formatCompactCurrency, formatCurrency };
 
 export const formatMoney = formatCurrency;
 

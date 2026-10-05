@@ -34,11 +34,7 @@ import {
   type Dependent,
   type DependentSettlementMethod,
 } from "@/store/useFinanceStore";
-
-const currencyFormatter = new Intl.NumberFormat("pt-BR", {
-  style: "currency",
-  currency: "BRL",
-});
+import { useCurrencyFormatter } from "@/hooks/useCurrencyFormatter";
 
 const competenceFormatter = new Intl.DateTimeFormat("pt-BR", {
   month: "long",
@@ -118,6 +114,7 @@ function DependentSettlementForm({
   outstanding: number;
   onClose: () => void;
 }) {
+  const { formatCurrency, currencySymbol } = useCurrencyFormatter();
   const settleDependent = useFinanceStore((state) => state.settleDependent);
   const dependentSettlements = useFinanceStore(
     (state) => state.dependentSettlements,
@@ -242,7 +239,7 @@ function DependentSettlementForm({
                   Ainda falta receber
                 </p>
                 <strong className="mt-1 block text-2xl font-semibold text-white md:text-3xl">
-                  {currencyFormatter.format(outstanding)}
+                  {formatCurrency(outstanding)}
                 </strong>
               </div>
             </div>
@@ -255,7 +252,7 @@ function DependentSettlementForm({
             </div>
             <div className="mt-2 flex justify-between text-[10px] font-medium text-white/65">
               <span>{settlementProgress.toFixed(0)}% recebido</span>
-              <span>Total {currencyFormatter.format(obligationTotal)}</span>
+              <span>Total {formatCurrency(obligationTotal)}</span>
             </div>
 
             <dl className="mt-4 grid grid-cols-3 gap-3 border-t border-white/15 pt-3">
@@ -264,7 +261,7 @@ function DependentSettlementForm({
                   Vinculado
                 </dt>
                 <dd className="mt-1 truncate text-xs font-semibold text-white">
-                  {currencyFormatter.format(obligationTotal)}
+                  {formatCurrency(obligationTotal)}
                 </dd>
               </div>
               <div>
@@ -272,7 +269,7 @@ function DependentSettlementForm({
                   Recebido
                 </dt>
                 <dd className="mt-1 truncate text-xs font-semibold text-white">
-                  {currencyFormatter.format(settledTotal)}
+                  {formatCurrency(settledTotal)}
                 </dd>
               </div>
               <div>
@@ -299,7 +296,7 @@ function DependentSettlementForm({
                 </Label>
                 <div className="flex items-center border-b border-zinc-700">
                   <span className="shrink-0 text-xs font-semibold text-teal-400">
-                    R$
+                    {currencySymbol}
                   </span>
                   <Input
                     id="dependent-settlement-amount"
@@ -407,7 +404,7 @@ function DependentSettlementForm({
                           </span>
                         </span>
                         <strong className="shrink-0 text-zinc-200">
-                          {currencyFormatter.format(settlement.amount)}
+                          {formatCurrency(settlement.amount)}
                         </strong>
                       </div>
                     ))}

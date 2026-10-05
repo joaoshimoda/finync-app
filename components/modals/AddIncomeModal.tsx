@@ -29,6 +29,7 @@ import {
 } from "@/components/ui/select";
 import { Switch } from "@/components/ui/switch";
 import { getLocalTodayDateOnly, normalizeDateOnly } from "@/lib/dateUtils";
+import { useCurrencyFormatter } from "@/hooks/useCurrencyFormatter";
 import {
   RECURRING_INCOME_NOTE,
   VARIABLE_INCOME_NOTE,
@@ -80,6 +81,7 @@ function IncomeModalContent({
   onClose: () => void;
   onSelectExpense?: () => void;
 }) {
+  const { currencySymbol } = useCurrencyFormatter();
   const authUser = useFinanceStore((state) => state.authUser);
   const categories = useFinanceStore((state) => state.categories);
   const fetchCategories = useFinanceStore((state) => state.fetchCategories);
@@ -402,7 +404,7 @@ function IncomeModalContent({
                     </Label>
                     <div className="flex items-center border-b border-zinc-700">
                       <span className="shrink-0 text-xs font-semibold text-emerald-400">
-                        R$
+                        {currencySymbol}
                       </span>
                       <Input
                         id="income-amount"

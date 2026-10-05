@@ -24,6 +24,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { cn } from "@/lib/utils";
 import { useFinanceStore, type Card } from "@/store/useFinanceStore";
+import { useCurrencyFormatter } from "@/hooks/useCurrencyFormatter";
 
 interface AddCardModalProps {
   isOpen: boolean;
@@ -69,11 +70,6 @@ const CARD_THEMES: CardTheme[] = [
     background: "linear-gradient(135deg, #f43f5e 0%, #be123c 52%, #4c0519 100%)",
   },
 ];
-
-const brlFormatter = new Intl.NumberFormat("pt-BR", {
-  style: "currency",
-  currency: "BRL",
-});
 
 function parseOptionalDay(value: string) {
   const day = Number(value);
@@ -153,6 +149,7 @@ function CardModalContent({
   editingCard: Card | null;
   onClose: () => void;
 }) {
+  const { formatCurrency, currencySymbol } = useCurrencyFormatter();
   const addCard = useFinanceStore((state) => state.addCard);
   const editCard = useFinanceStore((state) => state.editCard);
 
@@ -321,7 +318,7 @@ function CardModalContent({
             </div>
 
             <div className="mt-2 flex items-center justify-between gap-3 text-[10px] font-medium text-white/70 md:text-xs">
-              <span>Limite {brlFormatter.format(previewLimit)}</span>
+              <span>Limite {formatCurrency(previewLimit)}</span>
               <span>
                 Fecha {closingDay || "--"} · Vence {dueDay || "--"}
               </span>
@@ -372,7 +369,7 @@ function CardModalContent({
                   </Label>
                   <div className="flex items-center border-b border-zinc-700">
                     <span className="shrink-0 text-xs font-semibold text-violet-400">
-                      R$
+                      {currencySymbol}
                     </span>
                     <Input
                       id="card-limit"

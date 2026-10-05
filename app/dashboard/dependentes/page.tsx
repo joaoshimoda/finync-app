@@ -29,13 +29,10 @@ import { getDependentSettlementSummary } from "@/lib/dependentSettlements";
 import { isTransactionInSelectedCompetence } from "@/lib/transactionPeriod";
 import { cn } from "@/lib/utils";
 import { useFinanceStore } from "@/store/useFinanceStore";
-
-const brlFormatter = new Intl.NumberFormat("pt-BR", {
-  style: "currency",
-  currency: "BRL",
-});
+import { useCurrencyFormatter } from "@/hooks/useCurrencyFormatter";
 
 export default function DependentesPage() {
+  const { formatCurrency } = useCurrencyFormatter();
   const dependents = useFinanceStore((state) => state.dependents);
   const transactions = useFinanceStore((state) => state.transactions);
   const dependentSettlements = useFinanceStore(
@@ -210,19 +207,19 @@ export default function DependentesPage() {
         {[
           {
             label: "Total vinculado",
-            value: brlFormatter.format(totals.total),
+            value: formatCurrency(totals.total),
             icon: UsersRound,
             tone: "text-zinc-50",
           },
           {
             label: "Recebido",
-            value: brlFormatter.format(totals.settled),
+            value: formatCurrency(totals.settled),
             icon: CheckCircle2,
             tone: "text-emerald-300",
           },
           {
             label: "A receber",
-            value: brlFormatter.format(totals.outstanding),
+            value: formatCurrency(totals.outstanding),
             icon: HandCoins,
             tone: "text-amber-300",
           },
@@ -304,7 +301,7 @@ export default function DependentesPage() {
                         </div>
                       </div>
                       <strong className="shrink-0 text-sm text-zinc-50">
-                        {brlFormatter.format(dependent.total)}
+                        {formatCurrency(dependent.total)}
                       </strong>
                     </button>
 
@@ -315,7 +312,7 @@ export default function DependentesPage() {
                           Cartão
                         </div>
                         <p className="mt-2 text-sm font-medium text-blue-300">
-                          {brlFormatter.format(dependent.cardTotal)}
+                          {formatCurrency(dependent.cardTotal)}
                         </p>
                       </div>
                       <div className="rounded-xl border border-zinc-800 bg-zinc-900/60 p-3">
@@ -324,7 +321,7 @@ export default function DependentesPage() {
                           Débito/PIX
                         </div>
                         <p className="mt-2 text-sm font-medium text-emerald-300">
-                          {brlFormatter.format(dependent.fixedTotal)}
+                          {formatCurrency(dependent.fixedTotal)}
                         </p>
                       </div>
                     </div>
@@ -336,7 +333,7 @@ export default function DependentesPage() {
                           Maior gasto: {dependent.biggestExpense.description}
                         </span>
                         <span className="shrink-0 text-zinc-300">
-                          {brlFormatter.format(dependent.biggestExpense.amount)}
+                          {formatCurrency(dependent.biggestExpense.amount)}
                         </span>
                       </div>
                     ) : null}
@@ -344,7 +341,7 @@ export default function DependentesPage() {
                     <div className="mt-4 border-t border-zinc-800/80 pt-3">
                       <div className="flex items-center justify-between gap-3 text-xs">
                         <span className="text-zinc-500">
-                          Recebido: {brlFormatter.format(dependent.settledTotal)}
+                          Recebido: {formatCurrency(dependent.settledTotal)}
                         </span>
                         <strong
                           className={cn(
@@ -355,7 +352,7 @@ export default function DependentesPage() {
                           )}
                         >
                           {dependent.outstanding > 0
-                            ? `A receber: ${brlFormatter.format(dependent.outstanding)}`
+                            ? `A receber: ${formatCurrency(dependent.outstanding)}`
                             : "Quitado"}
                         </strong>
                       </div>
@@ -414,7 +411,7 @@ export default function DependentesPage() {
                           {formatDateOnlyBR(settlement.settledAt.slice(0, 10))}
                         </span>
                         <strong className="text-zinc-200">
-                          {brlFormatter.format(settlement.amount)}
+                          {formatCurrency(settlement.amount)}
                         </strong>
                       </div>
                     ))}
@@ -461,7 +458,7 @@ export default function DependentesPage() {
                           </div>
                         </div>
                         <strong className="shrink-0 text-sm text-zinc-50">
-                          {brlFormatter.format(amount)}
+                          {formatCurrency(amount)}
                         </strong>
                       </div>
                     );

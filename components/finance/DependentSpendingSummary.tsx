@@ -1,3 +1,5 @@
+"use client";
+
 import { UserRound } from "lucide-react";
 
 import {
@@ -8,11 +10,7 @@ import {
   CardTitle,
 } from "@/components/ui/card";
 import type { Dependent, Transaction } from "@/store/useFinanceStore";
-
-const brlFormatter = new Intl.NumberFormat("pt-BR", {
-  style: "currency",
-  currency: "BRL",
-});
+import { useCurrencyFormatter } from "@/hooks/useCurrencyFormatter";
 
 interface DependentSpendingSummaryProps {
   dependents: Dependent[];
@@ -23,6 +21,7 @@ export function DependentSpendingSummary({
   dependents,
   transactions,
 }: DependentSpendingSummaryProps) {
+  const { formatCurrency } = useCurrencyFormatter();
   const summaries = dependents
     .map((dependent) => ({
       ...dependent,
@@ -60,7 +59,7 @@ export function DependentSpendingSummary({
                   </span>
                 </div>
                 <strong className="shrink-0 text-sm font-semibold text-zinc-50">
-                  {brlFormatter.format(dependent.total)}
+                  {formatCurrency(dependent.total)}
                 </strong>
               </div>
             ))}

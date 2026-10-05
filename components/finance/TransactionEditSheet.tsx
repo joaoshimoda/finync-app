@@ -34,6 +34,7 @@ import {
 } from "@/components/ui/sheet";
 import { normalizeDateOnly } from "@/lib/dateUtils";
 import { parseCurrencyValue } from "@/lib/financeUtils";
+import { useCurrencyFormatter } from "@/hooks/useCurrencyFormatter";
 import { cn } from "@/lib/utils";
 import {
   useFinanceStore,
@@ -85,6 +86,7 @@ export function TransactionEditSheet({
   open,
   onOpenChange,
 }: TransactionEditSheetProps) {
+  const { currencySymbol } = useCurrencyFormatter();
   const cards = useFinanceStore((state) => state.cards);
   const dependents = useFinanceStore((state) => state.dependents);
   const categories = useFinanceStore((state) => state.categories);
@@ -318,7 +320,7 @@ export function TransactionEditSheet({
                 <FieldLabel icon={ReceiptText}>Valor</FieldLabel>
                 <div className="relative">
                   <span className="pointer-events-none absolute left-0 top-1/2 -translate-y-1/2 text-lg font-medium text-zinc-600">
-                    R$
+                    {currencySymbol}
                   </span>
                   <Input
                     value={amount}

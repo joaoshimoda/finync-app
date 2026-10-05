@@ -78,6 +78,7 @@ import {
 } from "@/lib/invoicePdf";
 import { cn } from "@/lib/utils";
 import { useFinanceStore } from "@/store/useFinanceStore";
+import { useCurrencyFormatter } from "@/hooks/useCurrencyFormatter";
 
 type ParsedTransaction = {
   date: string;
@@ -156,10 +157,6 @@ type PreparedImportTransaction = {
   split_with: string[];
 };
 
-const brlFormatter = new Intl.NumberFormat("pt-BR", {
-  style: "currency",
-  currency: "BRL",
-});
 const pdfBankLabels: Record<PdfInvoiceBank, string> = {
   bradesco: "Bradesco",
   generic: "Formato genérico",
@@ -604,6 +601,7 @@ function mapPdfTransaction(
 }
 
 export default function ImportarPage() {
+  const { formatCurrency } = useCurrencyFormatter();
   const cards = useFinanceStore((state) => state.cards);
   const dependents = useFinanceStore((state) => state.dependents);
   const categories = useFinanceStore((state) => state.categories);
@@ -1977,7 +1975,7 @@ export default function ImportarPage() {
                 {[
                   {
                     label: "Valor líquido",
-                    value: brlFormatter.format(
+                    value: formatCurrency(
                       importPreviewSummary.totalAmount,
                     ),
                     icon: FileSpreadsheet,
@@ -2175,7 +2173,7 @@ export default function ImportarPage() {
                             : transaction.category || "Sem categoria"
                         }
                         date={formatPreviewDate(transaction.date)}
-                        amount={brlFormatter.format(transaction.amount)}
+                        amount={formatCurrency(transaction.amount)}
                         positive={transaction.type === "credit"}
                         trailing={
                           <Button
@@ -2491,7 +2489,7 @@ export default function ImportarPage() {
                           )}
                         </TableCell>
                         <TableCell className="px-3 text-right font-medium text-zinc-50">
-                          {brlFormatter.format(transaction.amount)}
+                          {formatCurrency(transaction.amount)}
                         </TableCell>
                         <TableCell className="flex justify-end gap-1 px-2 text-right">
                           {!isIgnored ? (
@@ -2769,7 +2767,7 @@ export default function ImportarPage() {
                   {selectedSplitTransaction.description}
                 </p>
                 <p className="mt-1 text-sm text-zinc-400">
-                  {brlFormatter.format(selectedSplitTransaction.amount)}
+                  {formatCurrency(selectedSplitTransaction.amount)}
                 </p>
               </div>
 
@@ -2851,7 +2849,7 @@ export default function ImportarPage() {
                       Parte de {selectedSplitDependent?.name ?? "dependente"}
                     </p>
                     <div className="flex h-9 items-center rounded-lg border border-zinc-800 bg-zinc-950 px-3 text-sm text-zinc-300">
-                      {brlFormatter.format(
+                      {formatCurrency(
                         Math.max(
                           selectedSplitTransaction.amount -
                             parseCurrencyInput(splitUserAmount),

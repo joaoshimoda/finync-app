@@ -43,18 +43,7 @@ import { reportAppError } from "@/lib/errorMonitoring";
 import { supabase } from "@/lib/supabaseClient";
 import { cn } from "@/lib/utils";
 import { useFinanceStore } from "@/store/useFinanceStore";
-
-const brlFormatter = new Intl.NumberFormat("pt-BR", {
-  style: "currency",
-  currency: "BRL",
-});
-
-const compactBrlFormatter = new Intl.NumberFormat("pt-BR", {
-  style: "currency",
-  currency: "BRL",
-  notation: "compact",
-  maximumFractionDigits: 1,
-});
+import { useCurrencyFormatter } from "@/hooks/useCurrencyFormatter";
 
 type TopExpense = {
   name: string;
@@ -439,6 +428,7 @@ function AnalyticsSkeleton() {
 }
 
 export default function AnalyticsPage() {
+  const { formatCurrency, formatCompactCurrency } = useCurrencyFormatter();
   const currentMonth = useFinanceStore((state) => state.currentMonth);
   const currentYear = useFinanceStore((state) => state.currentYear);
   const shouldReduceMotion = useReducedMotion();
@@ -601,7 +591,7 @@ export default function AnalyticsPage() {
           helper="Receitas pessoais do mês"
           icon={TrendingUp}
           tone="text-emerald-400"
-          format={(value) => brlFormatter.format(value)}
+          format={formatCurrency}
         />
         <KpiCard
           title="Saídas"
@@ -609,7 +599,7 @@ export default function AnalyticsPage() {
           helper={expenseHelper}
           icon={TrendingDown}
           tone="text-rose-400"
-          format={(value) => brlFormatter.format(value)}
+          format={formatCurrency}
         />
         <KpiCard
           title="Balanço líquido"
@@ -617,7 +607,7 @@ export default function AnalyticsPage() {
           helper="Entradas menos saídas"
           icon={Wallet}
           tone={projectedSavings >= 0 ? "text-zinc-50" : "text-rose-400"}
-          format={(value) => brlFormatter.format(value)}
+          format={formatCurrency}
         />
         <KpiCard
           title="Taxa de poupança"
@@ -721,7 +711,7 @@ export default function AnalyticsPage() {
                       width={62}
                       tick={{ fill: "#71717a", fontSize: 11 }}
                       tickFormatter={(value) =>
-                        compactBrlFormatter.format(Number(value))
+                        formatCompactCurrency(Number(value))
                       }
                     />
                     <Tooltip
@@ -730,7 +720,7 @@ export default function AnalyticsPage() {
                       itemStyle={{ color: "#f4f4f5" }}
                       labelStyle={{ color: "#a1a1aa" }}
                       formatter={(value, name) => [
-                        brlFormatter.format(Number(value)),
+                        formatCurrency(Number(value)),
                         name,
                       ]}
                     />
@@ -813,7 +803,7 @@ export default function AnalyticsPage() {
                       contentStyle={tooltipContentStyle}
                       itemStyle={{ color: "#f4f4f5" }}
                       formatter={(value) => [
-                        brlFormatter.format(Number(value)),
+                        formatCurrency(Number(value)),
                         "Total",
                       ]}
                     />
@@ -883,7 +873,7 @@ export default function AnalyticsPage() {
                           contentStyle={tooltipContentStyle}
                           itemStyle={{ color: "#f4f4f5" }}
                           formatter={(value, name) => [
-                            brlFormatter.format(Number(value)),
+                            formatCurrency(Number(value)),
                             name,
                           ]}
                         />
@@ -894,7 +884,7 @@ export default function AnalyticsPage() {
                         Total
                       </span>
                       <strong className="text-sm font-semibold text-zinc-100">
-                        {compactBrlFormatter.format(expenseMixTotal)}
+                        {formatCompactCurrency(expenseMixTotal)}
                       </strong>
                     </div>
                   </div>
@@ -955,7 +945,7 @@ export default function AnalyticsPage() {
                           </div>
                         </div>
                         <p className="shrink-0 text-xs font-medium text-rose-300">
-                          {brlFormatter.format(expense.amount)}
+                          {formatCurrency(expense.amount)}
                         </p>
                       </div>
                     );

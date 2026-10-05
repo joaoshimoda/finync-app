@@ -63,15 +63,11 @@ import { supabase } from "@/lib/supabaseClient";
 import { cn } from "@/lib/utils";
 import { isTransactionInSelectedCompetence } from "@/lib/transactionPeriod";
 import { useFinanceStore, type Transaction } from "@/store/useFinanceStore";
+import { useCurrencyFormatter } from "@/hooks/useCurrencyFormatter";
 
 type TypeFilter = "all" | "income" | "expense" | "fixed";
 type OriginFilter = "all" | "card" | "debit-pix";
 type TransactionOrigin = Exclude<OriginFilter, "all"> | "income";
-
-const brlFormatter = new Intl.NumberFormat("pt-BR", {
-  style: "currency",
-  currency: "BRL",
-});
 
 const monthFormatter = new Intl.DateTimeFormat("pt-BR", {
   month: "long",
@@ -169,6 +165,7 @@ function getOriginBadgeClassName(origin: TransactionOrigin) {
 }
 
 export default function TransactionsPage() {
+  const { formatCurrency } = useCurrencyFormatter();
   const prefersReducedMotion = useReducedMotion();
   const [searchTerm, setSearchTerm] = useState("");
   const [categoryFilter, setCategoryFilter] = useState("all");
@@ -583,7 +580,7 @@ export default function TransactionsPage() {
             </span>
           </div>
           <strong className="mt-4 block text-xl font-semibold tracking-tight text-emerald-400 lg:text-2xl">
-            {brlFormatter.format(summary.totalIncome)}
+            {formatCurrency(summary.totalIncome)}
           </strong>
         </div>
 
@@ -597,7 +594,7 @@ export default function TransactionsPage() {
             </span>
           </div>
           <strong className="mt-4 block text-xl font-semibold tracking-tight text-rose-400 lg:text-2xl">
-            {brlFormatter.format(summary.totalExpense)}
+            {formatCurrency(summary.totalExpense)}
           </strong>
         </div>
 
@@ -616,7 +613,7 @@ export default function TransactionsPage() {
               summary.netBalance >= 0 ? "text-zinc-100" : "text-rose-400",
             )}
           >
-            {brlFormatter.format(summary.netBalance)}
+            {formatCurrency(summary.netBalance)}
           </strong>
         </div>
       </motion.section>
@@ -898,7 +895,7 @@ export default function TransactionsPage() {
                       )}
                     >
                       {isPositive ? "+" : "-"}
-                      {brlFormatter.format(transaction.amount)}
+                      {formatCurrency(transaction.amount)}
                     </strong>
                     <DropdownMenu>
                       <DropdownMenuTrigger asChild>
@@ -1082,7 +1079,7 @@ export default function TransactionsPage() {
                       )}
                     >
                       {isPositive ? "+" : "-"}
-                      {brlFormatter.format(transaction.amount)}
+                      {formatCurrency(transaction.amount)}
                     </TableCell>
                     <TableCell className="py-4.5">
                       <DropdownMenu>

@@ -100,13 +100,7 @@ import {
   type Transaction,
 } from "@/store/useFinanceStore";
 import { toast } from "sonner";
-
-const brlFormatter = new Intl.NumberFormat("pt-BR", {
-  style: "currency",
-  currency: "BRL",
-});
-
-const hiddenCurrencyLabel = "R$ ••••";
+import { useCurrencyFormatter } from "@/hooks/useCurrencyFormatter";
 
 const dashboardReveal = {
   hidden: { opacity: 0, y: 18 },
@@ -167,10 +161,6 @@ function useCountUp(
   }, [duration, reduceMotion, resetKey, targetValue]);
 
   return reduceMotion ? targetValue : animatedValue;
-}
-
-function formatSensitiveCurrency(value: number, hideValue: boolean) {
-  return hideValue ? hiddenCurrencyLabel : brlFormatter.format(value);
 }
 
 const typeLabel: Record<string, string> = {
@@ -378,6 +368,9 @@ function FlippableWalletCard({
   const hideBalancesByDefault = useFinanceStore(
     (state) => state.hideBalancesByDefault,
   );
+  const { formatCurrency, hiddenCurrencyLabel } = useCurrencyFormatter();
+  const formatPrivateCurrency = (value: number) =>
+    hideBalancesByDefault ? hiddenCurrencyLabel : formatCurrency(value);
   const cycleLabel = `${formatDateOnlyBR(cardSummary.cycleStartDate)} - ${formatDateOnlyBR(cardSummary.cycleEndDate)}`;
   const invoiceStatusLabel = cardSummary.invoiceStatus
     ? {
@@ -421,19 +414,13 @@ function FlippableWalletCard({
           </div>
           <div className="relative mt-3 flex flex-1 flex-col justify-between">
             <strong className="block text-2xl font-bold leading-none tracking-tight text-white">
-              {formatSensitiveCurrency(
-                cardSummary.current,
-                hideBalancesByDefault,
-              )}
+              {formatPrivateCurrency(cardSummary.current)}
             </strong>
             <div>
               <div className="flex items-center justify-between gap-3 text-[11px] text-zinc-400 sm:text-xs">
                 <span className="whitespace-nowrap">Limite disponível</span>
                 <span className="shrink-0 text-xs text-zinc-300">
-                  {formatSensitiveCurrency(
-                    cardSummary.limitAmount,
-                    hideBalancesByDefault,
-                  )}
+                  {formatPrivateCurrency(cardSummary.limitAmount)}
                 </span>
               </div>
               <Progress
@@ -470,10 +457,7 @@ function FlippableWalletCard({
                   Disponível
                 </p>
                 <strong className="block text-lg font-semibold leading-tight text-zinc-100">
-                  {formatSensitiveCurrency(
-                    cardSummary.availableLimit,
-                    hideBalancesByDefault,
-                  )}
+                  {formatPrivateCurrency(cardSummary.availableLimit)}
                 </strong>
               </div>
               <div className="text-right">
@@ -481,10 +465,7 @@ function FlippableWalletCard({
                   Utilizado
                 </p>
                 <span className="text-sm font-medium text-zinc-300">
-                  {formatSensitiveCurrency(
-                    cardSummary.debtTotal,
-                    hideBalancesByDefault,
-                  )}
+                  {formatPrivateCurrency(cardSummary.debtTotal)}
                 </span>
               </div>
             </div>
@@ -569,8 +550,9 @@ export default function DashboardPage() {
   const toggleHideBalancesByDefault = useFinanceStore(
     (state) => state.toggleHideBalancesByDefault,
   );
+  const { formatCurrency, hiddenCurrencyLabel } = useCurrencyFormatter();
   const formatPrivateCurrency = (value: number) =>
-    formatSensitiveCurrency(value, hideBalancesByDefault);
+    hideBalancesByDefault ? hiddenCurrencyLabel : formatCurrency(value);
   const revealTransition = prefersReducedMotion
     ? { duration: 0 }
     : { duration: 0.45, ease: "easeOut" as const };

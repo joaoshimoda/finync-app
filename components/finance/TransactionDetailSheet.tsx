@@ -29,11 +29,7 @@ import { formatDateOnlyBR } from "@/lib/dateUtils";
 import { getTransactionStatusPresentation } from "@/lib/transactionStatus";
 import { cn } from "@/lib/utils";
 import type { Transaction } from "@/store/useFinanceStore";
-
-const currencyFormatter = new Intl.NumberFormat("pt-BR", {
-  style: "currency",
-  currency: "BRL",
-});
+import { useCurrencyFormatter } from "@/hooks/useCurrencyFormatter";
 
 const monthFormatter = new Intl.DateTimeFormat("pt-BR", {
   month: "long",
@@ -93,6 +89,7 @@ export function TransactionDetailSheet({
   onOpenChange,
   onEdit,
 }: TransactionDetailSheetProps) {
+  const { formatCurrency } = useCurrencyFormatter();
   if (!transaction) return null;
 
   const description = getTransactionDescriptionPresentation(transaction);
@@ -149,7 +146,7 @@ export function TransactionDetailSheet({
                   )}
                 >
                   {isPositive ? "+" : "-"}
-                  {currencyFormatter.format(Math.abs(signedAmount))}
+                  {formatCurrency(Math.abs(signedAmount))}
                 </p>
               </div>
               <Badge variant="outline" className={status.className}>
