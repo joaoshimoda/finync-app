@@ -2,8 +2,9 @@
 
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
-import { ChevronsUpDown, LogOut, UserRound } from "lucide-react";
+import { ChevronsUpDown, LogOut, Search, UserRound } from "lucide-react";
 import { FinyncLogo } from "@/components/branding/FinyncLogo";
+import { useDashboardActions } from "@/components/layout/DashboardActionsProvider";
 import { navigationItems, navigationSections } from "./navigationItems";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import {
@@ -25,6 +26,7 @@ function isActiveRoute(pathname: string, href: string) {
 export function Sidebar() {
   const pathname = usePathname();
   const router = useRouter();
+  const { setCommandPaletteOpen } = useDashboardActions();
   const authUser = useFinanceStore((state) => state.authUser);
   const clearFinanceState = useFinanceStore((state) => state.clearFinanceState);
   const metadataName = authUser?.user_metadata?.name;
@@ -116,11 +118,20 @@ export function Sidebar() {
         ))}
       </nav>
 
+      <button
+        type="button"
+        className="mt-4 flex h-10 w-full items-center gap-3 rounded-lg border border-white/[0.08] bg-white/[0.025] px-3 text-sm font-medium text-zinc-500 transition-colors hover:bg-white/[0.055] hover:text-zinc-200"
+        onClick={() => setCommandPaletteOpen(true)}
+      >
+        <Search className="size-[18px]" />
+        <span>Buscar no Finync</span>
+      </button>
+
       <DropdownMenu>
         <DropdownMenuTrigger asChild>
           <button
             type="button"
-            className="mt-5 flex w-full cursor-pointer items-center gap-3 rounded-xl border border-white/[0.08] bg-white/[0.035] p-3 text-left transition-colors hover:bg-white/[0.065]"
+            className="mt-2 flex w-full cursor-pointer items-center gap-3 rounded-xl border border-white/[0.08] bg-white/[0.035] p-3 text-left transition-colors hover:bg-white/[0.065]"
           >
             <Avatar>
               <AvatarImage src={avatarUrl} alt={displayName} />

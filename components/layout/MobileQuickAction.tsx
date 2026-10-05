@@ -9,12 +9,8 @@ import {
   X,
 } from "lucide-react";
 
-import { AddCardModal } from "@/components/modals/AddCardModal";
-import { AddIncomeModal } from "@/components/modals/AddIncomeModal";
-import { AddTransactionModal } from "@/components/modals/AddTransactionModal";
+import { useDashboardActions } from "@/components/layout/DashboardActionsProvider";
 import { cn } from "@/lib/utils";
-
-type QuickAction = "expense" | "income" | "card" | null;
 
 const actions = [
   {
@@ -42,20 +38,17 @@ const actions = [
 
 export function MobileQuickAction() {
   const [isMenuOpen, setIsMenuOpen] = useState(false);
-  const [activeAction, setActiveAction] = useState<QuickAction>(null);
+  const { commandPaletteOpen, openQuickAction, quickActionOpen } =
+    useDashboardActions();
 
-  function openAction(action: Exclude<QuickAction, null>) {
+  function openAction(action: "expense" | "income" | "card") {
     setIsMenuOpen(false);
-    setActiveAction(action);
-  }
-
-  function switchTransactionAction(action: "expense" | "income") {
-    setActiveAction(action);
+    openQuickAction(action);
   }
 
   return (
     <>
-      {isMenuOpen ? (
+      {isMenuOpen && !commandPaletteOpen ? (
         <button
           type="button"
           aria-label="Fechar ações rápidas"
@@ -64,7 +57,7 @@ export function MobileQuickAction() {
         />
       ) : null}
 
-      {activeAction === null ? (
+      {!quickActionOpen && !commandPaletteOpen ? (
         <div className="fixed bottom-[calc(env(safe-area-inset-bottom)+5.5rem)] right-4 z-[60] flex flex-col items-end gap-3 md:hidden">
           {isMenuOpen ? (
             <div className="w-[min(19rem,calc(100vw-2rem))] overflow-hidden rounded-xl border border-white/[0.09] bg-zinc-950 p-2 shadow-2xl shadow-black/50">
@@ -113,20 +106,6 @@ export function MobileQuickAction() {
         </div>
       ) : null}
 
-      <AddCardModal
-        isOpen={activeAction === "card"}
-        onClose={() => setActiveAction(null)}
-      />
-      <AddIncomeModal
-        isOpen={activeAction === "income"}
-        onClose={() => setActiveAction(null)}
-        onSelectExpense={() => switchTransactionAction("expense")}
-      />
-      <AddTransactionModal
-        isOpen={activeAction === "expense"}
-        onClose={() => setActiveAction(null)}
-        onSelectIncome={() => switchTransactionAction("income")}
-      />
     </>
   );
 }

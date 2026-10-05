@@ -2,6 +2,7 @@
 
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { FinyncLogo } from "@/components/branding/FinyncLogo";
+import { useDashboardActions } from "@/components/layout/DashboardActionsProvider";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -19,6 +20,7 @@ import {
   FileUp,
   Gauge,
   LogOut,
+  Search,
   Settings,
   ShieldCheck,
 } from "lucide-react";
@@ -28,6 +30,7 @@ import { toast } from "sonner";
 
 export function MobileTopBar() {
   const router = useRouter();
+  const { setCommandPaletteOpen } = useDashboardActions();
   const authUser = useFinanceStore((state) => state.authUser);
   const clearFinanceState = useFinanceStore((state) => state.clearFinanceState);
   const metadataName = authUser?.user_metadata?.name;
@@ -66,8 +69,18 @@ export function MobileTopBar() {
         <FinyncLogo eager className="w-24 brightness-125" />
       </Link>
 
-      <DropdownMenu>
-        <DropdownMenuTrigger asChild>
+      <div className="flex items-center gap-2">
+        <button
+          type="button"
+          className="flex size-11 items-center justify-center rounded-full text-zinc-400 transition-colors hover:bg-zinc-900 hover:text-zinc-100"
+          aria-label="Buscar no Finync"
+          onClick={() => setCommandPaletteOpen(true)}
+        >
+          <Search className="size-5" />
+        </button>
+
+        <DropdownMenu>
+          <DropdownMenuTrigger asChild>
           <button
             type="button"
             className="flex size-11 cursor-pointer items-center justify-center rounded-full border border-zinc-800 bg-zinc-900"
@@ -80,8 +93,8 @@ export function MobileTopBar() {
               </AvatarFallback>
             </Avatar>
           </button>
-        </DropdownMenuTrigger>
-        <DropdownMenuContent align="end" sideOffset={8} className="w-60 p-2">
+          </DropdownMenuTrigger>
+          <DropdownMenuContent align="end" sideOffset={8} className="w-60 p-2">
           <DropdownMenuItem
             asChild
             className="min-h-11 cursor-pointer rounded-lg"
@@ -162,8 +175,9 @@ export function MobileTopBar() {
             <LogOut className="size-4" />
             Sair
           </DropdownMenuItem>
-        </DropdownMenuContent>
-      </DropdownMenu>
+          </DropdownMenuContent>
+        </DropdownMenu>
+      </div>
     </header>
   );
 }
