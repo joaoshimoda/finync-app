@@ -3,6 +3,7 @@
 import { BottomNav } from "@/components/layout/BottomNav";
 import { Sidebar } from "@/components/layout/Sidebar";
 import { MobileTopBar } from "@/components/layout/MobileTopBar";
+import { MobileQuickAction } from "@/components/layout/MobileQuickAction";
 import { FirstRunOnboarding } from "@/components/onboarding/FirstRunOnboarding";
 import { useFinanceStore } from "@/store/useFinanceStore";
 import { useRouter } from "next/navigation";
@@ -44,13 +45,14 @@ export default function DashboardLayout({
         <MobileTopBar />
         <main
           id="dashboard-scroll-container"
-          className="h-dvh min-h-0 min-w-0 flex-1 overscroll-y-contain overflow-x-hidden overflow-y-auto px-4 pb-28 pt-20 [scrollbar-gutter:stable] sm:px-5 md:px-6 md:pb-8 md:pt-8 lg:px-8"
+          className="h-dvh min-h-0 min-w-0 flex-1 overscroll-y-contain overflow-x-hidden overflow-y-auto px-4 pb-36 pt-20 [scrollbar-gutter:stable] sm:px-5 md:px-6 md:pb-8 md:pt-8 lg:px-8"
         >
           <div className="mx-auto w-full max-w-lg md:max-w-none">
             {children}
           </div>
         </main>
       </div>
+      <MobileQuickAction />
       <BottomNav />
       <FirstRunOnboarding />
     </div>
