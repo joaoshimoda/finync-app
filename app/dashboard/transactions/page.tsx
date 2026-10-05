@@ -33,7 +33,7 @@ import { PRODUCT_TOUR_PREVIEW_EVENTS } from "@/components/onboarding/tourSteps";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
-import { Dialog, DialogContent } from "@/components/ui/dialog";
+import { ConfirmDialog } from "@/components/ui/ConfirmDialog";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -407,6 +407,7 @@ export default function TransactionsPage() {
     } catch (error) {
       console.error("Erro ao excluir movimentação:", error);
       toast.error("Não foi possível excluir agora.");
+      throw error;
     }
   }, [deleteTransaction]);
 
@@ -420,6 +421,7 @@ export default function TransactionsPage() {
     } catch (error) {
       console.error("Erro ao excluir recorrência:", error);
       toast.error("Não foi possível excluir a recorrência agora.");
+      throw error;
     }
   }, [deleteTransactionGroup]);
 
@@ -476,6 +478,7 @@ export default function TransactionsPage() {
         context: { operation: "Excluir transações em massa" },
       });
       toast.error("Não foi possível excluir as transações selecionadas.");
+      throw error;
     } finally {
       setIsBulkSubmitting(false);
     }
@@ -790,15 +793,23 @@ export default function TransactionsPage() {
                   ))}
                 </DropdownMenuContent>
               </DropdownMenu>
-              <Button
-                type="button"
-                variant="destructive"
-                size="sm"
-                disabled={isBulkSubmitting}
-                onClick={() => void handleBulkDelete()}
+              <ConfirmDialog
+                title="Excluir transações selecionadas?"
+                description="Os lançamentos serão removidos permanentemente. Esta ação não altera somente a visualização atual."
+                confirmLabel="Excluir selecionadas"
+                loadingLabel="Excluindo..."
+                details={`${selectedIds.length} ${selectedIds.length === 1 ? "transação selecionada" : "transações selecionadas"}`}
+                onConfirm={handleBulkDelete}
               >
-                Excluir em Massa
-              </Button>
+                <Button
+                  type="button"
+                  variant="destructive"
+                  size="sm"
+                  disabled={isBulkSubmitting}
+                >
+                  Excluir em massa
+                </Button>
+              </ConfirmDialog>
             </div>
           </div>
         ) : null}
@@ -1195,44 +1206,18 @@ export default function TransactionsPage() {
       ) : null}
 
       {deleteTarget && !deleteTarget.groupId ? (
-        <Dialog
+        <ConfirmDialog
           open={Boolean(deleteTarget)}
           onOpenChange={(open) => {
             if (!open) setDeleteTarget(null);
           }}
-        >
-          <DialogContent className="p-6 lg:max-w-md">
-            <div className="flex flex-col gap-6">
-              <div className="space-y-2">
-                <h2 className="text-xl font-semibold tracking-tight">
-                  Excluir transação?
-                </h2>
-                <p className="text-sm leading-relaxed text-muted-foreground">
-                  Esta ação remove o lançamento da sua lista e não pode ser
-                  desfeita.
-                </p>
-              </div>
-              <div className="flex flex-col gap-3">
-                <Button
-                  type="button"
-                  variant="destructive"
-                  className="h-11 w-full cursor-pointer"
-                  onClick={() => handleDeleteTransaction(deleteTarget.id)}
-                >
-                  Excluir transação
-                </Button>
-                <Button
-                  type="button"
-                  variant="ghost"
-                  className="h-11 w-full cursor-pointer hover:bg-zinc-800"
-                  onClick={() => setDeleteTarget(null)}
-                >
-                  Cancelar
-                </Button>
-              </div>
-            </div>
-          </DialogContent>
-        </Dialog>
+          title="Excluir transação?"
+          description="Esta ação remove o lançamento permanentemente e não pode ser desfeita."
+          confirmLabel="Excluir transação"
+          loadingLabel="Excluindo..."
+          details={deleteTarget.description}
+          onConfirm={() => handleDeleteTransaction(deleteTarget.id)}
+        />
       ) : null}
 
       <AddIncomeModal

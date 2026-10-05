@@ -66,6 +66,7 @@ export function TransactionFeed({
     } catch (error) {
       console.error("Erro ao remover transação:", error);
       toast.error("Erro ao remover item");
+      throw error;
     }
   }
 
@@ -78,6 +79,7 @@ export function TransactionFeed({
     } catch (error) {
       console.error("Erro ao remover recorrência:", error);
       toast.error("Erro ao remover recorrência");
+      throw error;
     }
   }
 
@@ -217,9 +219,11 @@ export function TransactionFeed({
                       </RecurringDeleteDialog>
                     ) : (
                       <ConfirmDialog
-                        title="Excluir transação"
+                        title="Excluir transação?"
                         description="Esta ação remove o lançamento da sua lista e não pode ser desfeita."
-                        confirmLabel="Excluir"
+                        confirmLabel="Excluir transação"
+                        loadingLabel="Excluindo..."
+                        details={transaction.description}
                         onConfirm={() => handleDeleteTransaction(transaction.id)}
                       >
                         <button

@@ -174,6 +174,8 @@ export function DependentManager({
                       title="Remover dependente?"
                       description="Os lançamentos existentes serão preservados, mas deixarão de estar vinculados a esta pessoa."
                       confirmLabel="Remover dependente"
+                      loadingLabel="Removendo..."
+                      details={dependent.name}
                       onConfirm={() => handleDelete(dependent.id)}
                     >
                       <Button

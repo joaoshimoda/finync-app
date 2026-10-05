@@ -1,9 +1,19 @@
 "use client";
 
 import { ReactNode, useState } from "react";
+import { AlertTriangle, CalendarX2, Loader2, Trash2 } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
-import { Dialog, DialogContent } from "@/components/ui/dialog";
+import {
+  AlertDialog,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogTrigger,
+} from "@/components/ui/alert-dialog";
 import type { Transaction } from "@/store/useFinanceStore";
 
 interface RecurringDeleteDialogProps {
@@ -29,11 +39,13 @@ export function RecurringDeleteDialog({
 }: RecurringDeleteDialogProps) {
   const [internalOpen, setInternalOpen] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
+  const [hasError, setHasError] = useState(false);
   const isDeleteDialogOpen = open ?? internalOpen;
   const setIsDeleteDialogOpen = onOpenChange ?? setInternalOpen;
   const isCancelSubscription = mode === "cancelSubscription";
 
   async function handleConfirmDelete(scope: DeleteScope) {
+    setHasError(false);
     setIsDeleting(true);
 
     try {
@@ -44,68 +56,89 @@ export function RecurringDeleteDialog({
       }
 
       setIsDeleteDialogOpen(false);
+    } catch {
+      setHasError(true);
     } finally {
       setIsDeleting(false);
     }
   }
 
   return (
-    <>
+    <AlertDialog
+      open={isDeleteDialogOpen}
+      onOpenChange={(nextOpen) => {
+        if (isDeleting) return;
+        setHasError(false);
+        setIsDeleteDialogOpen(nextOpen);
+      }}
+    >
       {children ? (
-        <span onClick={() => setIsDeleteDialogOpen(true)}>{children}</span>
+        <AlertDialogTrigger asChild>{children}</AlertDialogTrigger>
       ) : null}
-
-      <Dialog open={isDeleteDialogOpen} onOpenChange={setIsDeleteDialogOpen}>
-        <DialogContent className="p-6 sm:max-w-[400px]">
-          <div className="flex flex-col gap-6">
-            <div className="space-y-2">
-              <h2 className="text-xl font-semibold tracking-tight">
-                {isCancelSubscription
-                  ? "Cancelar assinatura?"
-                  : "Excluir despesa recorrente?"}
-              </h2>
-              <p className="text-sm leading-relaxed text-muted-foreground">
-                {isCancelSubscription
-                  ? "Esta ação remove a cobrança deste mês e as próximas cobranças da mesma assinatura. O histórico anterior será preservado."
-                  : "Escolha se deseja remover apenas o lançamento deste mês ou este e os próximos lançamentos da mesma recorrência."}
-              </p>
-            </div>
-
-            <div className="flex flex-col gap-3">
-              <Button
-                variant="destructive"
-                disabled={isDeleting || !transaction.groupId}
-                onClick={() => handleConfirmDelete("future")}
-                className="h-11 w-full cursor-pointer"
-              >
-                {isCancelSubscription
-                  ? "Cancelar assinatura"
-                  : "Este e os próximos (Excluir tudo)"}
-              </Button>
-
-              {isCancelSubscription ? null : (
-                <Button
-                  variant="secondary"
-                  disabled={isDeleting}
-                  onClick={() => handleConfirmDelete("single")}
-                  className="h-11 w-full cursor-pointer"
-                >
-                  Somente este mês
-                </Button>
-              )}
-
-              <Button
-                variant="ghost"
-                disabled={isDeleting}
-                onClick={() => setIsDeleteDialogOpen(false)}
-                className="h-11 w-full cursor-pointer hover:bg-zinc-800"
-              >
-                Cancelar
-              </Button>
-            </div>
+      <AlertDialogContent className="sm:max-w-[460px]">
+        <AlertDialogHeader className="flex flex-row items-start gap-4 space-y-0">
+          <span className="flex size-10 shrink-0 items-center justify-center rounded-lg border border-rose-500/20 bg-rose-500/10 text-rose-300">
+            <AlertTriangle className="size-5" />
+          </span>
+          <div className="min-w-0 space-y-1.5">
+            <AlertDialogTitle>
+              {isCancelSubscription
+                ? "Cancelar assinatura?"
+                : "Excluir despesa recorrente?"}
+            </AlertDialogTitle>
+            <AlertDialogDescription>
+              {isCancelSubscription
+                ? "Esta ação remove a cobrança deste mês e as próximas cobranças da mesma assinatura. O histórico anterior será preservado."
+                : "Escolha se deseja remover apenas o lançamento deste mês ou este e os próximos lançamentos da mesma recorrência."}
+            </AlertDialogDescription>
           </div>
-        </DialogContent>
-      </Dialog>
-    </>
+        </AlertDialogHeader>
+
+        <div className="space-y-2 px-6 pb-5">
+          <Button
+            variant="destructive"
+            disabled={isDeleting || !transaction.groupId}
+            onClick={() => void handleConfirmDelete("future")}
+            className="h-auto min-h-12 w-full justify-start bg-rose-600 px-4 py-3 text-left text-white hover:bg-rose-500"
+          >
+            {isDeleting ? (
+              <Loader2 className="size-4 animate-spin" />
+            ) : (
+              <Trash2 className="size-4" />
+            )}
+            {isCancelSubscription
+              ? "Cancelar assinatura"
+              : "Excluir este e os próximos"}
+          </Button>
+
+          {isCancelSubscription ? null : (
+            <Button
+              variant="outline"
+              disabled={isDeleting}
+              onClick={() => void handleConfirmDelete("single")}
+              className="h-auto min-h-12 w-full justify-start px-4 py-3 text-left"
+            >
+              <CalendarX2 className="size-4" />
+              Somente este mês
+            </Button>
+          )}
+          {hasError ? (
+            <p
+              role="alert"
+              className="rounded-lg border border-rose-500/20 bg-rose-500/10 px-4 py-3 text-sm text-rose-200"
+            >
+              Não foi possível concluir a exclusão. Tente novamente.
+            </p>
+          ) : null}
+        </div>
+        <AlertDialogFooter>
+          <AlertDialogCancel asChild>
+            <Button type="button" variant="ghost" disabled={isDeleting}>
+              Voltar
+            </Button>
+          </AlertDialogCancel>
+        </AlertDialogFooter>
+      </AlertDialogContent>
+    </AlertDialog>
   );
 }

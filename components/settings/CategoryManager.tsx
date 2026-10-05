@@ -201,6 +201,9 @@ export function CategoryManager() {
                           title="Excluir categoria?"
                           description={`A categoria ${category.label} será removida. Categorias em uso são protegidas pelo banco.`}
                           confirmLabel="Excluir categoria"
+                          loadingLabel="Excluindo..."
+                          details={category.label}
+                          errorMessage="A categoria pode estar vinculada a transações. Remova os vínculos antes de tentar novamente."
                           onConfirm={() => handleDeleteCategory(category.id)}
                         >
                           <Button

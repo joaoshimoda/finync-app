@@ -359,6 +359,8 @@ export default function OrcamentosPage() {
                         title="Excluir orçamento?"
                         description={`O limite de ${budget.categoryLabel} será removido apenas desta competência.`}
                         confirmLabel="Excluir orçamento"
+                        loadingLabel="Excluindo..."
+                        details={budget.categoryLabel}
                         onConfirm={() => handleDeleteBudget(budget.id)}
                       >
                         <Button

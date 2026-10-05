@@ -352,6 +352,7 @@ export default function FixedExpensesPage() {
     } catch (error) {
       console.error("Erro ao remover lançamento:", error);
       toast.error("Não foi possível remover agora.");
+      throw error;
     }
   }, [deleteTransaction]);
 
@@ -369,6 +370,7 @@ export default function FixedExpensesPage() {
     } catch (error) {
       console.error("Erro ao remover recorrência:", error);
       toast.error("Não foi possível remover a recorrência agora.");
+      throw error;
     }
   }, [deleteTransactionGroup]);
 

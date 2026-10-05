@@ -17,18 +17,9 @@ import { PayInvoiceModal } from "@/components/modals/PayInvoiceModal";
 import { PRODUCT_TOUR_PREVIEW_EVENTS } from "@/components/onboarding/tourSteps";
 import { TransactionDescription } from "@/components/finance/TransactionDescription";
 import { MobileTransactionItem } from "@/components/finance/MobileTransactionItem";
-import {
-  AlertDialog,
-  AlertDialogAction,
-  AlertDialogCancel,
-  AlertDialogContent,
-  AlertDialogDescription,
-  AlertDialogFooter,
-  AlertDialogHeader,
-  AlertDialogTitle,
-} from "@/components/ui/alert-dialog";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { ConfirmDialog } from "@/components/ui/ConfirmDialog";
 import {
   Card,
   CardContent,
@@ -712,6 +703,7 @@ export default function CardsPage() {
       toast.error(
         error instanceof Error ? error.message : "Erro ao remover cartão.",
       );
+      throw error;
     } finally {
       setIsDeletingCard(false);
     }
@@ -1220,40 +1212,18 @@ export default function CardsPage() {
         }}
       />
 
-      <AlertDialog
+      <ConfirmDialog
         open={Boolean(deleteTargetCard)}
         onOpenChange={(open) => {
           if (!open && !isDeletingCard) setDeleteTargetCard(null);
         }}
-      >
-        <AlertDialogContent>
-          <AlertDialogHeader>
-            <AlertDialogTitle>Excluir cartão?</AlertDialogTitle>
-            <AlertDialogDescription>
-              Esta ação não pode ser desfeita. Isso excluirá permanentemente o
-              cartão {deleteTargetCard?.name} e todas as transações e faturas
-              vinculadas a ele.
-            </AlertDialogDescription>
-          </AlertDialogHeader>
-          <AlertDialogFooter>
-            <AlertDialogCancel asChild>
-              <Button variant="outline" disabled={isDeletingCard}>
-                Cancelar
-              </Button>
-            </AlertDialogCancel>
-            <AlertDialogAction asChild>
-              <Button
-                variant="destructive"
-                disabled={isDeletingCard}
-                className="bg-red-600 text-white hover:bg-red-700"
-                onClick={() => void handleDeleteCard()}
-              >
-                {isDeletingCard ? "Excluindo..." : "Sim, excluir cartão"}
-              </Button>
-            </AlertDialogAction>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
+        title="Excluir cartão?"
+        description="O cartão, suas faturas e todas as transações vinculadas serão excluídos permanentemente."
+        confirmLabel="Sim, excluir cartão"
+        loadingLabel="Excluindo..."
+        details={deleteTargetCard?.name}
+        onConfirm={handleDeleteCard}
+      />
     </div>
   );
 }

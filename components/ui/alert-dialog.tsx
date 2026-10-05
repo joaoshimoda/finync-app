@@ -16,7 +16,7 @@ const AlertDialogOverlay = forwardRef<
   <AlertDialogPrimitive.Overlay
     ref={ref}
     className={[
-      "fixed inset-0 z-50 bg-black/70 backdrop-blur-xl",
+      "fixed inset-0 z-50 bg-black/75 backdrop-blur-sm",
       "data-[state=open]:animate-in data-[state=closed]:animate-out",
       className,
     ].join(" ")}
@@ -35,7 +35,8 @@ const AlertDialogContent = forwardRef<
       ref={ref}
       className={[
         "fixed left-1/2 top-1/2 z-50 w-[calc(100%-2rem)] max-w-md -translate-x-1/2 -translate-y-1/2",
-        "rounded-2xl border border-white/[0.08] bg-zinc-950/95 p-6 text-white shadow-2xl shadow-black/50 outline-none backdrop-blur-2xl",
+        "overflow-hidden rounded-xl border border-zinc-800 bg-zinc-950 text-white shadow-xl shadow-black/40 outline-none",
+        "data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=open]:fade-in-0 data-[state=closed]:fade-out-0 data-[state=open]:zoom-in-95 data-[state=closed]:zoom-out-95",
         className,
       ].join(" ")}
       {...props}
@@ -48,7 +49,7 @@ const AlertDialogHeader = ({
   className = "",
   ...props
 }: ComponentPropsWithoutRef<"div">) => (
-  <div className={["space-y-2 text-left", className].join(" ")} {...props} />
+  <div className={["space-y-2 p-6 text-left", className].join(" ")} {...props} />
 );
 
 const AlertDialogFooter = ({
@@ -57,7 +58,7 @@ const AlertDialogFooter = ({
 }: ComponentPropsWithoutRef<"div">) => (
   <div
     className={[
-      "mt-6 flex flex-col-reverse gap-3 sm:flex-row sm:justify-end",
+      "flex flex-col-reverse gap-2 border-t border-zinc-800 bg-zinc-900/45 p-4 sm:flex-row sm:justify-end",
       className,
     ].join(" ")}
     {...props}

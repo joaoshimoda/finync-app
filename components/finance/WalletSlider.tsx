@@ -39,6 +39,7 @@ export function WalletSlider({ cards = [], transactions = [] }: WalletSliderProp
       toast.error(
         error instanceof Error ? error.message : "Erro ao remover item",
       );
+      throw error;
     }
   }
 
@@ -122,9 +123,11 @@ export function WalletSlider({ cards = [], transactions = [] }: WalletSliderProp
                         </span>
                       ) : null}
                       <ConfirmDialog
-                        title="Excluir cartão"
-                        description="Esta ação remove o cartão e as despesas locais vinculadas a ele da sua interface."
-                        confirmLabel="Excluir"
+                        title="Excluir cartão?"
+                        description="O cartão, suas faturas e todas as transações vinculadas serão excluídos permanentemente."
+                        confirmLabel="Excluir cartão"
+                        loadingLabel="Excluindo..."
+                        details={card.name}
                         onConfirm={() => handleDeleteCard(card.id)}
                       >
                         <button
