@@ -1848,6 +1848,7 @@ export default function DashboardPage() {
                         height="100%"
                         minWidth={1}
                         minHeight={1}
+                        initialDimension={{ width: 128, height: 128 }}
                       >
                         <PieChart>
                           <Pie

@@ -660,6 +660,7 @@ export default function AnalyticsPage() {
                   height="100%"
                   minWidth={1}
                   minHeight={1}
+                  initialDimension={{ width: 640, height: 240 }}
                 >
                   <AreaChart
                     data={monthlyEvolution}
@@ -786,6 +787,7 @@ export default function AnalyticsPage() {
                   height="100%"
                   minWidth={1}
                   minHeight={1}
+                  initialDimension={{ width: 420, height: 180 }}
                 >
                   <BarChart
                     data={topCategories}
@@ -857,6 +859,7 @@ export default function AnalyticsPage() {
                       height="100%"
                       minWidth={1}
                       minHeight={1}
+                      initialDimension={{ width: 240, height: 160 }}
                     >
                       <PieChart>
                         <Pie
