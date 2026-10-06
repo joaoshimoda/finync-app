@@ -2,7 +2,8 @@
 
 import { useCallback, useEffect, useMemo, useState } from "react";
 import {
-  Activity,
+  ChevronDown,
+  CircleCheckBig,
   CirclePlus,
   FileClock,
   PencilLine,
@@ -24,7 +25,6 @@ import {
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent } from "@/components/ui/card";
 import {
   Select,
   SelectContent,
@@ -47,6 +47,7 @@ import { useFinanceStore } from "@/store/useFinanceStore";
 type AuditLog = Tables<"audit_logs">;
 type AuditAction = AuditLog["action"];
 type EntityType = AuditLog["entity_type"];
+type ActivityOrigin = AuditLog["origin"];
 
 const entityPresentation: Record<
   EntityType,
@@ -73,7 +74,6 @@ const actionPresentation: Record<
   AuditAction,
   {
     label: string;
-    verb: string;
     icon: typeof CirclePlus;
     tone: string;
     badge: string;
@@ -81,21 +81,18 @@ const actionPresentation: Record<
 > = {
   CREATE: {
     label: "Criação",
-    verb: "criado",
     icon: CirclePlus,
     tone: "bg-emerald-500/10 text-emerald-400",
     badge: "border-emerald-500/20 bg-emerald-500/10 text-emerald-300",
   },
   UPDATE: {
     label: "Edição",
-    verb: "atualizado",
     icon: PencilLine,
     tone: "bg-amber-500/10 text-amber-300",
     badge: "border-amber-500/20 bg-amber-500/10 text-amber-300",
   },
   DELETE: {
     label: "Exclusão",
-    verb: "excluído",
     icon: Trash2,
     tone: "bg-rose-500/10 text-rose-300",
     badge: "border-rose-500/20 bg-rose-500/10 text-rose-300",
@@ -137,6 +134,32 @@ const fieldLabels: Record<string, string> = {
   installments_total: "Total de parcelas",
 };
 
+const fieldValueLabels: Record<string, Record<string, string>> = {
+  status: {
+    PENDENTE: "Pendente",
+    PAGO: "Pago",
+    CONFIRMADO: "Confirmado",
+    OPEN: "Em aberto",
+    CLOSED: "Fechada",
+    PARTIALLY_PAID: "Paga parcialmente",
+    PAID: "Paga",
+    CONFIRMED: "Confirmado",
+    VOIDED: "Cancelado",
+  },
+  type: {
+    card: "Cartão de crédito",
+    fixed: "Débito ou Pix",
+    income: "Receita",
+  },
+  method: {
+    PIX: "Pix",
+    DEBIT: "Débito",
+    TRANSFER: "Transferência",
+    CASH: "Dinheiro",
+    OTHER: "Outro",
+  },
+};
+
 const hiddenChangedFields = new Set([
   "id",
   "user_id",
@@ -145,15 +168,20 @@ const hiddenChangedFields = new Set([
   "updated_at",
   "import_signature",
   "navigation_preferences",
+  "invoice_id",
+  "card_id",
+  "dependent_id",
+  "category_id",
+  "group_id",
+  "split_group_id",
+  "legacy_key",
+  "idempotency_key",
+  "day",
+  "month_label",
+  "notes",
+  "paid_at",
+  "closed_at",
 ]);
-
-const dateTimeFormatter = new Intl.DateTimeFormat("pt-BR", {
-  day: "2-digit",
-  month: "short",
-  year: "numeric",
-  hour: "2-digit",
-  minute: "2-digit",
-});
 
 const dateFormatter = new Intl.DateTimeFormat("pt-BR", {
   day: "2-digit",
@@ -161,6 +189,27 @@ const dateFormatter = new Intl.DateTimeFormat("pt-BR", {
   year: "numeric",
   timeZone: "UTC",
 });
+
+const activityDateFormatter = new Intl.DateTimeFormat("pt-BR", {
+  weekday: "long",
+  day: "2-digit",
+  month: "long",
+  year: "numeric",
+});
+
+const activityTimeFormatter = new Intl.DateTimeFormat("pt-BR", {
+  hour: "2-digit",
+  minute: "2-digit",
+});
+
+type ActivityPresentation = {
+  label: string;
+  description: string;
+  icon: typeof CirclePlus;
+  tone: string;
+  badge: string;
+  consumedFields: Set<string>;
+};
 
 function toRecord(value: Json | null): Record<string, Json | undefined> {
   if (!value || Array.isArray(value) || typeof value !== "object") return {};
@@ -183,6 +232,193 @@ function getLogName(log: AuditLog) {
   return entityPresentation[log.entity_type].singular;
 }
 
+function getActivityDateKey(value: string) {
+  const date = new Date(value);
+  return [
+    date.getFullYear(),
+    String(date.getMonth() + 1).padStart(2, "0"),
+    String(date.getDate()).padStart(2, "0"),
+  ].join("-");
+}
+
+function getActivityDateLabel(value: string) {
+  const formatted = activityDateFormatter.format(new Date(value));
+  return formatted.charAt(0).toUpperCase() + formatted.slice(1);
+}
+
+function getEffectiveActivityOrigin(log: AuditLog): ActivityOrigin {
+  if (log.entity_type === "card_invoices") return "SYSTEM";
+
+  if (log.entity_type === "transactions" && log.action === "UPDATE") {
+    const snapshot = toRecord(log.after_data ?? log.before_data);
+    const isSubscriptionStatusSync =
+      snapshot.type === "card" &&
+      snapshot.recurring === true &&
+      log.changed_fields.length > 0 &&
+      log.changed_fields.every((field) => field === "status");
+
+    if (isSubscriptionStatusSync) return "SYSTEM";
+  }
+
+  return log.origin as ActivityOrigin;
+}
+
+function getActivityPresentation(
+  log: AuditLog,
+  formatCurrency: (value: number) => string,
+): ActivityPresentation {
+  const base = actionPresentation[log.action];
+  const entity = entityPresentation[log.entity_type];
+  const previousSnapshot = toRecord(log.before_data);
+  const currentSnapshot = toRecord(log.after_data);
+  const consumedFields = new Set<string>();
+
+  if (log.entity_type === "card_invoices" && log.action === "UPDATE") {
+    log.changed_fields.forEach((field) => consumedFields.add(field));
+    const status = currentSnapshot.status;
+
+    if (status === "PAID") {
+      return {
+        label: "Pagamento",
+        description: "Pagamento consolidado na fatura",
+        icon: CircleCheckBig,
+        tone: "bg-emerald-500/10 text-emerald-400",
+        badge: "border-emerald-500/20 bg-emerald-500/10 text-emerald-300",
+        consumedFields,
+      };
+    }
+
+    if (status === "PARTIALLY_PAID") {
+      return {
+        label: "Pagamento parcial",
+        description: "Pagamento parcial consolidado na fatura",
+        icon: CircleCheckBig,
+        tone: "bg-emerald-500/10 text-emerald-400",
+        badge: "border-emerald-500/20 bg-emerald-500/10 text-emerald-300",
+        consumedFields,
+      };
+    }
+
+    return {
+      label: "Sincronização",
+      description: "Total da fatura recalculado automaticamente",
+      icon: RefreshCw,
+      tone: "bg-zinc-800 text-zinc-400",
+      badge: "border-zinc-700 bg-zinc-900 text-zinc-400",
+      consumedFields,
+    };
+  }
+
+  if (log.entity_type === "invoice_payments") {
+    const amount = currentSnapshot.amount ?? previousSnapshot.amount;
+    const formattedAmount =
+      typeof amount === "number" ? ` de ${formatCurrency(amount)}` : "";
+
+    if (log.action === "CREATE") {
+      return {
+        label: "Pagamento",
+        description: `Pagamento${formattedAmount} registrado na fatura`,
+        icon: CircleCheckBig,
+        tone: "bg-emerald-500/10 text-emerald-400",
+        badge: "border-emerald-500/20 bg-emerald-500/10 text-emerald-300",
+        consumedFields,
+      };
+    }
+
+    if (log.action === "DELETE" || currentSnapshot.status === "VOIDED") {
+      consumedFields.add("status");
+      return {
+        label: "Cancelamento",
+        description: `Pagamento${formattedAmount} cancelado`,
+        icon: Undo2,
+        tone: "bg-amber-500/10 text-amber-300",
+        badge: "border-amber-500/20 bg-amber-500/10 text-amber-300",
+        consumedFields,
+      };
+    }
+  }
+
+  if (
+    log.entity_type === "transactions" &&
+    log.action === "UPDATE" &&
+    log.changed_fields.includes("status")
+  ) {
+    consumedFields.add("status");
+    const previousStatus = previousSnapshot.status;
+    const currentStatus = currentSnapshot.status;
+    const transactionType = currentSnapshot.type ?? previousSnapshot.type;
+    const isRecurring = currentSnapshot.recurring ?? previousSnapshot.recurring;
+
+    if (currentStatus === "PAGO") {
+      return {
+        label: "Pagamento",
+        description: "Conta marcada como paga",
+        icon: CircleCheckBig,
+        tone: "bg-emerald-500/10 text-emerald-400",
+        badge: "border-emerald-500/20 bg-emerald-500/10 text-emerald-300",
+        consumedFields,
+      };
+    }
+
+    if (previousStatus === "PAGO" && currentStatus === "PENDENTE") {
+      return {
+        label: "Reabertura",
+        description: "Pagamento desfeito; conta novamente pendente",
+        icon: Undo2,
+        tone: "bg-amber-500/10 text-amber-300",
+        badge: "border-amber-500/20 bg-amber-500/10 text-amber-300",
+        consumedFields,
+      };
+    }
+
+    if (currentStatus === "CONFIRMADO" && transactionType === "income") {
+      return {
+        label: "Confirmação",
+        description: "Receita confirmada",
+        icon: CircleCheckBig,
+        tone: "bg-emerald-500/10 text-emerald-400",
+        badge: "border-emerald-500/20 bg-emerald-500/10 text-emerald-300",
+        consumedFields,
+      };
+    }
+
+    if (
+      currentStatus === "CONFIRMADO" &&
+      transactionType === "card" &&
+      isRecurring === true
+    ) {
+      return {
+        label: "Cobrança",
+        description: "Assinatura lançada na fatura",
+        icon: CircleCheckBig,
+        tone: "bg-emerald-500/10 text-emerald-400",
+        badge: "border-emerald-500/20 bg-emerald-500/10 text-emerald-300",
+        consumedFields,
+      };
+    }
+
+    const statusLabel =
+      typeof currentStatus === "string"
+        ? (fieldValueLabels.status[currentStatus] ?? currentStatus)
+        : "atualizado";
+
+    return {
+      label: "Status",
+      description: `Status alterado para ${statusLabel.toLowerCase()}`,
+      icon: PencilLine,
+      tone: base.tone,
+      badge: base.badge,
+      consumedFields,
+    };
+  }
+
+  return {
+    ...base,
+    description: `${entity.singular} · ${base.label.toLowerCase()}`,
+    consumedFields,
+  };
+}
+
 function formatChangedValue(
   field: string,
   value: Json | undefined,
@@ -190,6 +426,10 @@ function formatChangedValue(
 ) {
   if (value === null || value === undefined || value === "") return "Vazio";
   if (typeof value === "boolean") return value ? "Sim" : "Não";
+
+  if (typeof value === "string" && fieldValueLabels[field]?.[value]) {
+    return fieldValueLabels[field][value];
+  }
 
   if (
     typeof value === "number" &&
@@ -248,6 +488,112 @@ function getReversionErrorMessage(error: unknown) {
   return "Não foi possível desfazer essa alteração.";
 }
 
+function AuditFieldChange({
+  field,
+  previousSnapshot,
+  currentSnapshot,
+  formatCurrency,
+}: {
+  field: string;
+  previousSnapshot: Record<string, Json | undefined>;
+  currentSnapshot: Record<string, Json | undefined>;
+  formatCurrency: (value: number) => string;
+}) {
+  return (
+    <div className="grid gap-2 px-3 py-3 text-xs sm:grid-cols-[140px_minmax(0,1fr)] sm:items-center">
+      <span className="font-medium text-zinc-400">
+        {fieldLabels[field] ?? field}
+      </span>
+      <div className="flex min-w-0 flex-wrap items-center gap-x-2 gap-y-1">
+        <span className="min-w-0 break-words text-zinc-500">
+          {formatChangedValue(
+            field,
+            previousSnapshot[field],
+            formatCurrency,
+          )}
+        </span>
+        <span aria-hidden="true" className="text-zinc-700">
+          →
+        </span>
+        <span className="min-w-0 break-words font-medium text-zinc-200">
+          {formatChangedValue(
+            field,
+            currentSnapshot[field],
+            formatCurrency,
+          )}
+        </span>
+      </div>
+    </div>
+  );
+}
+
+function AuditChangeDetails({
+  fields,
+  previousSnapshot,
+  currentSnapshot,
+  formatCurrency,
+}: {
+  fields: string[];
+  previousSnapshot: Record<string, Json | undefined>;
+  currentSnapshot: Record<string, Json | undefined>;
+  formatCurrency: (value: number) => string;
+}) {
+  const [isOpen, setIsOpen] = useState(false);
+
+  if (!fields.length) return null;
+
+  if (fields.length === 1) {
+    return (
+      <div className="mt-3 overflow-hidden rounded-lg border border-zinc-800/80 bg-zinc-950/60">
+        <AuditFieldChange
+          field={fields[0]}
+          previousSnapshot={previousSnapshot}
+          currentSnapshot={currentSnapshot}
+          formatCurrency={formatCurrency}
+        />
+      </div>
+    );
+  }
+
+  return (
+    <div className="mt-3 overflow-hidden rounded-lg border border-zinc-800/80 bg-zinc-950/60">
+      <button
+        type="button"
+        className="flex min-h-10 w-full items-center justify-between gap-3 px-3 text-left text-xs font-medium text-zinc-400 transition-colors hover:text-zinc-200"
+        aria-expanded={isOpen}
+        onClick={() => setIsOpen((current) => !current)}
+      >
+        <span>
+          {fields.length} {fields.length === 1 ? "alteração" : "alterações"}
+        </span>
+        <span className="flex items-center gap-1.5 text-zinc-500">
+          {isOpen ? "Ocultar" : "Ver alterações"}
+          <ChevronDown
+            className={cn(
+              "size-3.5 transition-transform",
+              isOpen && "rotate-180",
+            )}
+          />
+        </span>
+      </button>
+
+      {isOpen ? (
+        <div className="divide-y divide-zinc-800/80 border-t border-zinc-800/80">
+          {fields.map((field) => (
+            <AuditFieldChange
+              key={field}
+              field={field}
+              previousSnapshot={previousSnapshot}
+              currentSnapshot={currentSnapshot}
+              formatCurrency={formatCurrency}
+            />
+          ))}
+        </div>
+      ) : null}
+    </div>
+  );
+}
+
 export default function AtividadesPage() {
   const { formatCurrency } = useCurrencyFormatter();
   const fetchCards = useFinanceStore((state) => state.fetchCards);
@@ -261,6 +607,7 @@ export default function AtividadesPage() {
   const [entityFilter, setEntityFilter] = useState<EntityType | "all">("all");
   const [actionFilter, setActionFilter] = useState<AuditAction | "all">("all");
   const [periodFilter, setPeriodFilter] = useState("30");
+  const [originFilter, setOriginFilter] = useState<ActivityOrigin>("USER");
   const [logToRevert, setLogToRevert] = useState<AuditLog | null>(null);
   const [revertingLogId, setRevertingLogId] = useState<string | null>(null);
 
@@ -352,6 +699,7 @@ export default function AtividadesPage() {
 
     return logs.filter((log) => {
       if (!isUserFacingAuditLog(log)) return false;
+      if (getEffectiveActivityOrigin(log) !== originFilter) return false;
       if (entityFilter !== "all" && log.entity_type !== entityFilter) {
         return false;
       }
@@ -359,17 +707,36 @@ export default function AtividadesPage() {
       if (cutoff && new Date(log.created_at).getTime() < cutoff) return false;
       return true;
     });
-  }, [actionFilter, entityFilter, loadedAt, logs, periodFilter]);
+  }, [
+    actionFilter,
+    entityFilter,
+    loadedAt,
+    logs,
+    originFilter,
+    periodFilter,
+  ]);
 
-  const summary = useMemo(
-    () => ({
-      total: filteredLogs.length,
-      created: filteredLogs.filter((log) => log.action === "CREATE").length,
-      updated: filteredLogs.filter((log) => log.action === "UPDATE").length,
-      deleted: filteredLogs.filter((log) => log.action === "DELETE").length,
-    }),
-    [filteredLogs],
-  );
+  const groupedLogs = useMemo(() => {
+    const groups: Array<{ key: string; label: string; logs: AuditLog[] }> = [];
+
+    filteredLogs.forEach((log) => {
+      const key = getActivityDateKey(log.created_at);
+      const currentGroup = groups.at(-1);
+
+      if (currentGroup?.key === key) {
+        currentGroup.logs.push(log);
+        return;
+      }
+
+      groups.push({
+        key,
+        label: getActivityDateLabel(log.created_at),
+        logs: [log],
+      });
+    });
+
+    return groups;
+  }, [filteredLogs]);
 
   const latestLogByEntity = useMemo(() => {
     const latest = new Map<string, string>();
@@ -383,224 +750,284 @@ export default function AtividadesPage() {
   }, [logs]);
 
   return (
-    <div className="flex w-full flex-col gap-6 md:gap-8" data-tour="activity-dashboard">
-      <header className="flex flex-col justify-between gap-4 sm:flex-row sm:items-end">
+    <div
+      className="mx-auto flex w-full max-w-6xl flex-col gap-6"
+      data-tour="activity-dashboard"
+    >
+      <header className="flex flex-col justify-between gap-4 border-b border-zinc-800/80 pb-5 sm:flex-row sm:items-end">
         <div className="max-w-2xl">
           <p className="text-xs font-medium uppercase tracking-wide text-emerald-400">
-            Rastreabilidade
+            Histórico
           </p>
           <h1 className="mt-2 text-3xl font-bold tracking-tight text-zinc-50">
-            Histórico de Alterações
+            Atividades
           </h1>
           <p className="mt-2 text-sm leading-6 text-zinc-400">
-            Acompanhe mudanças financeiras feitas na sua conta e identifique o
-            que foi alterado.
+            Consulte suas alterações e desfaça ações individuais quando for
+            seguro.
           </p>
         </div>
 
         <Button
           type="button"
           variant="outline"
-          className="h-11 border-zinc-700 bg-zinc-950 px-5 text-zinc-100"
+          className="h-10 border-zinc-700 bg-zinc-950 px-4 text-zinc-100 hover:bg-zinc-900"
           onClick={() => void fetchAuditLogs()}
           disabled={isLoading}
         >
           <RefreshCw className={cn("size-4", isLoading && "animate-spin")} />
-          {isLoading ? "Atualizando..." : "Atualizar histórico"}
+          {isLoading ? "Atualizando..." : "Atualizar"}
         </Button>
       </header>
 
-      <section className="grid grid-cols-2 gap-3 lg:grid-cols-4">
-        {[
-          { label: "Eventos", value: summary.total, icon: Activity, tone: "text-zinc-100" },
-          { label: "Criações", value: summary.created, icon: CirclePlus, tone: "text-emerald-300" },
-          { label: "Edições", value: summary.updated, icon: PencilLine, tone: "text-amber-300" },
-          { label: "Exclusões", value: summary.deleted, icon: Trash2, tone: "text-rose-300" },
-        ].map((item) => {
-          const Icon = item.icon;
-          return (
-            <Card key={item.label} className="rounded-xl border-zinc-800/80 bg-zinc-950/70 shadow-none">
-              <CardContent className="p-4 sm:p-5">
-                <div className="flex items-center justify-between gap-3">
-                  <p className="text-[10px] font-medium uppercase tracking-wide text-zinc-500 sm:text-xs">
-                    {item.label}
-                  </p>
-                  <Icon className="size-4 text-zinc-500" />
-                </div>
-                <strong className={cn("mt-3 block text-xl", item.tone)}>{item.value}</strong>
-              </CardContent>
-            </Card>
-          );
-        })}
-      </section>
-
-      <section className="grid gap-3 rounded-xl border border-zinc-800 bg-zinc-950/70 p-3 sm:grid-cols-3 sm:p-4">
-        <Select value={entityFilter} onValueChange={(value) => setEntityFilter(value as EntityType | "all")}>
-          <SelectTrigger className="h-11 border-zinc-800 bg-zinc-950">
-            <SelectValue placeholder="Todas as áreas" />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="all">Todas as áreas</SelectItem>
-            {Object.entries(entityPresentation).map(([value, presentation]) => (
-              <SelectItem key={value} value={value}>{presentation.plural}</SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
-
-        <Select value={actionFilter} onValueChange={(value) => setActionFilter(value as AuditAction | "all")}>
-          <SelectTrigger className="h-11 border-zinc-800 bg-zinc-950">
-            <SelectValue placeholder="Todas as ações" />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="all">Todas as ações</SelectItem>
-            <SelectItem value="CREATE">Criações</SelectItem>
-            <SelectItem value="UPDATE">Edições</SelectItem>
-            <SelectItem value="DELETE">Exclusões</SelectItem>
-          </SelectContent>
-        </Select>
-
-        <Select value={periodFilter} onValueChange={setPeriodFilter}>
-          <SelectTrigger className="h-11 border-zinc-800 bg-zinc-950">
-            <SelectValue placeholder="Período" />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="7">Últimos 7 dias</SelectItem>
-            <SelectItem value="30">Últimos 30 dias</SelectItem>
-            <SelectItem value="90">Últimos 90 dias</SelectItem>
-            <SelectItem value="all">Todo o histórico</SelectItem>
-          </SelectContent>
-        </Select>
-      </section>
-
-      <Card className="overflow-hidden rounded-xl border-zinc-800/80 bg-zinc-950 shadow-none">
-        <div className="flex items-center justify-between border-b border-zinc-800/80 px-4 py-4 sm:px-6">
-          <div>
-            <h2 className="text-sm font-semibold text-zinc-100">Linha do tempo</h2>
-            <p className="mt-1 text-xs text-zinc-500">Registros mais recentes primeiro</p>
+      <section className="flex flex-col gap-4" aria-label="Filtros do histórico">
+        <div className="flex flex-col justify-between gap-3 sm:flex-row sm:items-center">
+          <div className="inline-flex w-full rounded-lg border border-zinc-800 bg-zinc-950 p-1 sm:w-auto">
+            <button
+              type="button"
+              className={cn(
+                "h-9 flex-1 rounded-md px-4 text-sm font-medium transition-colors sm:flex-none",
+                originFilter === "USER"
+                  ? "bg-zinc-800 text-zinc-50"
+                  : "text-zinc-500 hover:text-zinc-200",
+              )}
+              onClick={() => setOriginFilter("USER")}
+            >
+              Minhas ações
+            </button>
+            <button
+              type="button"
+              className={cn(
+                "h-9 flex-1 rounded-md px-4 text-sm font-medium transition-colors sm:flex-none",
+                originFilter === "SYSTEM"
+                  ? "bg-zinc-800 text-zinc-50"
+                  : "text-zinc-500 hover:text-zinc-200",
+              )}
+              onClick={() => setOriginFilter("SYSTEM")}
+            >
+              Automáticas
+            </button>
           </div>
-          <Badge variant="outline" className="border-zinc-700 text-zinc-400">
-            {filteredLogs.length}
-          </Badge>
+
+          <p className="text-xs text-zinc-500">
+            {filteredLogs.length} {filteredLogs.length === 1 ? "evento" : "eventos"}
+          </p>
+        </div>
+
+        {originFilter === "SYSTEM" ? (
+          <p className="rounded-lg border border-zinc-800/80 bg-zinc-900/40 px-4 py-3 text-xs leading-5 text-zinc-400">
+            Atualizações automáticas mantêm faturas e projeções sincronizadas.
+            Elas ficam separadas e não podem ser desfeitas manualmente.
+          </p>
+        ) : null}
+
+        <div className="grid gap-3 sm:grid-cols-3">
+          <Select
+            value={entityFilter}
+            onValueChange={(value) =>
+              setEntityFilter(value as EntityType | "all")
+            }
+          >
+            <SelectTrigger className="h-10 border-zinc-800 bg-zinc-950">
+              <SelectValue placeholder="Todas as áreas" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">Todas as áreas</SelectItem>
+              {Object.entries(entityPresentation).map(([value, presentation]) => (
+                <SelectItem key={value} value={value}>
+                  {presentation.plural}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+
+          <Select
+            value={actionFilter}
+            onValueChange={(value) =>
+              setActionFilter(value as AuditAction | "all")
+            }
+          >
+            <SelectTrigger className="h-10 border-zinc-800 bg-zinc-950">
+              <SelectValue placeholder="Todas as ações" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">Todas as ações</SelectItem>
+              <SelectItem value="CREATE">Criações</SelectItem>
+              <SelectItem value="UPDATE">Edições</SelectItem>
+              <SelectItem value="DELETE">Exclusões</SelectItem>
+            </SelectContent>
+          </Select>
+
+          <Select value={periodFilter} onValueChange={setPeriodFilter}>
+            <SelectTrigger className="h-10 border-zinc-800 bg-zinc-950">
+              <SelectValue placeholder="Período" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="7">Últimos 7 dias</SelectItem>
+              <SelectItem value="30">Últimos 30 dias</SelectItem>
+              <SelectItem value="90">Últimos 90 dias</SelectItem>
+              <SelectItem value="all">Todo o histórico</SelectItem>
+            </SelectContent>
+          </Select>
+        </div>
+      </section>
+
+      <section aria-labelledby="activity-feed-title">
+        <div className="mb-4 flex items-end justify-between gap-4">
+          <div>
+            <h2 id="activity-feed-title" className="text-base font-semibold text-zinc-100">
+              {originFilter === "USER" ? "Suas alterações" : "Atualizações do sistema"}
+            </h2>
+            <p className="mt-1 text-xs text-zinc-500">
+              Registros mais recentes primeiro
+            </p>
+          </div>
         </div>
 
         {isLoading && !logs.length ? (
-          <CardContent className="space-y-3 p-4 sm:p-6">
-            {Array.from({ length: 5 }).map((_, index) => (
-              <Skeleton key={index} className="h-24 rounded-lg" />
+          <div className="space-y-3">
+            {Array.from({ length: 4 }).map((_, index) => (
+              <Skeleton key={index} className="h-28 rounded-lg" />
             ))}
-          </CardContent>
-        ) : filteredLogs.length ? (
-          <div className="divide-y divide-zinc-800/80">
-            {filteredLogs.map((log) => {
-              const action = actionPresentation[log.action];
-              const entity = entityPresentation[log.entity_type];
-              const Icon = action.icon;
-              const previousSnapshot = toRecord(log.before_data);
-              const currentSnapshot = toRecord(log.after_data);
-              const visibleFields = log.changed_fields.filter(
-                (field) => !hiddenChangedFields.has(field),
-              );
-              const entityKey = `${log.entity_type}:${log.entity_id}`;
-              const canRevert =
-                latestLogByEntity.get(entityKey) === log.id &&
-                canRevertAuditLog(log);
+          </div>
+        ) : groupedLogs.length ? (
+          <div className="space-y-7">
+            {groupedLogs.map((group) => (
+              <section key={group.key} aria-labelledby={`activity-date-${group.key}`}>
+                <div className="mb-2 flex items-center gap-3 px-1">
+                  <h3
+                    id={`activity-date-${group.key}`}
+                    className="text-xs font-semibold text-zinc-300"
+                  >
+                    {group.label}
+                  </h3>
+                  <span className="h-px flex-1 bg-zinc-800/80" />
+                  <span className="text-[11px] text-zinc-600">
+                    {group.logs.length}
+                  </span>
+                </div>
 
-              return (
-                <article key={log.id} className="px-4 py-5 transition-colors hover:bg-zinc-900/40 sm:px-6">
-                  <div className="flex items-start gap-3 sm:gap-4">
-                    <span className={cn("flex size-10 shrink-0 items-center justify-center rounded-lg", action.tone)}>
-                      <Icon className="size-4" />
-                    </span>
-                    <div className="min-w-0 flex-1">
-                      <div className="flex flex-col justify-between gap-2 sm:flex-row sm:items-start">
-                        <div className="min-w-0">
-                          <div className="flex flex-wrap items-center gap-2">
-                            <h3 className="truncate text-sm font-semibold text-zinc-100">
-                              {getLogName(log)}
-                            </h3>
-                            <Badge variant="outline" className={cn("border", action.badge)}>
-                              {action.label}
-                            </Badge>
-                            {log.origin === "SYSTEM" ? (
-                              <Badge variant="outline" className="border-zinc-700 text-zinc-500">Automático</Badge>
+                <div className="divide-y divide-zinc-800/80 overflow-hidden rounded-lg border border-zinc-800/80 bg-zinc-950/60">
+                  {group.logs.map((log) => {
+                    const activity = getActivityPresentation(
+                      log,
+                      formatCurrency,
+                    );
+                    const Icon = activity.icon;
+                    const previousSnapshot = toRecord(log.before_data);
+                    const currentSnapshot = toRecord(log.after_data);
+                    const visibleFields = log.changed_fields.filter(
+                      (field) =>
+                        !hiddenChangedFields.has(field) &&
+                        !activity.consumedFields.has(field),
+                    );
+                    const entityKey = `${log.entity_type}:${log.entity_id}`;
+                    const canRevert =
+                      latestLogByEntity.get(entityKey) === log.id &&
+                      canRevertAuditLog(log);
+
+                    return (
+                      <article
+                        key={log.id}
+                        className="px-4 py-4 transition-colors hover:bg-zinc-900/35 sm:px-5"
+                      >
+                        <div className="flex items-start gap-3">
+                          <span
+                            className={cn(
+                              "flex size-9 shrink-0 items-center justify-center rounded-lg",
+                              activity.tone,
+                            )}
+                          >
+                            <Icon className="size-4" />
+                          </span>
+
+                          <div className="min-w-0 flex-1">
+                            <div className="flex flex-col justify-between gap-3 sm:flex-row sm:items-start">
+                              <div className="min-w-0">
+                                <div className="flex flex-wrap items-center gap-2">
+                                  <h4 className="truncate text-sm font-semibold text-zinc-100">
+                                    {getLogName(log)}
+                                  </h4>
+                                  <Badge
+                                    variant="outline"
+                                    className={cn("border", activity.badge)}
+                                  >
+                                    {activity.label}
+                                  </Badge>
+                                  {log.reverted_at ? (
+                                    <Badge
+                                      variant="outline"
+                                      className="border-zinc-700 bg-zinc-900 text-zinc-400"
+                                    >
+                                      Desfeito
+                                    </Badge>
+                                  ) : null}
+                                  {log.reverts_log_id ? (
+                                    <Badge
+                                      variant="outline"
+                                      className="border-emerald-500/20 bg-emerald-500/10 text-emerald-300"
+                                    >
+                                      Reversão
+                                    </Badge>
+                                  ) : null}
+                                </div>
+                                <p className="mt-1 text-xs text-zinc-500">
+                                  {activity.description} às{" "}
+                                  <time dateTime={log.created_at}>
+                                    {activityTimeFormatter.format(
+                                      new Date(log.created_at),
+                                    )}
+                                  </time>
+                                </p>
+                              </div>
+
+                              {canRevert ? (
+                                <Button
+                                  type="button"
+                                  variant="outline"
+                                  className="h-9 shrink-0 border-zinc-700 bg-zinc-950 px-3 text-zinc-200 hover:border-zinc-600 hover:bg-zinc-900 hover:text-white"
+                                  onClick={() => setLogToRevert(log)}
+                                  disabled={revertingLogId !== null}
+                                >
+                                  <Undo2 className="size-4" />
+                                  Desfazer
+                                </Button>
+                              ) : null}
+                            </div>
+
+                            {log.action === "UPDATE" ? (
+                              <AuditChangeDetails
+                                fields={visibleFields}
+                                previousSnapshot={previousSnapshot}
+                                currentSnapshot={currentSnapshot}
+                                formatCurrency={formatCurrency}
+                              />
                             ) : null}
                           </div>
-                          <p className="mt-1 text-xs text-zinc-500">
-                            {entity.singular} {action.verb}
-                          </p>
                         </div>
-                        <div className="flex shrink-0 flex-wrap items-center gap-2 sm:justify-end">
-                          {log.reverted_at ? (
-                            <Badge
-                              variant="outline"
-                              className="border-zinc-700 bg-zinc-900 text-zinc-400"
-                            >
-                              Desfeito
-                            </Badge>
-                          ) : null}
-                          {log.reverts_log_id ? (
-                            <Badge
-                              variant="outline"
-                              className="border-emerald-500/20 bg-emerald-500/10 text-emerald-300"
-                            >
-                              Reversão
-                            </Badge>
-                          ) : null}
-                          <time className="text-xs text-zinc-500" dateTime={log.created_at}>
-                            {dateTimeFormatter.format(new Date(log.created_at))}
-                          </time>
-                          {canRevert ? (
-                            <Button
-                              type="button"
-                              variant="outline"
-                              className="h-9 border-zinc-700 bg-zinc-950 px-3 text-zinc-200 hover:border-zinc-600 hover:bg-zinc-900 hover:text-white"
-                              onClick={() => setLogToRevert(log)}
-                              disabled={revertingLogId !== null}
-                            >
-                              <Undo2 className="size-4" />
-                              Desfazer
-                            </Button>
-                          ) : null}
-                        </div>
-                      </div>
-
-                      {log.action === "UPDATE" && visibleFields.length ? (
-                        <details className="group mt-4 rounded-lg border border-zinc-800 bg-zinc-950/80">
-                          <summary className="flex min-h-10 cursor-pointer list-none items-center justify-between gap-3 px-3 text-xs font-medium text-zinc-400 hover:text-zinc-200">
-                            <span>{visibleFields.length} campo{visibleFields.length === 1 ? "" : "s"} alterado{visibleFields.length === 1 ? "" : "s"}</span>
-                            <span className="text-zinc-600 group-open:hidden">Ver detalhes</span>
-                            <span className="hidden text-zinc-600 group-open:inline">Ocultar</span>
-                          </summary>
-                          <div className="divide-y divide-zinc-800 border-t border-zinc-800">
-                            {visibleFields.map((field) => (
-                              <div key={field} className="grid gap-1 px-3 py-3 text-xs sm:grid-cols-[150px_1fr_20px_1fr] sm:items-center sm:gap-3">
-                                <span className="font-medium text-zinc-400">{fieldLabels[field] ?? field}</span>
-                                <span className="min-w-0 break-words text-zinc-500">{formatChangedValue(field, previousSnapshot[field], formatCurrency)}</span>
-                                <span className="hidden text-center text-zinc-700 sm:block">→</span>
-                                <span className="min-w-0 break-words text-zinc-200">{formatChangedValue(field, currentSnapshot[field], formatCurrency)}</span>
-                              </div>
-                            ))}
-                          </div>
-                        </details>
-                      ) : null}
-                    </div>
-                  </div>
-                </article>
-              );
-            })}
+                      </article>
+                    );
+                  })}
+                </div>
+              </section>
+            ))}
           </div>
         ) : (
-          <CardContent className="flex flex-col items-center px-6 py-14 text-center">
-            <span className="flex size-12 items-center justify-center rounded-xl bg-zinc-900 text-zinc-500">
+          <div className="flex flex-col items-center border-y border-zinc-800/80 px-6 py-14 text-center">
+            <span className="flex size-11 items-center justify-center rounded-lg bg-zinc-900 text-zinc-500">
               <FileClock className="size-5" />
             </span>
-            <h2 className="mt-4 text-base font-semibold text-zinc-100">Nenhuma alteração encontrada</h2>
+            <h2 className="mt-4 text-base font-semibold text-zinc-100">
+              Nenhuma atividade encontrada
+            </h2>
             <p className="mt-2 max-w-md text-sm leading-6 text-zinc-500">
-              Novas criações, edições e exclusões aparecerão aqui. Ajuste os filtros para consultar outro período.
+              {originFilter === "USER"
+                ? "Suas próximas criações, edições e exclusões aparecerão aqui."
+                : "Nenhuma atualização automática foi registrada com esses filtros."}
             </p>
-          </CardContent>
+          </div>
         )}
-      </Card>
+      </section>
 
       <AlertDialog
         open={logToRevert !== null}
