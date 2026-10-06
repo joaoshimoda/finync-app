@@ -1,6 +1,7 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { Suspense, useCallback, useEffect, useMemo, useState } from "react";
+import { useRouter, useSearchParams } from "next/navigation";
 import { motion, useReducedMotion } from "framer-motion";
 import {
   ArrowDownRight,
@@ -8,6 +9,7 @@ import {
   CalendarDays,
   ChevronLeft,
   ChevronRight,
+  CircleAlert,
   CreditCard,
   Eye,
   Landmark,
@@ -68,30 +70,12 @@ import { useCurrencyFormatter } from "@/hooks/useCurrencyFormatter";
 type TypeFilter = "all" | "income" | "expense" | "fixed";
 type OriginFilter = "all" | "card" | "debit-pix";
 type TransactionOrigin = Exclude<OriginFilter, "all"> | "income";
+type IntegrityReviewFilter = "missing-category" | "unknown-category";
 
 const monthFormatter = new Intl.DateTimeFormat("pt-BR", {
   month: "long",
   year: "numeric",
 });
-
-const typeLabel: Record<string, string> = {
-  card: "Cartão",
-  fixed: "Débito/PIX",
-  income: "Receita",
-};
-
-function getTransactionFallbackLabel(transaction: Transaction) {
-  if (
-    transaction.is_recurring &&
-    (transaction.type === "card" || Boolean(transaction.cardId))
-  ) {
-    return "Assinatura";
-  }
-
-  if (transaction.type === "fixed" && transaction.is_recurring) return "Fixo";
-
-  return typeLabel[transaction.type];
-}
 
 function sortByRecentDate(left: Transaction, right: Transaction) {
   const dateOrder = right.date.localeCompare(left.date);
@@ -165,8 +149,23 @@ function getOriginBadgeClassName(origin: TransactionOrigin) {
 }
 
 export default function TransactionsPage() {
+  return (
+    <Suspense fallback={<div className="min-h-[60vh]" />}>
+      <TransactionsPageContent />
+    </Suspense>
+  );
+}
+
+function TransactionsPageContent() {
   const { formatCurrency } = useCurrencyFormatter();
   const prefersReducedMotion = useReducedMotion();
+  const router = useRouter();
+  const searchParams = useSearchParams();
+  const reviewParam = searchParams.get("review");
+  const integrityReview: IntegrityReviewFilter | null =
+    reviewParam === "missing-category" || reviewParam === "unknown-category"
+      ? reviewParam
+      : null;
   const [searchTerm, setSearchTerm] = useState("");
   const [categoryFilter, setCategoryFilter] = useState("all");
   const [typeFilter, setTypeFilter] = useState<TypeFilter>("all");
@@ -199,10 +198,19 @@ export default function TransactionsPage() {
   const currentYear = useFinanceStore((state) => state.currentYear);
   const nextMonth = useFinanceStore((state) => state.nextMonth);
   const prevMonth = useFinanceStore((state) => state.prevMonth);
+  const refreshDisplayedTransactions = useCallback(
+    () =>
+      fetchTransactions({ includeAllMonths: Boolean(integrityReview) }),
+    [fetchTransactions, integrityReview],
+  );
 
   useEffect(() => {
-    void fetchTransactions();
-  }, [currentMonth, currentYear, fetchTransactions]);
+    void refreshDisplayedTransactions();
+  }, [
+    currentMonth,
+    currentYear,
+    refreshDisplayedTransactions,
+  ]);
 
   const selectedPeriodLabel = monthFormatter.format(
     new Date(currentYear, currentMonth - 1, 1),
@@ -220,9 +228,34 @@ export default function TransactionsPage() {
     [currentMonth, currentYear, transactions],
   );
 
+  const displayedTransactions = useMemo(() => {
+    if (!integrityReview) return monthlyTransactions;
+
+    const registeredExpenseCategories = new Set(
+      storedCategories
+        .filter((category) => category.kind === "expense" && !category.isDefault)
+        .map((category) => category.label.trim().toLocaleLowerCase("pt-BR")),
+    );
+
+    return transactions
+      .filter((transaction) => {
+        if (transaction.type === "income") return false;
+
+        const category = transaction.category?.trim();
+
+        if (integrityReview === "missing-category") return !category;
+        if (!category || isCardCreditAdjustment(transaction)) return false;
+
+        return !registeredExpenseCategories.has(
+          category.toLocaleLowerCase("pt-BR"),
+        );
+      })
+      .sort(sortByRecentDate);
+  }, [integrityReview, monthlyTransactions, storedCategories, transactions]);
+
   const activeCategories = useMemo(() => {
     const uniqueCategories = new Set(
-      monthlyTransactions
+      displayedTransactions
         .map((transaction) => transaction.category?.trim())
         .filter((category): category is string => Boolean(category)),
     );
@@ -230,7 +263,7 @@ export default function TransactionsPage() {
     return Array.from(uniqueCategories).sort((left, right) =>
       left.localeCompare(right, "pt-BR"),
     );
-  }, [monthlyTransactions]);
+  }, [displayedTransactions]);
 
   const assignableCategories = useMemo(() => {
     const uniqueCategories = new Set([
@@ -246,7 +279,7 @@ export default function TransactionsPage() {
   const filteredTransactions = useMemo(() => {
     const normalizedSearch = searchTerm.trim().toLowerCase();
 
-    return monthlyTransactions.filter((transaction) => {
+    return displayedTransactions.filter((transaction) => {
       const originLabel = getTransactionOrigin(transaction, cards);
       const matchesSearch =
         !normalizedSearch ||
@@ -280,7 +313,7 @@ export default function TransactionsPage() {
     cardFilter,
     cards,
     categoryFilter,
-    monthlyTransactions,
+    displayedTransactions,
     originFilter,
     searchTerm,
     typeFilter,
@@ -340,6 +373,12 @@ export default function TransactionsPage() {
     setOriginFilter("all");
     setCardFilter("all");
   }, []);
+
+  const handleExitIntegrityReview = useCallback(() => {
+    setSelectedIds([]);
+    clearFilters();
+    router.replace("/dashboard/transactions");
+  }, [clearFilters, router]);
 
   const handleCloseIncomeModal = useCallback(() => {
     setIsAddIncomeModalOpen(false);
@@ -471,7 +510,7 @@ export default function TransactionsPage() {
 
       toast.success(`${selectedIds.length} transações excluídas.`);
       setSelectedIds([]);
-      await fetchTransactions();
+      await refreshDisplayedTransactions();
     } catch (error) {
       void reportAppError(error, {
         source: "SUPABASE",
@@ -482,7 +521,7 @@ export default function TransactionsPage() {
     } finally {
       setIsBulkSubmitting(false);
     }
-  }, [fetchTransactions, selectedIds]);
+  }, [refreshDisplayedTransactions, selectedIds]);
 
   const handleBulkCategory = useCallback(async (category: string) => {
     if (!selectedIds.length) return;
@@ -494,14 +533,18 @@ export default function TransactionsPage() {
 
       toast.success("Categoria atualizada nas transações selecionadas.");
       setSelectedIds([]);
-      await fetchTransactions();
+      await refreshDisplayedTransactions();
     } catch (error) {
       console.error("Erro ao atualizar categoria em massa:", error);
       toast.error("Não foi possível atualizar a categoria agora.");
     } finally {
       setIsBulkSubmitting(false);
     }
-  }, [fetchTransactions, selectedIds, updateTransactionCategories]);
+  }, [
+    refreshDisplayedTransactions,
+    selectedIds,
+    updateTransactionCategories,
+  ]);
 
   return (
     <div className="flex w-full flex-col gap-5 pb-4 md:gap-6">
@@ -567,12 +610,41 @@ export default function TransactionsPage() {
         </DropdownMenu>
       </div>
 
-      <motion.section
-        initial={prefersReducedMotion ? false : { opacity: 0, y: 10 }}
-        animate={{ opacity: 1, y: 0 }}
-        transition={{ duration: prefersReducedMotion ? 0 : 0.35 }}
-        className="grid grid-cols-2 gap-3 lg:grid-cols-3 lg:gap-4"
-      >
+      {integrityReview ? (
+        <section className="flex flex-col gap-4 rounded-xl border border-amber-400/15 bg-amber-400/[0.055] p-4 sm:flex-row sm:items-center sm:justify-between sm:p-5">
+          <div className="flex min-w-0 items-start gap-3">
+            <span className="flex size-10 shrink-0 items-center justify-center rounded-lg bg-amber-400/10 text-amber-300">
+              <CircleAlert className="size-5" />
+            </span>
+            <div className="min-w-0">
+              <h2 className="text-sm font-semibold text-zinc-100">
+                {integrityReview === "missing-category"
+                  ? "Transações sem categoria"
+                  : "Categorias fora do cadastro"}
+              </h2>
+              <p className="mt-1 text-xs leading-5 text-zinc-400 sm:text-sm">
+                {integrityReview === "missing-category"
+                  ? "Exibindo somente lançamentos sem categoria em todo o histórico."
+                  : "Exibindo categorias gravadas nas transações que não existem mais no seu cadastro."}
+              </p>
+            </div>
+          </div>
+          <Button
+            type="button"
+            variant="outline"
+            className="h-10 shrink-0 border-zinc-700 bg-zinc-950"
+            onClick={handleExitIntegrityReview}
+          >
+            Voltar ao mês atual
+          </Button>
+        </section>
+      ) : (
+        <motion.section
+          initial={prefersReducedMotion ? false : { opacity: 0, y: 10 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: prefersReducedMotion ? 0 : 0.35 }}
+          className="grid grid-cols-2 gap-3 lg:grid-cols-3 lg:gap-4"
+        >
         <div className="min-h-28 rounded-xl border border-white/[0.07] bg-zinc-900/55 p-4 backdrop-blur-xl md:p-5">
           <div className="flex items-center justify-between gap-4">
             <p className="text-xs font-medium uppercase tracking-[0.12em] text-zinc-500">
@@ -619,7 +691,8 @@ export default function TransactionsPage() {
             {formatCurrency(summary.netBalance)}
           </strong>
         </div>
-      </motion.section>
+        </motion.section>
+      )}
 
       <section className="flex flex-col gap-4 rounded-xl border border-white/[0.07] bg-zinc-900/60 p-4 backdrop-blur-xl xl:flex-row xl:items-center xl:justify-between">
         <div
@@ -718,7 +791,15 @@ export default function TransactionsPage() {
             </Button>
           ) : null}
 
-        <div className="flex h-11 w-full items-center rounded-lg border border-white/[0.08] bg-zinc-950/65 sm:w-auto">
+        {integrityReview ? (
+          <Badge
+            variant="outline"
+            className="flex h-11 w-full items-center justify-center border-amber-400/15 bg-amber-400/[0.06] px-4 text-amber-200 sm:w-auto"
+          >
+            Todo o histórico
+          </Badge>
+        ) : (
+          <div className="flex h-11 w-full items-center rounded-lg border border-white/[0.08] bg-zinc-950/65 sm:w-auto">
           <Button
             type="button"
             variant="ghost"
@@ -743,7 +824,8 @@ export default function TransactionsPage() {
           >
             <ChevronRight />
           </Button>
-        </div>
+          </div>
+        )}
         </div>
       </section>
 
@@ -761,7 +843,7 @@ export default function TransactionsPage() {
             variant="outline"
             className="border-white/[0.08] bg-zinc-950/50 text-zinc-400"
           >
-            {formattedSelectedPeriodLabel}
+            {integrityReview ? "Todo o histórico" : formattedSelectedPeriodLabel}
           </Badge>
         </div>
         {selectedIds.length > 0 ? (
@@ -816,8 +898,7 @@ export default function TransactionsPage() {
         <div className="space-y-2 p-3 md:hidden">
           {filteredTransactions.length ? (
             filteredTransactions.map((transaction, index) => {
-              const categoryLabel =
-                transaction.category || getTransactionFallbackLabel(transaction);
+              const categoryLabel = transaction.category?.trim() || "Sem categoria";
               const originLabel = getTransactionOrigin(transaction, cards);
               const originKind = getTransactionOriginFilter(transaction);
               const isPositive =
@@ -989,7 +1070,7 @@ export default function TransactionsPage() {
                 const originLabel = getTransactionOrigin(transaction, cards);
                 const originKind = getTransactionOriginFilter(transaction);
                 const categoryLabel =
-                  transaction.category || getTransactionFallbackLabel(transaction);
+                  transaction.category?.trim() || "Sem categoria";
                 const dependentId = getDependentId(transaction);
                 const dependentName = dependentId
                   ? dependents.find((dependent) => dependent.id === dependentId)
@@ -1188,6 +1269,7 @@ export default function TransactionsPage() {
         key={sheetEditingTransaction?.id ?? "closed-transaction-editor"}
         transaction={sheetEditingTransaction}
         open={Boolean(sheetEditingTransaction)}
+        onSaved={refreshDisplayedTransactions}
         onOpenChange={(open) => {
           if (!open) setSheetEditingTransaction(null);
         }}

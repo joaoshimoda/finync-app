@@ -274,7 +274,7 @@ interface FinanceState {
   addCard: (card: CreateCardInput) => Promise<void>;
   editCard: (cardId: string, card: UpdateCardInput) => Promise<void>;
   deleteCard: (cardId: string) => Promise<void>;
-  fetchTransactions: () => Promise<void>;
+  fetchTransactions: (options?: { includeAllMonths?: boolean }) => Promise<void>;
   addTransaction: (transaction: CreateTransactionInput) => Promise<void>;
   addTransactions: (transactions: CreateTransactionInput[]) => Promise<void>;
   updateTransaction: (
@@ -1726,7 +1726,7 @@ export const useFinanceStore = create<FinanceState>()((set, get) => ({
       throw error;
     }
   },
-  fetchTransactions: async () => {
+  fetchTransactions: async (options) => {
     try {
       set({ isFetching: true });
 
@@ -1747,12 +1747,14 @@ export const useFinanceStore = create<FinanceState>()((set, get) => ({
 
       if (statusSyncError) throw statusSyncError;
 
-      const { data, error } = await supabase
+      const baseQuery = supabase
         .from("transactions")
         .select("*")
-        .eq("user_id", user.id)
-        .gte("month_start", startDate)
-        .lt("month_start", endDate)
+        .eq("user_id", user.id);
+      const scopedQuery = options?.includeAllMonths
+        ? baseQuery
+        : baseQuery.gte("month_start", startDate).lt("month_start", endDate);
+      const { data, error } = await scopedQuery
         .order("month_start", { ascending: false })
         .order("day", { ascending: false })
         .order("created_at", { ascending: false });

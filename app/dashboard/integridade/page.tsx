@@ -5,8 +5,8 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import {
   AlertTriangle,
   ArrowRight,
-  Bug,
   Check,
+  ChevronDown,
   CircleAlert,
   CircleCheck,
   RefreshCw,
@@ -25,20 +25,19 @@ import {
   CardTitle,
 } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
-import type { Database, Tables } from "@/lib/database.types";
+import type { Database } from "@/lib/database.types";
 import { supabase } from "@/lib/supabaseClient";
 import { cn } from "@/lib/utils";
 
 type DataHealthCheck =
   Database["public"]["Functions"]["finync_get_data_health"]["Returns"][number];
-type AppErrorLog = Tables<"app_error_logs">;
 
-const errorDateFormatter = new Intl.DateTimeFormat("pt-BR", {
-  day: "2-digit",
-  month: "short",
-  hour: "2-digit",
-  minute: "2-digit",
-});
+const reviewRoutes: Partial<Record<string, string>> = {
+  transactions_without_category:
+    "/dashboard/transactions?review=missing-category",
+  transactions_with_unknown_category:
+    "/dashboard/transactions?review=unknown-category",
+};
 
 const severityPresentation = {
   warning: {
@@ -70,7 +69,6 @@ function getSeverityPresentation(severity: string) {
 
 export default function IntegridadePage() {
   const [checks, setChecks] = useState<DataHealthCheck[]>([]);
-  const [recentErrors, setRecentErrors] = useState<AppErrorLog[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [lastCheckedAt, setLastCheckedAt] = useState<Date | null>(null);
 
@@ -78,20 +76,11 @@ export default function IntegridadePage() {
     setIsLoading(true);
 
     try {
-      const [healthResult, errorLogResult] = await Promise.all([
-        supabase.rpc("finync_get_data_health"),
-        supabase
-          .from("app_error_logs")
-          .select("*")
-          .order("last_seen", { ascending: false })
-          .limit(8),
-      ]);
+      const healthResult = await supabase.rpc("finync_get_data_health");
 
       if (healthResult.error) throw healthResult.error;
-      if (errorLogResult.error) throw errorLogResult.error;
 
       setChecks(healthResult.data ?? []);
-      setRecentErrors(errorLogResult.data ?? []);
       setLastCheckedAt(new Date());
     } catch (error) {
       console.error("Erro ao verificar integridade dos dados:", error);
@@ -164,95 +153,79 @@ export default function IntegridadePage() {
       </header>
 
       {isLoading && !checks.length ? (
-        <section className="grid grid-cols-2 gap-3 lg:grid-cols-4">
-          {Array.from({ length: 4 }).map((_, index) => (
-            <Skeleton key={index} className="h-28 rounded-xl" />
-          ))}
-        </section>
+        <Skeleton className="h-36 rounded-xl" />
       ) : (
-        <section className="grid grid-cols-2 gap-3 lg:grid-cols-4">
-          {[
-            {
-              label: "Verificações",
-              value: checks.length,
-              icon: ShieldCheck,
-              tone: "text-zinc-100",
-            },
-            {
-              label: "Avisos",
-              value: summary.warnings,
-              icon: AlertTriangle,
-              tone: "text-amber-300",
-            },
-            {
-              label: "Erros",
-              value: summary.errors,
-              icon: CircleAlert,
-              tone: "text-orange-300",
-            },
-            {
-              label: "Críticos",
-              value: summary.critical,
-              icon: ShieldAlert,
-              tone: "text-rose-300",
-            },
-          ].map((item) => {
-            const Icon = item.icon;
-
-            return (
-              <Card
-                key={item.label}
-                className="rounded-xl border-zinc-800/80 bg-zinc-950/70 shadow-none"
+        <Card
+          className={cn(
+            "rounded-xl shadow-none",
+            isHealthy
+              ? "border-emerald-500/20 bg-emerald-500/[0.045]"
+              : "border-amber-500/20 bg-amber-500/[0.04]",
+          )}
+        >
+          <CardContent className="flex flex-col gap-5 p-5 sm:flex-row sm:items-center sm:justify-between sm:p-6">
+            <div className="flex min-w-0 items-start gap-4">
+              <span
+                className={cn(
+                  "flex size-11 shrink-0 items-center justify-center rounded-lg",
+                  isHealthy
+                    ? "bg-emerald-500/10 text-emerald-300"
+                    : "bg-amber-500/10 text-amber-300",
+                )}
               >
-                <CardContent className="p-4 sm:p-5">
-                  <div className="flex items-center justify-between gap-3">
-                    <p className="text-[10px] font-medium uppercase tracking-wide text-zinc-500 sm:text-xs">
-                      {item.label}
-                    </p>
-                    <Icon className="size-4 text-zinc-500" />
-                  </div>
-                  <strong className={cn("mt-3 block text-xl", item.tone)}>
-                    {item.value}
-                  </strong>
-                </CardContent>
-              </Card>
-            );
-          })}
-        </section>
-      )}
-
-      {isHealthy ? (
-        <Card className="rounded-xl border-emerald-500/20 bg-emerald-500/[0.05] shadow-none">
-          <CardContent className="flex flex-col items-center px-6 py-12 text-center sm:py-16">
-            <span className="flex size-14 items-center justify-center rounded-xl bg-emerald-500/10 text-emerald-300">
-              <CircleCheck className="size-7" />
-            </span>
-            <h2 className="mt-5 text-xl font-semibold text-zinc-50">
-              Seus dados estão consistentes
-            </h2>
-            <p className="mt-2 max-w-xl text-sm leading-6 text-zinc-400">
-              Nenhuma divergência foi encontrada nos vínculos financeiros
-              verificados para sua conta.
-            </p>
-            {lastCheckedAt ? (
-              <p className="mt-4 text-xs text-zinc-500">
-                Última verificação às{" "}
-                {lastCheckedAt.toLocaleTimeString("pt-BR", {
-                  hour: "2-digit",
-                  minute: "2-digit",
-                })}
-              </p>
+                {isHealthy ? (
+                  <CircleCheck className="size-5" />
+                ) : (
+                  <ShieldAlert className="size-5" />
+                )}
+              </span>
+              <div className="min-w-0">
+                <h2 className="text-base font-semibold text-zinc-50 sm:text-lg">
+                  {isHealthy
+                    ? "Tudo em ordem"
+                    : `${summary.activeChecks.length} ${summary.activeChecks.length === 1 ? "ponto precisa" : "pontos precisam"} de revisão`}
+                </h2>
+                <p className="mt-1 text-sm leading-6 text-zinc-400">
+                  {isHealthy
+                    ? `${checks.length} verificações concluídas sem divergências.`
+                    : `${summary.affectedRecords} ${summary.affectedRecords === 1 ? "registro foi encontrado" : "registros foram encontrados"}. Abra cada item para revisar somente os dados afetados.`}
+                </p>
+                {lastCheckedAt ? (
+                  <p className="mt-2 text-xs text-zinc-500">
+                    Verificado às{" "}
+                    {lastCheckedAt.toLocaleTimeString("pt-BR", {
+                      hour: "2-digit",
+                      minute: "2-digit",
+                    })}
+                  </p>
+                ) : null}
+              </div>
+            </div>
+            {!isHealthy ? (
+              <div className="flex shrink-0 flex-wrap gap-2">
+                {summary.warnings > 0 ? (
+                  <Badge className="border border-amber-500/20 bg-amber-500/10 text-amber-300">
+                    {summary.warnings} atenção
+                  </Badge>
+                ) : null}
+                {summary.errors + summary.critical > 0 ? (
+                  <Badge className="border border-rose-500/20 bg-rose-500/10 text-rose-300">
+                    {summary.errors + summary.critical} erro
+                    {summary.errors + summary.critical === 1 ? "" : "s"}
+                  </Badge>
+                ) : null}
+              </div>
             ) : null}
           </CardContent>
         </Card>
-      ) : summary.activeChecks.length ? (
+      )}
+
+      {summary.activeChecks.length ? (
         <Card className="rounded-xl border-zinc-800/80 bg-zinc-950 shadow-none">
           <CardHeader className="border-b border-zinc-800/80 px-4 py-5 sm:px-6">
-            <CardTitle className="text-base">Pontos que exigem revisão</CardTitle>
+            <CardTitle className="text-base">O que revisar</CardTitle>
             <CardDescription>
-              {summary.affectedRecords} registro
-              {summary.affectedRecords === 1 ? "" : "s"} afetado
-              {summary.affectedRecords === 1 ? "" : "s"}.
+              Cada botão abre a tela já filtrada no problema correspondente.
             </CardDescription>
           </CardHeader>
           <CardContent className="divide-y divide-zinc-800/80 p-0">
@@ -288,7 +261,8 @@ export default function IntegridadePage() {
                         variant="outline"
                         className="border-zinc-700 text-zinc-400"
                       >
-                        {check.issue_count}
+                        {check.issue_count} registro
+                        {check.issue_count === 1 ? "" : "s"}
                       </Badge>
                     </div>
                     <p className="mt-1 text-sm leading-6 text-zinc-500">
@@ -300,8 +274,8 @@ export default function IntegridadePage() {
                     variant="outline"
                     className="h-10 shrink-0 border-zinc-700 bg-zinc-950"
                   >
-                    <Link href={check.action_route}>
-                      Revisar
+                    <Link href={reviewRoutes[check.check_key] ?? check.action_route}>
+                      Ver itens
                       <ArrowRight className="size-4" />
                     </Link>
                   </Button>
@@ -312,93 +286,24 @@ export default function IntegridadePage() {
         </Card>
       ) : null}
 
-      <Card className="rounded-xl border-zinc-800/80 bg-zinc-950 shadow-none">
-        <CardHeader className="border-b border-zinc-800/80 px-4 py-5 sm:px-6">
-          <div className="flex items-start justify-between gap-4">
-            <div>
-              <CardTitle className="text-base">Falhas recentes do app</CardTitle>
-              <CardDescription className="mt-1">
-                Erros técnicos deduplicados e registrados sem dados sensíveis.
-              </CardDescription>
+      <details className="group overflow-hidden rounded-xl border border-zinc-800/80 bg-zinc-950/50">
+        <summary className="flex cursor-pointer list-none items-center justify-between gap-4 px-4 py-4 sm:px-6 [&::-webkit-details-marker]:hidden">
+          <div className="flex min-w-0 items-center gap-3">
+            <span className="flex size-9 shrink-0 items-center justify-center rounded-lg bg-zinc-800/70 text-zinc-400">
+              <ShieldCheck className="size-4" />
+            </span>
+            <div className="min-w-0">
+              <p className="text-sm font-medium text-zinc-200">
+                O que o Finync verificou
+              </p>
+              <p className="mt-0.5 text-xs text-zinc-500">
+                {checks.length} controles financeiros executados na sua conta
+              </p>
             </div>
-            <Badge
-              variant="outline"
-              className={cn(
-                "shrink-0 border",
-                recentErrors.length
-                  ? "border-rose-500/20 bg-rose-500/10 text-rose-300"
-                  : "border-emerald-500/20 bg-emerald-500/10 text-emerald-300",
-              )}
-            >
-              {recentErrors.length ? recentErrors.length : "Estável"}
-            </Badge>
           </div>
-        </CardHeader>
-        <CardContent className="p-0">
-          {recentErrors.length ? (
-            <div className="divide-y divide-zinc-800/80">
-              {recentErrors.map((errorLog) => (
-                <article
-                  key={errorLog.id}
-                  className="flex items-start gap-3 px-4 py-4 sm:px-6"
-                >
-                  <span className="mt-0.5 flex size-9 shrink-0 items-center justify-center rounded-lg bg-rose-500/10 text-rose-300">
-                    <Bug className="size-4" />
-                  </span>
-                  <div className="min-w-0 flex-1">
-                    <div className="flex flex-wrap items-center gap-2">
-                      <p className="break-words text-sm font-medium text-zinc-200">
-                        {errorLog.message}
-                      </p>
-                      {errorLog.occurrences > 1 ? (
-                        <Badge
-                          variant="outline"
-                          className="border-zinc-700 text-zinc-400"
-                        >
-                          {errorLog.occurrences} ocorrências
-                        </Badge>
-                      ) : null}
-                    </div>
-                    <p className="mt-1 text-xs text-zinc-500">
-                      {errorLog.route ?? "Rota não identificada"} ·{" "}
-                      {errorDateFormatter.format(new Date(errorLog.last_seen))}
-                    </p>
-                  </div>
-                  <Badge
-                    variant="outline"
-                    className="shrink-0 border-zinc-700 text-zinc-400"
-                  >
-                    {errorLog.source}
-                  </Badge>
-                </article>
-              ))}
-            </div>
-          ) : (
-            <div className="flex items-center gap-3 px-4 py-6 sm:px-6">
-              <span className="flex size-9 items-center justify-center rounded-lg bg-emerald-500/10 text-emerald-400">
-                <Check className="size-4" />
-              </span>
-              <div>
-                <p className="text-sm font-medium text-zinc-200">
-                  Nenhuma falha registrada
-                </p>
-                <p className="mt-1 text-xs text-zinc-500">
-                  O monitoramento está ativo nesta conta.
-                </p>
-              </div>
-            </div>
-          )}
-        </CardContent>
-      </Card>
-
-      <Card className="rounded-xl border-zinc-800/80 bg-zinc-950/60 shadow-none">
-        <CardHeader className="border-b border-zinc-800/80 px-4 py-5 sm:px-6">
-          <CardTitle className="text-base">Verificações monitoradas</CardTitle>
-          <CardDescription>
-            Controles executados somente sobre os dados da sua conta.
-          </CardDescription>
-        </CardHeader>
-        <CardContent className="grid gap-px bg-zinc-800/70 p-px sm:grid-cols-2 xl:grid-cols-3">
+          <ChevronDown className="size-4 shrink-0 text-zinc-500 transition-transform group-open:rotate-180" />
+        </summary>
+        <div className="grid gap-px border-t border-zinc-800/80 bg-zinc-800/70 p-px sm:grid-cols-2 xl:grid-cols-3">
           {checks.map((check) => (
             <div
               key={check.check_key}
@@ -423,8 +328,8 @@ export default function IntegridadePage() {
               </span>
             </div>
           ))}
-        </CardContent>
-      </Card>
+        </div>
+      </details>
     </div>
   );
 }

@@ -49,6 +49,7 @@ interface TransactionEditSheetProps {
   transaction: Transaction | null;
   open: boolean;
   onOpenChange: (open: boolean) => void;
+  onSaved?: () => Promise<void> | void;
 }
 
 function FieldLabel({
@@ -85,6 +86,7 @@ export function TransactionEditSheet({
   transaction,
   open,
   onOpenChange,
+  onSaved,
 }: TransactionEditSheetProps) {
   const { currencySymbol } = useCurrencyFormatter();
   const cards = useFinanceStore((state) => state.cards);
@@ -238,7 +240,11 @@ export function TransactionEditSheet({
         await updateTransaction(activeTransaction.id, payload);
       }
 
-      await fetchTransactions();
+      if (onSaved) {
+        await onSaved();
+      } else {
+        await fetchTransactions();
+      }
       toast.success(
         scope === "all"
           ? "Todo o grupo foi atualizado."
