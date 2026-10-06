@@ -2044,13 +2044,21 @@ export const useFinanceStore = create<FinanceState>()((set, get) => ({
         (transaction.dependentId ?? null) !==
           (sourceTransaction?.dependentId ?? null);
       const sourceDay = dateChanged ? getDayFromDate(requestedDate) : null;
-      const groupTransactions = get()
-        .transactions.filter(
-          (currentTransaction) =>
-            currentTransaction.groupId === groupId &&
-            (scope === "all" ||
-              normalizeDateOnly(currentTransaction.date) >= normalizedFromDate),
-        )
+      const groupQuery = supabase
+        .from("transactions")
+        .select("*")
+        .eq("user_id", user.id)
+        .eq("group_id", groupId);
+      const scopedGroupQuery =
+        scope === "all"
+          ? groupQuery
+          : groupQuery.gte("transaction_date", normalizedFromDate);
+      const { data: groupRows, error: groupError } = await scopedGroupQuery;
+
+      if (groupError) throw groupError;
+
+      const groupTransactions = ((groupRows ?? []) as TransactionRow[])
+        .map(mapTransaction)
         .sort((left, right) => {
           const leftInstallment =
             left.installmentNumber ?? left.current_installment ?? 1;
@@ -2067,6 +2075,38 @@ export const useFinanceStore = create<FinanceState>()((set, get) => ({
         });
 
       if (!groupTransactions.length) return;
+
+      if (
+        transaction.category !== undefined &&
+        Object.keys(transaction).length === 1
+      ) {
+        const groupTransactionIds = groupTransactions.map(
+          (currentTransaction) => currentTransaction.id,
+        );
+        const { data, error } = await supabase
+          .from("transactions")
+          .update({ category: transaction.category })
+          .eq("user_id", user.id)
+          .in("id", groupTransactionIds)
+          .select("*");
+
+        if (error) throw error;
+
+        const updatedById = new Map(
+          ((data ?? []) as TransactionRow[]).map((row) => {
+            const updatedTransaction = mapTransaction(row);
+            return [updatedTransaction.id, updatedTransaction];
+          }),
+        );
+
+        set((state) => ({
+          transactions: state.transactions.map(
+            (currentTransaction) =>
+              updatedById.get(currentTransaction.id) ?? currentTransaction,
+          ),
+        }));
+        return;
+      }
 
       const updatedRows = await Promise.all(
         groupTransactions.map(async (currentTransaction) => {
