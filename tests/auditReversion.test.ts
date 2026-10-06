@@ -2,7 +2,10 @@ import assert from "node:assert/strict";
 import test from "node:test";
 
 import type { Tables } from "../lib/database.types.ts";
-import { canRevertAuditLog } from "../lib/auditReversion.ts";
+import {
+  canRevertAuditLog,
+  isUserFacingAuditLog,
+} from "../lib/auditReversion.ts";
 
 type AuditLog = Tables<"audit_logs">;
 
@@ -83,5 +86,29 @@ test("blocks automatic, reverted, and reversal events", () => {
   assert.equal(
     canRevertAuditLog(createLog({ reverts_log_id: "previous-log-id" })),
     false,
+  );
+});
+
+test("hides navigation-only preference events", () => {
+  assert.equal(
+    isUserFacingAuditLog(
+      createLog({
+        entity_type: "user_preferences",
+        changed_fields: ["navigation_preferences"],
+      }),
+    ),
+    false,
+  );
+});
+
+test("keeps preference events with user-facing changes", () => {
+  assert.equal(
+    isUserFacingAuditLog(
+      createLog({
+        entity_type: "user_preferences",
+        changed_fields: ["navigation_preferences", "default_currency"],
+      }),
+    ),
+    true,
   );
 });

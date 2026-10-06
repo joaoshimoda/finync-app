@@ -37,7 +37,10 @@ import type { Json, Tables } from "@/lib/database.types";
 import { reportAppError } from "@/lib/errorMonitoring";
 import { supabase } from "@/lib/supabaseClient";
 import { useCurrencyFormatter } from "@/hooks/useCurrencyFormatter";
-import { canRevertAuditLog } from "@/lib/auditReversion";
+import {
+  canRevertAuditLog,
+  isUserFacingAuditLog,
+} from "@/lib/auditReversion";
 import { cn } from "@/lib/utils";
 import { useFinanceStore } from "@/store/useFinanceStore";
 
@@ -141,6 +144,7 @@ const hiddenChangedFields = new Set([
   "created_at",
   "updated_at",
   "import_signature",
+  "navigation_preferences",
 ]);
 
 const dateTimeFormatter = new Intl.DateTimeFormat("pt-BR", {
@@ -347,6 +351,7 @@ export default function AtividadesPage() {
         : loadedAt - Number(periodFilter) * 24 * 60 * 60 * 1000;
 
     return logs.filter((log) => {
+      if (!isUserFacingAuditLog(log)) return false;
       if (entityFilter !== "all" && log.entity_type !== entityFilter) {
         return false;
       }

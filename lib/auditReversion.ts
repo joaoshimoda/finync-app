@@ -2,6 +2,8 @@ import type { Json, Tables } from "@/lib/database.types";
 
 type AuditLog = Tables<"audit_logs">;
 
+const hiddenPreferenceFields = new Set(["navigation_preferences"]);
+
 function toRecord(value: Json | null) {
   if (!value || Array.isArray(value) || typeof value !== "object") return {};
   return value;
@@ -36,5 +38,14 @@ export function canRevertAuditLog(log: AuditLog) {
     log.entity_type === "categories" &&
     log.changed_fields.length > 0 &&
     log.changed_fields.every((field) => ["color", "icon"].includes(field))
+  );
+}
+
+export function isUserFacingAuditLog(log: AuditLog) {
+  return !(
+    log.entity_type === "user_preferences" &&
+    log.action === "UPDATE" &&
+    log.changed_fields.length > 0 &&
+    log.changed_fields.every((field) => hiddenPreferenceFields.has(field))
   );
 }
