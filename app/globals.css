@@ -66,6 +66,16 @@
   --font-sans: var(--font-sans);
   --font-mono: var(--font-geist-mono);
   --font-heading: var(--font-sans);
+  --font-landing: var(--font-archivo);
+  --color-ledger-sheet: var(--ledger-sheet);
+  --color-ledger-ink: var(--ledger-ink);
+  --color-ledger-amber: var(--ledger-amber);
+  --color-ledger-amber-soft: var(--ledger-amber-soft);
+  --color-ledger-mint: var(--ledger-mint);
+  --color-viz-1: var(--viz-1);
+  --color-viz-2: var(--viz-2);
+  --color-viz-3: var(--viz-3);
+  --color-viz-4: var(--viz-4);
   --color-sidebar-ring: var(--sidebar-ring);
   --color-sidebar-border: var(--sidebar-border);
   --color-sidebar-accent-foreground: var(--sidebar-accent-foreground);
@@ -140,6 +150,53 @@ body {
   --sidebar-accent-foreground: oklch(0.985 0 0);
   --sidebar-border: oklch(1 0 0 / 10%);
   --sidebar-ring: oklch(0.556 0 0);
+}
+
+/* Landing page palette: sage paper and the logo's green ink. Amber marks
+   purchases that belong to someone else. Overrides the forced dark tokens. */
+.landing {
+  --background: #eef2ec;
+  --foreground: #12261a;
+  --primary: #2c603c;
+  --primary-foreground: #f4f7f2;
+  --secondary: #e1e8df;
+  --secondary-foreground: #12261a;
+  --muted: #e1e8df;
+  --muted-foreground: #56695c;
+  --accent: #e1e8df;
+  --accent-foreground: #12261a;
+  --border: #cfd8cf;
+  --input: #cfd8cf;
+  --ring: #2c603c;
+  --ledger-sheet: #f8faf7;
+  --ledger-ink: #12261a;
+  --ledger-amber: #95580a;
+  --ledger-amber-soft: #f2e2c2;
+  --ledger-mint: #9fd4ad;
+  /* Chart categories, validated for CVD separation on the sheet surface.
+     Fixed order: assign by entity, never by rank. */
+  --viz-1: #2f7d4a;
+  --viz-2: #b7790f;
+  --viz-3: #3d76b8;
+  --viz-4: #b5536c;
+  color-scheme: light;
+}
+
+/* Faint ledger grid behind the hero and CTA, faded out toward the edges. */
+.landing-grid {
+  background-image:
+    linear-gradient(to right, rgb(18 38 26 / 0.06) 1px, transparent 1px),
+    linear-gradient(to bottom, rgb(18 38 26 / 0.06) 1px, transparent 1px);
+  background-size: 56px 56px;
+  mask-image: radial-gradient(ellipse 70% 60% at 50% 0%, #000 40%, transparent 100%);
+}
+
+.landing-grid-dark {
+  background-image:
+    linear-gradient(to right, rgb(238 242 236 / 0.05) 1px, transparent 1px),
+    linear-gradient(to bottom, rgb(238 242 236 / 0.05) 1px, transparent 1px);
+  background-size: 56px 56px;
+  mask-image: radial-gradient(ellipse 60% 70% at 0% 0%, #000 30%, transparent 100%);
 }
 
 @layer base {

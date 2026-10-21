@@ -1,49 +1,74 @@
 "use client";
 
-import {
-  motion,
-  useMotionValue,
-  useReducedMotion,
-  useSpring,
-  useTransform,
-} from "framer-motion";
+import { MotionConfig, motion, type Variants } from "framer-motion";
 import {
   ArrowRight,
+  CalendarClock,
   Check,
-  ChevronRight,
-  CircleUserRound,
-  FileSpreadsheet,
-  LockKeyhole,
-  MoveDownRight,
-  ShieldCheck,
-  Upload,
+  History,
+  Lock,
+  Repeat,
+  ScanSearch,
+  Sparkles,
+  Undo2,
 } from "lucide-react";
 import Link from "next/link";
-import type { MouseEvent, ReactNode } from "react";
+import type { PointerEvent, ReactNode } from "react";
+
 import { FinyncLogo } from "@/components/branding/FinyncLogo";
+import {
+  Accordion,
+  AccordionContent,
+  AccordionItem,
+  AccordionTrigger,
+} from "@/components/ui/accordion";
+import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
+import { cn } from "@/lib/utils";
 
-const transactions = [
-  ["Mercado São Luiz", "Alimentação", "− R$ 284,90"],
-  ["Uber", "Transporte", "− R$ 42,60"],
-  ["Spotify", "Assinaturas", "− R$ 21,90"],
-] as const;
-const bars = [36, 54, 43, 72, 58, 81, 66, 92, 74, 61, 48, 57];
+import { BudgetBars, InstallmentBars, brl, ease } from "./charts";
+import { archivo } from "./fonts";
+import { HeroDashboard } from "./HeroDashboard";
+import { InvoiceSplitDemo } from "./InvoiceSplitDemo";
+import { ProductTabs } from "./ProductTabs";
 
-function Reveal({
+const reveal: Variants = {
+  hidden: { opacity: 0, y: 18 },
+  visible: { opacity: 1, y: 0, transition: { duration: 0.7, ease } },
+};
+
+const stagger: Variants = {
+  hidden: {},
+  visible: { transition: { staggerChildren: 0.08 } },
+};
+
+function Container({
   children,
-  className = "",
-  delay = 0,
+  className,
 }: {
   children: ReactNode;
   className?: string;
-  delay?: number;
+}) {
+  return (
+    <div className={cn("mx-auto w-full max-w-[1200px] px-5 sm:px-8", className)}>
+      {children}
+    </div>
+  );
+}
+
+function Reveal({
+  children,
+  className,
+}: {
+  children: ReactNode;
+  className?: string;
 }) {
   return (
     <motion.div
-      initial={{ opacity: 0, y: 24 }}
-      whileInView={{ opacity: 1, y: 0 }}
+      variants={reveal}
+      initial="hidden"
+      whileInView="visible"
       viewport={{ once: true, margin: "-80px" }}
-      transition={{ duration: 0.7, delay, ease: [0.22, 1, 0.36, 1] }}
       className={className}
     >
       {children}
@@ -51,420 +76,637 @@ function Reveal({
   );
 }
 
-function ProductPreview() {
-  const reduceMotion = useReducedMotion();
-  const mouseX = useMotionValue(0);
-  const mouseY = useMotionValue(0);
-  const smoothX = useSpring(mouseX, { stiffness: 100, damping: 24 });
-  const smoothY = useSpring(mouseY, { stiffness: 100, damping: 24 });
-  const rotateX = useTransform(
-    smoothY,
-    [-0.5, 0.5],
-    reduceMotion ? [0, 0] : [2.5, -2.5],
+function SectionIntro({
+  eyebrow,
+  title,
+  description,
+  className,
+  tone = "light",
+}: {
+  eyebrow: string;
+  title: string;
+  description?: string;
+  className?: string;
+  tone?: "light" | "dark";
+}) {
+  return (
+    <Reveal className={cn("max-w-[42rem]", className)}>
+      <p
+        className={cn(
+          "text-[13px] font-medium tracking-[0.08em] uppercase",
+          tone === "light" ? "text-primary" : "text-ledger-mint",
+        )}
+      >
+        {eyebrow}
+      </p>
+      <h2 className="mt-4 text-[clamp(2rem,4.2vw,3.25rem)] leading-[1.04] font-semibold tracking-[-0.03em] [font-stretch:88%]">
+        {title}
+      </h2>
+      {description ? (
+        <p
+          className={cn(
+            "mt-5 text-[17px] leading-[1.6]",
+            tone === "light" ? "text-muted-foreground" : "text-[#b9c7bd]",
+          )}
+        >
+          {description}
+        </p>
+      ) : null}
+    </Reveal>
   );
-  const rotateY = useTransform(
-    smoothX,
-    [-0.5, 0.5],
-    reduceMotion ? [0, 0] : [-3, 3],
-  );
+}
 
-  function handleMouseMove(event: MouseEvent<HTMLDivElement>) {
+/* A card whose border picks up a soft glow under the pointer. The glow is
+   driven by CSS variables so moving the mouse never re-renders React. */
+function BentoCard({
+  title,
+  description,
+  icon,
+  children,
+  className,
+}: {
+  title: string;
+  description: string;
+  icon: ReactNode;
+  children?: ReactNode;
+  className?: string;
+}) {
+  function trackPointer(event: PointerEvent<HTMLDivElement>) {
     const rect = event.currentTarget.getBoundingClientRect();
-    mouseX.set((event.clientX - rect.left) / rect.width - 0.5);
-    mouseY.set((event.clientY - rect.top) / rect.height - 0.5);
+    event.currentTarget.style.setProperty("--spot-x", `${event.clientX - rect.left}px`);
+    event.currentTarget.style.setProperty("--spot-y", `${event.clientY - rect.top}px`);
   }
 
   return (
     <motion.div
-      onMouseMove={handleMouseMove}
-      onMouseLeave={() => {
-        mouseX.set(0);
-        mouseY.set(0);
-      }}
-      style={{ rotateX, rotateY, transformPerspective: 1600 }}
-      initial={{ opacity: 0, x: 36 }}
-      animate={{ opacity: 1, x: 0 }}
-      transition={{ duration: 0.9, delay: 0.2, ease: [0.22, 1, 0.36, 1] }}
-      className="relative lg:ml-8"
+      variants={reveal}
+      onPointerMove={trackPointer}
+      className={cn(
+        "group relative flex flex-col overflow-hidden rounded-[22px] border border-border bg-ledger-sheet p-6 transition-shadow duration-300 hover:shadow-[0_24px_48px_-28px_rgba(18,38,26,0.35)] sm:p-7",
+        className,
+      )}
     >
-      <div className="absolute -inset-px rounded-[25px] bg-white/[0.08]" />
-      <div className="relative overflow-hidden rounded-3xl border border-white/10 bg-[#0d0e0e] shadow-[0_40px_100px_rgba(0,0,0,0.55)]">
-        <div className="flex h-14 items-center justify-between border-b border-white/[0.07] px-5">
-          <div className="flex items-center gap-2.5">
-            <span className="size-2 rounded-full bg-emerald-400" />
-            <span className="text-[11px] font-medium uppercase tracking-[0.18em] text-zinc-500">
-              Visão mensal
-            </span>
-          </div>
-          <span className="text-xs text-zinc-500">Setembro 2026</span>
-        </div>
-        <div className="border-b border-white/[0.07] px-5 py-7 sm:px-7">
-          <div className="flex items-start justify-between gap-6">
-            <div>
-              <p className="text-xs text-zinc-500">Saldo livre</p>
-              <p className="mt-2 text-3xl font-medium tracking-[-0.04em] text-white sm:text-4xl">
-                R$ 4.380,20
-              </p>
-            </div>
-            <span className="rounded-full border border-emerald-400/20 bg-emerald-400/[0.07] px-2.5 py-1 text-xs text-emerald-300">
-              +8,4%
-            </span>
-          </div>
-          <div className="mt-8 flex h-32 items-end gap-2">
-            {bars.map((height, index) => (
-              <motion.div
-                key={index}
-                className="group flex h-full flex-1 items-end"
-                initial={{ scaleY: 0 }}
-                animate={{ scaleY: 1 }}
-                transition={{ duration: 0.55, delay: 0.45 + index * 0.035 }}
-                style={{ transformOrigin: "bottom" }}
-              >
-                <div
-                  className={`w-full rounded-t-[2px] transition-colors ${index === bars.length - 1 ? "bg-emerald-400" : "bg-zinc-700 group-hover:bg-zinc-600"}`}
-                  style={{ height: `${height}%` }}
-                />
-              </motion.div>
-            ))}
-          </div>
-          <div className="mt-3 flex justify-between text-[10px] uppercase tracking-widest text-zinc-700">
-            <span>Jan</span>
-            <span>Jun</span>
-            <span>Dez</span>
-          </div>
-        </div>
-        <div className="grid divide-y divide-white/[0.07] sm:grid-cols-3 sm:divide-x sm:divide-y-0">
-          {[
-            ["Receitas", "R$ 6.750,00"],
-            ["Despesas", "R$ 2.369,80"],
-            ["Fatura", "R$ 1.842,30"],
-          ].map(([label, value]) => (
-            <div key={label} className="px-5 py-5">
-              <p className="text-[11px] text-zinc-600">{label}</p>
-              <p className="mt-1.5 text-sm font-medium text-zinc-200">
-                {value}
-              </p>
-            </div>
-          ))}
-        </div>
+      <div
+        aria-hidden
+        className="pointer-events-none absolute inset-0 opacity-0 transition-opacity duration-300 group-hover:opacity-100"
+        style={{
+          background:
+            "radial-gradient(360px circle at var(--spot-x, 50%) var(--spot-y, 0%), rgba(47,125,74,0.09), transparent 70%)",
+        }}
+      />
+      <div className="relative">
+        <span className="grid size-9 place-items-center rounded-lg bg-primary/10 text-primary">
+          {icon}
+        </span>
+        <h3 className="mt-5 text-[19px] font-semibold tracking-[-0.01em]">{title}</h3>
+        <p className="mt-2 max-w-[34rem] text-[15px] leading-[1.6] text-muted-foreground">
+          {description}
+        </p>
       </div>
-      <motion.div
-        animate={reduceMotion ? undefined : { y: [0, -6, 0] }}
-        transition={{ duration: 4, repeat: Infinity, ease: "easeInOut" }}
-        className="absolute -bottom-8 -left-4 hidden w-56 rounded-2xl border border-white/10 bg-[#141515] p-4 shadow-2xl md:block lg:-left-12"
-      >
-        <div className="flex items-center justify-between">
-          <span className="text-[11px] text-zinc-500">Limite disponível</span>
-          <MoveDownRight className="size-3.5 text-emerald-400" />
-        </div>
-        <p className="mt-3 text-xl font-medium tracking-tight">R$ 7.157,70</p>
-        <div className="mt-4 h-1 overflow-hidden rounded-full bg-zinc-800">
-          <motion.div
-            initial={{ width: 0 }}
-            animate={{ width: "72%" }}
-            transition={{ duration: 1, delay: 0.8 }}
-            className="h-full bg-emerald-400"
-          />
-        </div>
-      </motion.div>
+      {children ? <div className="relative mt-7 flex-1">{children}</div> : null}
     </motion.div>
   );
 }
 
+function InstallmentTrack() {
+  return (
+    <div className="rounded-xl border border-border bg-background/60 p-4">
+      <div className="flex items-baseline justify-between text-[13px]">
+        <span className="font-medium">Notebook · Magazine Luiza</span>
+        <span className="text-muted-foreground tabular-nums">4 de 10</span>
+      </div>
+      <div className="mt-3 flex gap-1" aria-hidden>
+        {Array.from({ length: 10 }, (_, index) => (
+          <motion.span
+            key={index}
+            className={cn(
+              "h-2 flex-1 origin-left rounded-full",
+              index < 4 ? "bg-primary" : "bg-border",
+            )}
+            initial={{ scaleX: 0 }}
+            whileInView={{ scaleX: 1 }}
+            viewport={{ once: true }}
+            transition={{ delay: 0.2 + index * 0.05, duration: 0.4, ease }}
+          />
+        ))}
+      </div>
+      <p className="mt-3 text-[12px] text-muted-foreground">
+        {brl.format(389.9)} por mês até mar 2027
+      </p>
+    </div>
+  );
+}
+
+const historyEntries = [
+  { action: "Categoria de Uber alterada", detail: "Lazer → Transporte", time: "9h12" },
+  { action: "Compra marcada como do dependente", detail: "Renner, parcela 2 de 4", time: "8h47" },
+  { action: "Fatura de outubro importada", detail: "42 compras", time: "ontem" },
+];
+
+function HistoryFeed() {
+  return (
+    <motion.ul
+      variants={stagger}
+      initial="hidden"
+      whileInView="visible"
+      viewport={{ once: true }}
+      className="grid gap-2"
+    >
+      {historyEntries.map((entry, index) => (
+        <motion.li
+          key={entry.action}
+          variants={reveal}
+          className={cn(
+            "flex items-center justify-between gap-3 rounded-xl border border-border bg-background/60 px-3.5 py-2.5 text-[12px]",
+            index > 0 && "opacity-70",
+          )}
+        >
+          <span className="min-w-0">
+            <span className="block truncate font-medium">{entry.action}</span>
+            <span className="block truncate text-muted-foreground">
+              {entry.detail} · {entry.time}
+            </span>
+          </span>
+          {index === 0 ? (
+            <span className="inline-flex shrink-0 items-center gap-1 rounded-md bg-primary px-2 py-1 font-medium text-primary-foreground">
+              <Undo2 className="size-3" />
+              Desfazer
+            </span>
+          ) : null}
+        </motion.li>
+      ))}
+    </motion.ul>
+  );
+}
+
+function IntegrityScan() {
+  const rows = ["Mercado São Luiz", "Uber", "Uber", "Spotify Família"];
+  return (
+    <div className="relative overflow-hidden rounded-xl border border-border bg-background/60">
+      <motion.div
+        aria-hidden
+        className="pointer-events-none absolute inset-x-0 h-10 bg-gradient-to-b from-transparent via-primary/15 to-transparent"
+        animate={{ top: ["-20%", "100%"] }}
+        transition={{ duration: 2.8, repeat: Infinity, ease: "easeInOut", repeatDelay: 0.6 }}
+      />
+      <ul className="divide-y divide-border text-[12px]">
+        {rows.map((row, index) => {
+          const flagged = index === 1 || index === 2;
+          return (
+            <li
+              key={`${row}-${index}`}
+              className={cn(
+                "flex items-center justify-between px-3.5 py-2",
+                flagged && "bg-ledger-amber-soft/40",
+              )}
+            >
+              <span>{row}</span>
+              {flagged ? (
+                <span className="font-medium text-ledger-amber">Repetida?</span>
+              ) : (
+                <Check className="size-3.5 text-primary" />
+              )}
+            </li>
+          );
+        })}
+      </ul>
+    </div>
+  );
+}
+
+const recurring = [
+  { name: "Aluguel", day: "05", amount: 1850, kind: "saída" },
+  { name: "Salário", day: "05", amount: 6400, kind: "entrada" },
+  { name: "Academia", day: "12", amount: 119.9, kind: "saída" },
+];
+
+function RecurringList() {
+  return (
+    <ul className="grid gap-2 text-[12px]">
+      {recurring.map((item) => (
+        <li
+          key={item.name}
+          className="flex items-center justify-between rounded-xl border border-border bg-background/60 px-3.5 py-2.5"
+        >
+          <span className="flex items-center gap-2.5">
+            <span className="grid size-7 place-items-center rounded-md bg-secondary text-[11px] font-semibold tabular-nums">
+              {item.day}
+            </span>
+            {item.name}
+          </span>
+          <span
+            className={cn(
+              "tabular-nums",
+              item.kind === "entrada" ? "text-primary" : "text-muted-foreground",
+            )}
+          >
+            {item.kind === "entrada" ? "+" : "−"}
+            {brl.format(item.amount)}
+          </span>
+        </li>
+      ))}
+    </ul>
+  );
+}
+
+const dependentPoints = [
+  "Marque compras inteiras ou só algumas parcelas",
+  "Saldo a receber de cada dependente, mês a mês",
+  "Registre o acerto quando o valor for devolvido",
+];
+
+const faqs = [
+  {
+    question: "Quais bancos posso importar?",
+    answer:
+      "Faturas em PDF do Nubank, Inter e Bradesco são lidas automaticamente. Para os demais, você pode importar um arquivo CSV.",
+  },
+  {
+    question: "Preciso conectar minha conta bancária?",
+    answer:
+      "Não. Você envia o arquivo da fatura e decide o que entra. O Finync não pede sua senha do banco.",
+  },
+  {
+    question: "O que é um dependente?",
+    answer:
+      "É qualquer pessoa que usa seu cartão: filho, cônjuge, um amigo. Você marca as compras dela e o Finync calcula quanto ela deve devolver.",
+  },
+  {
+    question: "E se eu mudar algo por engano?",
+    answer:
+      "Toda alteração fica no histórico. Você vê o que mudou, quando mudou, e pode desfazer com um clique.",
+  },
+  {
+    question: "Quanto custa?",
+    answer:
+      "Você cria a conta grátis e começa a usar sem informar cartão de crédito.",
+  },
+];
+
+const banks = ["Nubank", "Inter", "Bradesco", "Arquivo CSV"];
+
 export function ModernLandingPage() {
   return (
-    <main className="min-h-screen overflow-x-hidden bg-[#090a0a] text-zinc-50 selection:bg-emerald-300 selection:text-zinc-950">
-      <header className="fixed inset-x-0 top-0 z-50 border-b border-white/[0.07] bg-[#090a0a]/90 backdrop-blur-xl">
-        <div className="mx-auto flex h-[68px] w-full max-w-[1440px] items-center justify-between px-5 sm:px-8 lg:px-12">
-          <Link
-            href="/"
-            className="flex items-center gap-3"
-            aria-label="Finync"
-          >
-            <FinyncLogo eager className="w-24 brightness-125" />
-          </Link>
-          <nav className="hidden items-center gap-8 text-[13px] text-zinc-500 md:flex">
-            <a
-              href="#produto"
-              className="transition-colors hover:text-zinc-100"
-            >
-              Produto
-            </a>
-            <a
-              href="#recursos"
-              className="transition-colors hover:text-zinc-100"
-            >
-              Recursos
-            </a>
-            <a
-              href="#seguranca"
-              className="transition-colors hover:text-zinc-100"
-            >
-              Segurança
-            </a>
-          </nav>
-          <div className="flex items-center gap-2">
-            <Link
-              href="/login"
-              className="hidden h-10 items-center px-4 text-sm text-zinc-400 transition-colors hover:text-white sm:inline-flex"
-            >
-              Entrar
-            </Link>
-            <Link
-              href="/signup"
-              className="inline-flex h-10 items-center gap-2 rounded-lg bg-zinc-100 px-4 text-sm font-semibold text-zinc-950 transition hover:bg-white"
-            >
-              Criar conta <ArrowRight className="size-3.5" />
-            </Link>
-          </div>
-        </div>
-      </header>
-
-      <section className="relative border-b border-white/[0.07] pt-[68px]">
-        <div className="pointer-events-none absolute inset-0 bg-[linear-gradient(rgba(255,255,255,0.025)_1px,transparent_1px)] bg-[size:100%_72px]" />
-        <div className="relative mx-auto grid min-h-[calc(100svh-68px)] w-full max-w-[1440px] items-center gap-16 px-5 py-16 sm:px-8 sm:py-24 lg:grid-cols-[0.86fr_1.14fr] lg:px-12 lg:py-20">
-          <div className="max-w-2xl">
-            <motion.div
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 1 }}
-              transition={{ duration: 0.6 }}
-              className="flex items-center gap-3 text-[11px] font-medium uppercase tracking-[0.22em] text-zinc-500"
-            >
-              <span className="h-px w-8 bg-emerald-400" />
-              Clareza para o seu dinheiro
-            </motion.div>
-            <motion.h1
-              initial={{ opacity: 0, y: 24 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{
-                duration: 0.8,
-                delay: 0.06,
-                ease: [0.22, 1, 0.36, 1],
-              }}
-              className="mt-8 text-[clamp(3.25rem,6vw,6.6rem)] font-medium leading-[0.92] tracking-[-0.065em]"
-            >
-              Seu dinheiro,
-              <span className="block text-zinc-500">sem pontos cegos.</span>
-            </motion.h1>
-            <motion.p
-              initial={{ opacity: 0, y: 18 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ duration: 0.7, delay: 0.16 }}
-              className="mt-8 max-w-xl text-base leading-7 text-zinc-400 sm:text-lg sm:leading-8"
-            >
-              Faturas, despesas, dependentes e receitas em uma leitura única. O
-              Finync transforma a rotina financeira em decisões claras.
-            </motion.p>
-            <motion.div
-              initial={{ opacity: 0, y: 16 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ duration: 0.7, delay: 0.24 }}
-              className="mt-9 flex flex-col gap-3 sm:flex-row"
-            >
-              <Link
-                href="/signup"
-                className="inline-flex h-12 items-center justify-center gap-2 rounded-lg bg-emerald-400 px-6 text-sm font-semibold text-zinc-950 transition hover:bg-emerald-300"
-              >
-                Começar gratuitamente <ArrowRight className="size-4" />
-              </Link>
-              <Link
-                href="/demo"
-                className="inline-flex h-12 items-center justify-center gap-2 rounded-lg border border-white/12 px-6 text-sm font-medium text-zinc-200 transition hover:border-white/25 hover:bg-white/[0.03]"
-              >
-                Explorar demonstração{" "}
-                <ChevronRight className="size-4 text-zinc-600" />
-              </Link>
-            </motion.div>
-            <motion.div
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 1 }}
-              transition={{ duration: 0.8, delay: 0.4 }}
-              className="mt-12 flex items-center gap-7 border-t border-white/[0.08] pt-6 text-xs text-zinc-600"
-            >
-              <span>Sem planilhas</span>
-              <span>Sem cartão</span>
-              <span>Dados privados</span>
-            </motion.div>
-          </div>
-          <ProductPreview />
-        </div>
-      </section>
-
-      <section className="border-b border-white/[0.07]">
-        <div className="mx-auto grid max-w-[1440px] grid-cols-1 divide-y divide-white/[0.07] px-5 sm:grid-cols-3 sm:divide-x sm:divide-y-0 sm:px-8 lg:px-12">
-          {[
-            ["01", "Uma visão", "Tudo o que entra, sai e fica comprometido."],
-            ["02", "Seu contexto", "Dependentes separados do seu saldo real."],
-            [
-              "03",
-              "Menos esforço",
-              "CSV reconhecido antes de chegar à fatura.",
-            ],
-          ].map(([number, title, description]) => (
-            <div key={number} className="py-8 sm:px-7 first:pl-0 last:pr-0">
-              <span className="text-xs text-emerald-400">{number}</span>
-              <p className="mt-5 text-lg font-medium">{title}</p>
-              <p className="mt-2 max-w-xs text-sm leading-6 text-zinc-500">
-                {description}
-              </p>
-            </div>
-          ))}
-        </div>
-      </section>
-
-      <section
-        id="produto"
-        className="border-b border-white/[0.07] py-20 sm:py-32"
+    <MotionConfig reducedMotion="user">
+      <main
+        className={cn(
+          archivo.variable,
+          "landing min-h-screen overflow-x-hidden bg-background font-landing text-foreground selection:bg-primary selection:text-primary-foreground",
+        )}
       >
-        <div className="mx-auto w-full max-w-[1440px] px-5 sm:px-8 lg:px-12">
-          <Reveal className="grid gap-8 lg:grid-cols-[0.8fr_1.2fr] lg:items-end">
-            <div>
-              <p className="text-xs font-medium uppercase tracking-[0.2em] text-emerald-400">
-                Feito para a vida real
-              </p>
-              <h2 className="mt-5 max-w-2xl text-4xl font-medium leading-[1.04] tracking-[-0.045em] sm:text-6xl">
-                Controle sem transformar sua vida em contabilidade.
-              </h2>
-            </div>
-            <p className="max-w-xl text-base leading-7 text-zinc-500 lg:justify-self-end">
-              O produto cuida da complexidade de ciclos, parcelas e
-              responsáveis. Você fica com uma visão limpa do que realmente
-              importa.
-            </p>
-          </Reveal>
-          <div id="recursos" className="mt-16 grid gap-4 lg:grid-cols-12">
-            <Reveal
-              className="overflow-hidden rounded-2xl border border-white/[0.08] bg-[#0d0e0e] lg:col-span-7"
-              delay={0.05}
+        <header className="sticky top-0 z-50 border-b border-border/60 bg-background/75 backdrop-blur-xl">
+          <Container className="flex h-16 items-center justify-between">
+            <Link
+              href="/"
+              aria-label="Finync, página inicial"
+              className="rounded-md outline-none focus-visible:ring-2 focus-visible:ring-ring"
             >
-              <div className="p-6 sm:p-8">
-                <div className="flex items-center justify-between">
-                  <span className="flex size-10 items-center justify-center rounded-lg border border-white/10">
-                    <FileSpreadsheet className="size-4 text-emerald-400" />
-                  </span>
-                  <span className="text-[10px] uppercase tracking-[0.18em] text-zinc-600">
-                    Importação
-                  </span>
-                </div>
-                <h3 className="mt-10 text-2xl font-medium tracking-tight sm:text-3xl">
-                  Sua fatura entra organizada.
-                </h3>
-                <p className="mt-3 max-w-lg text-sm leading-6 text-zinc-500">
-                  Revise categorias, parcelas, duplicidades e responsáveis antes
-                  de salvar.
-                </p>
-              </div>
-              <div className="border-t border-white/[0.07]">
-                <div className="flex items-center justify-between border-b border-white/[0.07] px-5 py-3 text-xs text-zinc-500">
-                  <span className="flex items-center gap-2">
-                    <Upload className="size-3.5" /> fatura-setembro.csv
-                  </span>
-                  <span className="text-emerald-400">18 reconhecidos</span>
-                </div>
-                {transactions.map(([name, category, amount]) => (
-                  <div
-                    key={name}
-                    className="grid grid-cols-[1fr_auto] items-center border-b border-white/[0.05] px-5 py-4 last:border-0 sm:grid-cols-[1fr_150px_auto]"
-                  >
-                    <span className="flex items-center gap-3 text-sm text-zinc-200">
-                      <Check className="size-3.5 text-emerald-400" />
-                      {name}
-                    </span>
-                    <span className="hidden text-xs text-zinc-600 sm:block">
-                      {category}
-                    </span>
-                    <span className="text-sm text-zinc-400">{amount}</span>
-                  </div>
-                ))}
-              </div>
-            </Reveal>
-            <Reveal
-              className="rounded-2xl border border-white/[0.08] bg-[#0d0e0e] p-6 sm:p-8 lg:col-span-5"
-              delay={0.12}
+              <FinyncLogo eager className="w-[88px]" />
+            </Link>
+            <nav
+              aria-label="Seções"
+              className="hidden items-center gap-1 text-[14px] text-muted-foreground md:flex"
             >
-              <div className="flex items-center justify-between">
-                <span className="flex size-10 items-center justify-center rounded-lg border border-white/10">
-                  <CircleUserRound className="size-4 text-emerald-400" />
-                </span>
-                <span className="text-[10px] uppercase tracking-[0.18em] text-zinc-600">
-                  Dependentes
-                </span>
-              </div>
-              <h3 className="mt-10 text-2xl font-medium tracking-tight sm:text-3xl">
-                A fatura é uma. O saldo é seu.
-              </h3>
-              <p className="mt-3 text-sm leading-6 text-zinc-500">
-                Separe compras de terceiros sem perder a visão completa do
-                cartão.
-              </p>
-              <div className="mt-10 border-y border-white/[0.07]">
-                {[
-                  ["Seu consumo", "R$ 3.286,40"],
-                  ["Duda deve", "R$ 177,11"],
-                ].map(([label, value], index) => (
-                  <div
-                    key={label}
-                    className="flex items-center justify-between border-b border-white/[0.07] py-5 last:border-0"
-                  >
-                    <span className="text-sm text-zinc-500">{label}</span>
-                    <span
-                      className={index ? "text-emerald-300" : "text-zinc-100"}
-                    >
-                      {value}
-                    </span>
-                  </div>
-                ))}
-              </div>
-            </Reveal>
-          </div>
-        </div>
-      </section>
-
-      <section id="seguranca" className="py-20 sm:py-32">
-        <div className="mx-auto w-full max-w-[1440px] px-5 sm:px-8 lg:px-12">
-          <Reveal className="relative overflow-hidden rounded-3xl border border-white/[0.09] bg-zinc-100 px-6 py-14 text-zinc-950 sm:px-12 sm:py-20 lg:px-20">
-            <div className="absolute right-0 top-0 hidden h-full w-1/3 border-l border-black/10 lg:block">
-              <div className="flex h-full items-center justify-center">
-                <div className="flex size-40 items-center justify-center rounded-full border border-black/10">
-                  <div className="flex size-24 items-center justify-center rounded-full border border-black/10">
-                    <ShieldCheck className="size-8" strokeWidth={1.4} />
-                  </div>
-                </div>
-              </div>
-            </div>
-            <div className="relative max-w-3xl lg:max-w-[62%]">
-              <p className="flex items-center gap-2 text-xs font-semibold uppercase tracking-[0.18em] text-zinc-500">
-                <LockKeyhole className="size-3.5" /> Privacidade por padrão
-              </p>
-              <h2 className="mt-6 text-4xl font-medium leading-[1.02] tracking-[-0.045em] sm:text-6xl">
-                Chega de adivinhar para onde seu dinheiro foi.
-              </h2>
-              <p className="mt-6 max-w-xl text-base leading-7 text-zinc-600">
-                Comece gratuitamente. Organize sua próxima fatura e enxergue o
-                mês inteiro sem fórmulas ou abas infinitas.
-              </p>
-              <Link
-                href="/signup"
-                className="mt-9 inline-flex h-12 items-center gap-2 rounded-lg bg-zinc-950 px-6 text-sm font-semibold text-white transition hover:bg-zinc-800"
+              {[
+                ["#como-funciona", "Como funciona"],
+                ["#recursos", "Recursos"],
+                ["#dependentes", "Dependentes"],
+                ["#perguntas", "Perguntas"],
+              ].map(([href, label]) => (
+                <a
+                  key={href}
+                  href={href}
+                  className="rounded-full px-3.5 py-1.5 transition-colors hover:bg-secondary hover:text-foreground"
+                >
+                  {label}
+                </a>
+              ))}
+            </nav>
+            <div className="flex items-center gap-1">
+              <Button
+                asChild
+                variant="ghost"
+                className="hidden text-muted-foreground sm:inline-flex"
               >
-                Criar minha conta <ArrowRight className="size-4" />
-              </Link>
+                <Link href="/login">Entrar</Link>
+              </Button>
+              <Button asChild className="rounded-full px-5">
+                <Link href="/signup">Criar conta</Link>
+              </Button>
             </div>
-          </Reveal>
-        </div>
-      </section>
+          </Container>
+        </header>
 
-      <footer className="border-t border-white/[0.07]">
-        <div className="mx-auto flex w-full max-w-[1440px] flex-col gap-5 px-5 py-8 text-xs text-zinc-600 sm:flex-row sm:items-center sm:justify-between sm:px-8 lg:px-12">
-          <div className="flex items-center gap-2.5 text-zinc-300">
-            <FinyncLogo className="w-20 brightness-125" />
+        <section className="relative pt-16 pb-16 sm:pt-24">
+          <div aria-hidden className="pointer-events-none absolute inset-0 -z-0 overflow-hidden">
+            <div className="landing-grid absolute inset-0" />
+            <motion.div
+              className="absolute -top-40 left-1/2 h-[520px] w-[820px] -translate-x-1/2 rounded-full bg-[radial-gradient(closest-side,rgba(47,125,74,0.22),transparent)] blur-2xl"
+              animate={{ scale: [1, 1.08, 1], opacity: [0.8, 1, 0.8] }}
+              transition={{ duration: 10, repeat: Infinity, ease: "easeInOut" }}
+            />
+            <motion.div
+              className="absolute top-[30%] -right-40 h-[380px] w-[380px] rounded-full bg-[radial-gradient(closest-side,rgba(183,121,15,0.14),transparent)] blur-2xl"
+              animate={{ x: [0, -40, 0], y: [0, 30, 0] }}
+              transition={{ duration: 14, repeat: Infinity, ease: "easeInOut" }}
+            />
           </div>
-          <p>Controle financeiro pessoal, sem ruído.</p>
-          <Link href="/login" className="transition-colors hover:text-white">
-            Acessar minha conta
-          </Link>
-        </div>
-      </footer>
-    </main>
+
+          <Container className="relative">
+            <motion.div
+              variants={stagger}
+              initial="hidden"
+              animate="visible"
+              className="mx-auto flex max-w-[52rem] flex-col items-center text-center"
+            >
+              <motion.div variants={reveal}>
+                <Link
+                  href="#dependentes"
+                  className="group inline-flex items-center gap-2 rounded-full border border-border bg-ledger-sheet/80 py-1 pr-3 pl-1 text-[13px] shadow-sm backdrop-blur transition-colors hover:border-primary/40"
+                >
+                  <Badge className="rounded-full px-2">Novo</Badge>
+                  <span className="text-muted-foreground">
+                    Acerto de contas com dependentes
+                  </span>
+                  <ArrowRight className="size-3.5 text-muted-foreground transition-transform group-hover:translate-x-0.5" />
+                </Link>
+              </motion.div>
+              <motion.h1
+                variants={reveal}
+                className="mt-7 text-[clamp(2.75rem,7.5vw,5.75rem)] leading-[0.95] font-semibold tracking-[-0.04em] [font-stretch:88%]"
+              >
+                Seu dinheiro,{" "}
+                <span className="bg-gradient-to-br from-primary via-[#3f8a58] to-[#1d4a2b] bg-clip-text text-transparent">
+                  sem pontos cegos.
+                </span>
+              </motion.h1>
+              <motion.p
+                variants={reveal}
+                className="mt-7 max-w-[38rem] text-[18px] leading-[1.6] text-muted-foreground"
+              >
+                Importe a fatura do cartão, separe o que é de cada dependente e
+                veja quanto do mês é realmente seu. Parcelas, assinaturas e
+                receitas na mesma conta.
+              </motion.p>
+              <motion.div
+                variants={reveal}
+                className="mt-9 flex w-full flex-col justify-center gap-3 sm:w-auto sm:flex-row"
+              >
+                <Button
+                  asChild
+                  size="lg"
+                  className="group rounded-full px-7 text-[15px] shadow-[0_8px_24px_-8px_rgba(44,96,60,0.6)]"
+                >
+                  <Link href="/signup">
+                    Criar conta grátis
+                    <ArrowRight className="transition-transform group-hover:translate-x-0.5" />
+                  </Link>
+                </Button>
+                <Button
+                  asChild
+                  size="lg"
+                  variant="outline"
+                  className="rounded-full bg-ledger-sheet/70 px-7 text-[15px] backdrop-blur hover:bg-ledger-sheet"
+                >
+                  <Link href="/demo">Explorar demonstração</Link>
+                </Button>
+              </motion.div>
+              <motion.p
+                variants={reveal}
+                className="mt-5 flex items-center gap-2 text-[13px] text-muted-foreground"
+              >
+                <Lock className="size-3.5" />
+                Sem cartão de crédito. Sem senha do banco.
+              </motion.p>
+            </motion.div>
+
+            <motion.div
+              initial={{ opacity: 0, y: 40 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ duration: 1, delay: 0.45, ease }}
+              className="mx-auto mt-16 max-w-[1080px] sm:mt-20"
+            >
+              <HeroDashboard />
+            </motion.div>
+          </Container>
+        </section>
+
+        <section aria-label="Bancos compatíveis" className="pb-20">
+          <Container>
+            <Reveal className="flex flex-col items-center gap-5 sm:flex-row sm:justify-center sm:gap-10">
+              <p className="text-[13px] text-muted-foreground">Importe faturas de</p>
+              <ul className="flex flex-wrap items-center justify-center gap-x-8 gap-y-3">
+                {banks.map((bank) => (
+                  <li
+                    key={bank}
+                    className="text-[19px] font-semibold tracking-[-0.02em] text-foreground/45 [font-stretch:80%]"
+                  >
+                    {bank}
+                  </li>
+                ))}
+              </ul>
+            </Reveal>
+          </Container>
+        </section>
+
+        <section id="como-funciona" className="scroll-mt-16 border-t border-border py-24 sm:py-32">
+          <Container>
+            <SectionIntro
+              eyebrow="Como funciona"
+              title="Da fatura em PDF ao saldo do mês, em três passos."
+              className="mb-14"
+            />
+            <Reveal>
+              <ProductTabs />
+            </Reveal>
+          </Container>
+        </section>
+
+        <section id="recursos" className="scroll-mt-16 border-t border-border py-24 sm:py-32">
+          <Container>
+            <SectionIntro
+              eyebrow="Recursos"
+              title="Feito para como o cartão funciona no Brasil."
+              description="Parcelamento, fatura que fecha no meio do mês e compra feita para outra pessoa. O Finync organiza cada caso sem você precisar de fórmula."
+              className="mb-14"
+            />
+            <motion.div
+              variants={stagger}
+              initial="hidden"
+              whileInView="visible"
+              viewport={{ once: true, margin: "-80px" }}
+              className="grid gap-4 md:grid-cols-2 lg:grid-cols-3"
+            >
+              <BentoCard
+                className="md:col-span-2"
+                icon={<CalendarClock className="size-4" />}
+                title="Parcelas na fatura certa"
+                description="Uma compra em 10x aparece em cada uma das dez faturas, com o número da parcela. Você vê quanto das próximas faturas já está comprometido."
+              >
+                <div className="grid gap-4 sm:grid-cols-[1fr_minmax(0,260px)]">
+                  <div className="h-[170px] rounded-xl border border-border bg-background/60 p-4">
+                    <InstallmentBars />
+                  </div>
+                  <InstallmentTrack />
+                </div>
+              </BentoCard>
+              <BentoCard
+                icon={<Sparkles className="size-4" />}
+                title="Orçamento por categoria"
+                description="Defina limites e acompanhe o consumo ao longo do mês."
+              >
+                <BudgetBars />
+              </BentoCard>
+              <BentoCard
+                icon={<History className="size-4" />}
+                title="Histórico com desfazer"
+                description="Toda alteração fica registrada. Mudou sem querer? Volte ao que era."
+              >
+                <HistoryFeed />
+              </BentoCard>
+              <BentoCard
+                icon={<ScanSearch className="size-4" />}
+                title="Revisão de integridade"
+                description="Possíveis compras duplicadas são sinalizadas para você revisar antes de fechar o mês."
+              >
+                <IntegrityScan />
+              </BentoCard>
+              <BentoCard
+                icon={<Repeat className="size-4" />}
+                title="Fixas e recorrentes"
+                description="Aluguel, salário e assinaturas entram sozinhos, todo mês, na data certa."
+              >
+                <RecurringList />
+              </BentoCard>
+            </motion.div>
+          </Container>
+        </section>
+
+        <section id="dependentes" className="scroll-mt-16 px-3 sm:px-4">
+          <div className="relative overflow-hidden rounded-[32px] bg-ledger-ink py-24 text-[#eef2ec] sm:py-32">
+            <div aria-hidden className="landing-grid-dark pointer-events-none absolute inset-0" />
+            <div
+              aria-hidden
+              className="pointer-events-none absolute -top-32 -left-32 h-[480px] w-[480px] rounded-full bg-[radial-gradient(closest-side,rgba(159,212,173,0.18),transparent)] blur-2xl"
+            />
+            <Container className="relative grid items-center gap-14 lg:grid-cols-[1fr_minmax(0,500px)] lg:gap-20">
+              <div>
+                <SectionIntro
+                  tone="dark"
+                  eyebrow="Dependentes"
+                  title="Cada compra com o dono certo."
+                  description="Filho, cônjuge ou amigo que usa seu cartão: marque o que é de cada dependente e saiba, no centavo, quanto ele precisa devolver."
+                />
+                <motion.ul
+                  variants={stagger}
+                  initial="hidden"
+                  whileInView="visible"
+                  viewport={{ once: true }}
+                  className="mt-9 grid gap-3"
+                >
+                  {dependentPoints.map((point) => (
+                    <motion.li
+                      key={point}
+                      variants={reveal}
+                      className="flex items-center gap-3 text-[16px] text-[#dbe5dd]"
+                    >
+                      <span className="grid size-6 shrink-0 place-items-center rounded-full bg-ledger-mint/15 text-ledger-mint">
+                        <Check className="size-3.5" />
+                      </span>
+                      {point}
+                    </motion.li>
+                  ))}
+                </motion.ul>
+              </div>
+              <Reveal className="text-foreground">
+                <InvoiceSplitDemo />
+              </Reveal>
+            </Container>
+          </div>
+        </section>
+
+        <section id="perguntas" className="scroll-mt-16 py-24 sm:py-32">
+          <Container className="grid gap-12 lg:grid-cols-[minmax(0,380px)_1fr] lg:gap-20">
+            <SectionIntro
+              eyebrow="Perguntas"
+              title="Antes de começar."
+              description="O essencial sobre importação, privacidade e dependentes."
+            />
+            <Reveal>
+              <Accordion
+                type="single"
+                collapsible
+                defaultValue="item-0"
+                className="rounded-[22px] border border-border bg-ledger-sheet px-6"
+              >
+                {faqs.map((faq, index) => (
+                  <AccordionItem key={faq.question} value={`item-${index}`}>
+                    <AccordionTrigger className="py-5 text-[16px] hover:no-underline">
+                      {faq.question}
+                    </AccordionTrigger>
+                    <AccordionContent className="pr-8 text-[15px] leading-[1.6] text-muted-foreground">
+                      {faq.answer}
+                    </AccordionContent>
+                  </AccordionItem>
+                ))}
+              </Accordion>
+            </Reveal>
+          </Container>
+        </section>
+
+        <section className="px-3 pb-3 sm:px-4 sm:pb-4">
+          <div className="relative overflow-hidden rounded-[32px] border border-border bg-ledger-sheet py-20 sm:py-28">
+            <div aria-hidden className="landing-grid pointer-events-none absolute inset-0" />
+            <motion.div
+              aria-hidden
+              className="pointer-events-none absolute -bottom-48 left-1/2 h-[420px] w-[760px] -translate-x-1/2 rounded-full bg-[radial-gradient(closest-side,rgba(47,125,74,0.22),transparent)] blur-2xl"
+              animate={{ scale: [1, 1.1, 1] }}
+              transition={{ duration: 9, repeat: Infinity, ease: "easeInOut" }}
+            />
+            <Container className="relative flex flex-col items-center text-center">
+              <Reveal className="flex flex-col items-center">
+                <h2 className="max-w-[16ch] text-[clamp(2.5rem,5.5vw,4.5rem)] leading-[0.98] font-semibold tracking-[-0.035em] [font-stretch:88%]">
+                  Comece pela próxima fatura.
+                </h2>
+                <p className="mt-6 max-w-[34rem] text-[17px] leading-[1.6] text-muted-foreground">
+                  Seus dados financeiros ficam privados na sua conta. Importar o
+                  primeiro mês leva poucos minutos.
+                </p>
+                <div className="mt-9 flex flex-col gap-3 sm:flex-row">
+                  <Button
+                    asChild
+                    size="lg"
+                    className="group rounded-full px-7 text-[15px] shadow-[0_8px_24px_-8px_rgba(44,96,60,0.6)]"
+                  >
+                    <Link href="/signup">
+                      Criar conta grátis
+                      <ArrowRight className="transition-transform group-hover:translate-x-0.5" />
+                    </Link>
+                  </Button>
+                  <Button
+                    asChild
+                    size="lg"
+                    variant="ghost"
+                    className="rounded-full px-7 text-[15px]"
+                  >
+                    <Link href="/login">Já tenho conta</Link>
+                  </Button>
+                </div>
+              </Reveal>
+            </Container>
+          </div>
+        </section>
+
+        <footer>
+          <Container className="flex flex-col gap-4 py-8 text-[14px] text-muted-foreground sm:flex-row sm:items-center sm:justify-between">
+            <FinyncLogo className="w-[72px]" />
+            <p>Controle financeiro pessoal, sem ruído.</p>
+            <Link href="/login" className="hover:text-foreground">
+              Acessar minha conta
+            </Link>
+          </Container>
+        </footer>
+      </main>
+    </MotionConfig>
   );
 }
