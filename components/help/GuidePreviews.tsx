@@ -188,10 +188,9 @@ function MonthPreview() {
 function DashboardPreview() {
   const tiles = [
     { label: "Receitas", value: "R$ 6.500", tone: "text-emerald-400" },
-    { label: "Saldo disponível", value: "R$ 2.140", tone: "text-zinc-100" },
-    { label: "Faturas em aberto", value: "R$ 1.870", tone: "text-violet-300" },
-    { label: "Pendentes", value: "R$ 980", tone: "text-amber-400" },
+    { label: "Pode gastar por dia", value: "R$ 214", tone: "text-zinc-100" },
   ];
+  const balanceSteps = [18, 18, 78, 78, 78, 64, 64, 58, 52, 52, 46, 46];
 
   return (
     <div className="space-y-2.5">
@@ -207,15 +206,48 @@ function DashboardPreview() {
           </span>
         </span>
       </motion.div>
+      <motion.div
+        {...list(1)}
+        className="rounded-lg border border-white/[0.05] bg-zinc-900/60 p-2.5"
+      >
+        <p className="text-[10px] text-zinc-500">Sobra no fim do mês</p>
+        <p className="mt-0.5 text-lg font-semibold tabular-nums text-zinc-50">
+          R$ 2.140
+        </p>
+        <div className="mt-2 flex h-12 items-end gap-0.5">
+          {balanceSteps.map((height, index) => (
+            <motion.span
+              key={index}
+              className={cn(
+                "flex-1 rounded-t-[2px]",
+                index < 8 ? "bg-emerald-400/70" : "bg-emerald-400/25",
+              )}
+              initial={{ height: 0 }}
+              whileInView={{ height: `${height}%` }}
+              viewport={viewport}
+              transition={{
+                duration: 0.5,
+                delay: 0.04 * index,
+                ease: "easeOut",
+              }}
+            />
+          ))}
+        </div>
+      </motion.div>
       <div className="grid grid-cols-2 gap-2">
         {tiles.map((tile, index) => (
           <motion.div
             key={tile.label}
-            {...list(index + 1)}
+            {...list(index + 2)}
             className="rounded-lg border border-white/[0.05] bg-zinc-900/60 p-2.5"
           >
             <p className="text-[10px] text-zinc-500">{tile.label}</p>
-            <p className={cn("mt-1 text-sm font-semibold tabular-nums", tile.tone)}>
+            <p
+              className={cn(
+                "mt-1 text-sm font-semibold tabular-nums",
+                tile.tone,
+              )}
+            >
               {tile.value}
             </p>
           </motion.div>
@@ -328,10 +360,12 @@ function CardsPreview() {
       </motion.div>
       <motion.div {...list(2)} className="flex gap-2">
         <span className="flex-1 rounded-md border border-white/[0.06] px-2 py-1.5 text-[10px] text-zinc-400">
-          Você <b className="float-right font-semibold text-zinc-200">R$ 1.420</b>
+          Você{" "}
+          <b className="float-right font-semibold text-zinc-200">R$ 1.420</b>
         </span>
         <span className="flex-1 rounded-md border border-white/[0.06] px-2 py-1.5 text-[10px] text-zinc-400">
-          Dependentes <b className="float-right font-semibold text-zinc-200">R$ 450</b>
+          Dependentes{" "}
+          <b className="float-right font-semibold text-zinc-200">R$ 450</b>
         </span>
       </motion.div>
     </div>
@@ -371,7 +405,10 @@ function RecurringPreview() {
         meta="Cartão · cobra dia 20"
         right={<Pill tone="violet">Assinatura</Pill>}
       />
-      <motion.p {...list(3)} className="pt-1 text-center text-[10px] text-zinc-500">
+      <motion.p
+        {...list(3)}
+        className="pt-1 text-center text-[10px] text-zinc-500"
+      >
         Projetado automaticamente pelos próximos 12 meses
       </motion.p>
     </div>
@@ -380,9 +417,24 @@ function RecurringPreview() {
 
 function BudgetsPreview() {
   const budgets = [
-    { label: "Alimentação", value: 62, amount: "R$ 496 de R$ 800", bar: "bg-emerald-500" },
-    { label: "Transporte", value: 85, amount: "R$ 255 de R$ 300", bar: "bg-amber-400" },
-    { label: "Lazer", value: 104, amount: "R$ 312 de R$ 300", bar: "bg-rose-500" },
+    {
+      label: "Alimentação",
+      value: 62,
+      amount: "R$ 496 de R$ 800",
+      bar: "bg-emerald-500",
+    },
+    {
+      label: "Transporte",
+      value: 85,
+      amount: "R$ 255 de R$ 300",
+      bar: "bg-amber-400",
+    },
+    {
+      label: "Lazer",
+      value: 104,
+      amount: "R$ 312 de R$ 300",
+      bar: "bg-rose-500",
+    },
   ];
 
   return (
@@ -405,7 +457,11 @@ function BudgetsPreview() {
               )}
             </span>
           </div>
-          <Bar value={budget.value} className={budget.bar} delay={0.15 * index} />
+          <Bar
+            value={budget.value}
+            className={budget.bar}
+            delay={0.15 * index}
+          />
         </motion.div>
       ))}
     </div>
@@ -439,7 +495,11 @@ function DependentsPreview() {
               <Value>{person.owed}</Value>
             )}
           </div>
-          <Bar value={person.paid} className="bg-cyan-400" delay={0.2 * index} />
+          <Bar
+            value={person.paid}
+            className="bg-cyan-400"
+            delay={0.2 * index}
+          />
         </motion.div>
       ))}
       <motion.div
@@ -558,21 +618,32 @@ function AnalyticsPreview() {
       </motion.div>
       <div className="flex h-24 items-end justify-between gap-2 px-1">
         {months.map((month, index) => (
-          <div key={month.label} className="flex flex-1 flex-col items-center gap-1">
+          <div
+            key={month.label}
+            className="flex flex-1 flex-col items-center gap-1"
+          >
             <div className="flex h-20 w-full items-end justify-center gap-0.5">
               <motion.span
                 className="w-1/2 max-w-2.5 rounded-t-sm bg-emerald-500/80"
                 initial={{ height: 0 }}
                 whileInView={{ height: month.income + "%" }}
                 viewport={viewport}
-                transition={{ duration: 0.6, delay: 0.06 * index, ease: "easeOut" }}
+                transition={{
+                  duration: 0.6,
+                  delay: 0.06 * index,
+                  ease: "easeOut",
+                }}
               />
               <motion.span
                 className="w-1/2 max-w-2.5 rounded-t-sm bg-rose-400/70"
                 initial={{ height: 0 }}
                 whileInView={{ height: month.expense + "%" }}
                 viewport={viewport}
-                transition={{ duration: 0.6, delay: 0.06 * index + 0.1, ease: "easeOut" }}
+                transition={{
+                  duration: 0.6,
+                  delay: 0.06 * index + 0.1,
+                  ease: "easeOut",
+                }}
               />
             </div>
             <span className="text-[9px] text-zinc-500">{month.label}</span>
@@ -616,9 +687,25 @@ function IntegrityPreview() {
 
 function ActivityPreview() {
   const events = [
-    { icon: Plus, title: "Criou “Mercado”", meta: "Hoje, 14:20", tone: "text-emerald-400" },
-    { icon: Pencil, title: "Editou valor: R$ 120 → R$ 150", meta: "Hoje, 11:05", tone: "text-sky-400", undo: true },
-    { icon: Trash2, title: "Excluiu “Farmácia”", meta: "Ontem, 19:42", tone: "text-rose-400" },
+    {
+      icon: Plus,
+      title: "Criou “Mercado”",
+      meta: "Hoje, 14:20",
+      tone: "text-emerald-400",
+    },
+    {
+      icon: Pencil,
+      title: "Editou valor: R$ 120 → R$ 150",
+      meta: "Hoje, 11:05",
+      tone: "text-sky-400",
+      undo: true,
+    },
+    {
+      icon: Trash2,
+      title: "Excluiu “Farmácia”",
+      meta: "Ontem, 19:42",
+      tone: "text-rose-400",
+    },
   ];
 
   return (
@@ -640,7 +727,9 @@ function ActivityPreview() {
               <span className="block truncate text-xs text-zinc-200">
                 {event.title}
               </span>
-              <span className="block text-[10px] text-zinc-500">{event.meta}</span>
+              <span className="block text-[10px] text-zinc-500">
+                {event.meta}
+              </span>
             </span>
             {event.undo && (
               <span className="flex items-center gap-1 text-[10px] text-zinc-400">
@@ -657,8 +746,18 @@ function ActivityPreview() {
 
 function BackupPreview() {
   const files = [
-    { icon: FileJson, title: "Backup completo", meta: "finync-backup.json", tone: "text-cyan-400" },
-    { icon: FileSpreadsheet, title: "Extrato para planilha", meta: "transacoes.csv", tone: "text-emerald-400" },
+    {
+      icon: FileJson,
+      title: "Backup completo",
+      meta: "finync-backup.json",
+      tone: "text-cyan-400",
+    },
+    {
+      icon: FileSpreadsheet,
+      title: "Extrato para planilha",
+      meta: "transacoes.csv",
+      tone: "text-emerald-400",
+    },
   ];
 
   return (
@@ -731,7 +830,11 @@ function SecurityPreview() {
           <ShieldCheck className="size-6" />
         </span>
       </motion.div>
-      <Row index={1} icon={<LockKeyhole />} title="Sessão protegida em todas as rotas" />
+      <Row
+        index={1}
+        icon={<LockKeyhole />}
+        title="Sessão protegida em todas as rotas"
+      />
       <Row index={2} icon={<KeyRound />} title="Dados isolados por conta" />
       <Row index={3} icon={<LogOut />} title="Sair limpa os dados locais" />
     </div>

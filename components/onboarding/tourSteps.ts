@@ -6,7 +6,6 @@ import {
   CircleDollarSign,
   CircleHelp,
   CreditCard,
-  Eye,
   FileDown,
   FileUp,
   Filter,
@@ -25,6 +24,7 @@ import {
   SplitSquareHorizontal,
   TrendingUp,
   UsersRound,
+  Wallet,
   WalletCards,
   type LucideIcon,
 } from "lucide-react";
@@ -84,28 +84,28 @@ export const productTourSteps: ProductTourStep[] = [
     icon: LayoutDashboard,
     title: "Visão Geral",
     summary:
-      "Sua página inicial. Mostra num relance como está o mês: receitas, saldo projetado, faturas e o que ainda falta pagar.",
+      "Sua central de informações. Enquanto você ainda não tiver dados, ela mostra um checklist de primeiros passos; depois, tudo o que importa no mês.",
     features: [
       {
+        icon: Wallet,
+        title: "Sobra no fim do mês",
+        description:
+          "Quanto deve restar depois dos gastos previstos e quanto você pode gastar por dia até o mês acabar.",
+      },
+      {
+        icon: TrendingUp,
+        title: "Saldo ao longo do mês",
+        description:
+          "O gráfico mostra seu saldo dia a dia: linha contínua até hoje e tracejada com o que está previsto.",
+      },
+      {
         icon: CalendarRange,
-        title: "Seletor de mês",
+        title: "Seletor de mês, Novo e olho",
         description:
-          "Fica no topo e muda o período de todas as telas. Receitas e contas seguem o mês do lançamento; o cartão segue o mês de vencimento da fatura.",
-      },
-      {
-        icon: Plus,
-        title: "Botão Novo",
-        description:
-          "O atalho para registrar uma despesa, uma receita ou um cartão de qualquer lugar.",
-      },
-      {
-        icon: Eye,
-        title: "Ocultar valores",
-        description:
-          "O ícone de olho esconde todos os saldos da tela, útil em lugares públicos.",
+          "No topo, troque o mês, registre algo novo ou esconda todos os valores da tela.",
       },
     ],
-    tip: "Saldo Disponível é o que deve sobrar no fim do mês depois de todos os seus gastos planejados.",
+    tip: "Toque em “Detalhes” num cartão para virá-lo: o verso mostra sua parte, quanto cada dependente deve e o botão de pagar a fatura.",
   },
   {
     id: "transactions",
