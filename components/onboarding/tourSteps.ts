@@ -266,19 +266,19 @@ export const productTourSteps: ProductTourStep[] = [
     icon: BarChart3,
     title: "Analytics",
     summary:
-      "Gráficos prontos sobre sua saúde financeira, sem precisar montar planilhas.",
+      "Seu centro de análise: um índice de saúde financeira, KPIs com tendência e uma leitura automática do mês.",
     features: [
       {
         icon: TrendingUp,
-        title: "Indicadores do período",
+        title: "KPIs e tendências",
         description:
-          "Entradas, saídas, balanço líquido e quanto da renda você conseguiu poupar.",
+          "Receitas, despesas, poupança, gasto por dia e contas fixas, comparados ao mês anterior, em 3, 6 ou 12 meses.",
       },
       {
         icon: PieChart,
         title: "Para onde vai o dinheiro",
         description:
-          "Ranking de categorias, composição entre fixos e cartão e as maiores despesas.",
+          "Ritmo de gastos dia a dia, categorias com variação, dias da semana mais caros e maiores despesas.",
       },
     ],
     tip: "Considera apenas seus gastos pessoais. O que é de dependentes não entra nos números.",
