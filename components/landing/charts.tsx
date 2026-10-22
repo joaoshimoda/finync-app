@@ -2,10 +2,11 @@
 
 import {
   AnimatePresence,
+  animate,
   motion,
   useInView,
+  useMotionValue,
   useReducedMotion,
-  useSpring,
   useTransform,
 } from "framer-motion";
 import { useEffect, useId, useRef, useState, type PointerEvent } from "react";
@@ -26,8 +27,9 @@ const compactBrl = new Intl.NumberFormat("pt-BR", {
   maximumFractionDigits: 1,
 });
 
-/* Counts up to `value` the first time it scrolls into view, then springs to
-   any later value. Screen readers get the final number only. */
+/* Counts up to `value` the first time it scrolls into view, then eases to
+   any later value. A tween (not a spring) so it always lands on the exact
+   cents. Screen readers get the final number only. */
 export function CountUp({
   value,
   format = (current) => brl.format(current),
@@ -40,14 +42,18 @@ export function CountUp({
   const ref = useRef<HTMLSpanElement>(null);
   const inView = useInView(ref, { once: true, margin: "-40px" });
   const reduceMotion = useReducedMotion();
-  const spring = useSpring(0, { stiffness: 70, damping: 20 });
-  const text = useTransform(spring, (current) => format(current));
+  const current = useMotionValue(0);
+  const text = useTransform(current, (latest) => format(latest));
 
   useEffect(() => {
     if (!inView) return;
-    if (reduceMotion) spring.jump(value);
-    else spring.set(value);
-  }, [inView, reduceMotion, spring, value]);
+    if (reduceMotion) {
+      current.jump(value);
+      return;
+    }
+    const controls = animate(current, value, { duration: 1.1, ease });
+    return () => controls.stop();
+  }, [current, inView, reduceMotion, value]);
 
   return (
     <span ref={ref} className={cn("tabular-nums", className)}>
