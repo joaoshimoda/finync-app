@@ -100,7 +100,7 @@ function FloatingCard({
       initial={{ opacity: 0, y: 16, scale: 0.96 }}
       animate={{ opacity: 1, y: 0, scale: 1 }}
       transition={{ duration: 0.7, delay, ease }}
-      className={cn("absolute z-20 hidden lg:block", className)}
+      className={cn("absolute z-20 hidden xl:block", className)}
     >
       <motion.div
         animate={{ y: [0, -8, 0] }}
@@ -125,7 +125,7 @@ export function HeroDashboard() {
 
   return (
     <div ref={ref} className="relative [perspective:1600px]">
-      <FloatingCard className="bottom-[9%] -left-14 w-[230px]" delay={1.1}>
+      <FloatingCard className="bottom-[7%] -left-16 w-[230px]" delay={1.1}>
         <div className="flex items-start gap-3">
           <span className="grid size-8 shrink-0 place-items-center rounded-lg bg-primary/10 text-primary">
             <FileText className="size-4" />
@@ -147,7 +147,7 @@ export function HeroDashboard() {
         </div>
       </FloatingCard>
 
-      <FloatingCard className="top-[38%] -right-12 w-[220px]" delay={1.35}>
+      <FloatingCard className="-top-7 -right-14 w-[220px]" delay={1.35}>
         <div className="flex items-center gap-3">
           <span className="grid size-8 shrink-0 place-items-center rounded-full bg-ledger-amber-soft text-[11px] font-semibold text-ledger-amber">
             D
@@ -228,7 +228,7 @@ export function HeroDashboard() {
                 <BalanceAreaChart className="h-[150px] sm:h-[170px]" />
               </Panel>
 
-              <div className="grid gap-3 sm:grid-cols-2">
+              <div className="grid gap-3 sm:grid-cols-2 md:grid-cols-1 lg:grid-cols-2">
                 <Panel>
                   <p className="mb-3 text-[13px] font-semibold">Gastos por categoria</p>
                   <CategoryDonut />

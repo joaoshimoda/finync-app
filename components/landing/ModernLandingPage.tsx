@@ -433,10 +433,10 @@ export function ModernLandingPage() {
               </motion.div>
               <motion.h1
                 variants={reveal}
-                className="mt-7 text-[clamp(2.75rem,7.5vw,5.75rem)] leading-[0.95] font-semibold tracking-[-0.04em] [font-stretch:88%]"
+                className="mt-7 text-[clamp(2.75rem,7.5vw,5.75rem)] leading-[1.02] font-semibold tracking-[-0.04em] [font-stretch:88%]"
               >
                 Seu dinheiro,{" "}
-                <span className="bg-gradient-to-br from-primary via-[#3f8a58] to-[#1d4a2b] bg-clip-text text-transparent">
+                <span className="box-decoration-clone bg-gradient-to-br pb-[0.08em] from-primary via-[#3f8a58] to-[#1d4a2b] bg-clip-text text-transparent">
                   sem pontos cegos.
                 </span>
               </motion.h1>

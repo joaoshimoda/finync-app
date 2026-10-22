@@ -238,7 +238,8 @@ export function BalanceAreaChart({ className }: { className?: string }) {
               style={{
                 left: `${(activePoint.x / AREA_W) * 100}%`,
                 top: `${(activePoint.y / AREA_H) * 100}%`,
-                transform: `translate(${activePoint.x > AREA_W * 0.7 ? "-100%" : activePoint.x < AREA_W * 0.15 ? "0" : "-50%"}, calc(-100% - 12px))`,
+                // Near the top the tooltip would cover the panel title, so it drops below the point.
+                transform: `translate(${activePoint.x > AREA_W * 0.7 ? "-100%" : activePoint.x < AREA_W * 0.15 ? "0" : "-50%"}, ${activePoint.y < AREA_H * 0.4 ? "12px" : "calc(-100% - 12px)"})`,
               }}
             >
               <span className="block text-muted-foreground">
@@ -329,7 +330,7 @@ export function CategoryDonut({ className }: { className?: string }) {
               <span className="size-2 shrink-0 rounded-[3px]" style={{ background: segment.color }} />
               <span className="truncate">{segment.name}</span>
             </span>
-            <span className="text-muted-foreground tabular-nums">
+            <span className="shrink-0 text-muted-foreground tabular-nums">
               {Math.round(segment.fraction * 100)}%
             </span>
           </li>
@@ -378,7 +379,12 @@ export function InstallmentBars({
                   exit={{ opacity: 0, y: 4 }}
                   transition={{ duration: 0.15 }}
                   className="pointer-events-none absolute z-10 rounded-md border border-border bg-ledger-sheet px-2 py-1 text-[11px] font-medium whitespace-nowrap tabular-nums shadow-md shadow-black/5"
-                  style={{ bottom: `calc(${(entry.value / max) * 100}% + 6px)` }}
+                  // Tall bars keep the label inside the plot instead of over the title.
+                  style={
+                    entry.value / max > 0.7
+                      ? { top: `calc(${100 - (entry.value / max) * 100}% + 6px)` }
+                      : { bottom: `calc(${(entry.value / max) * 100}% + 6px)` }
+                  }
                 >
                   {brl.format(entry.value)}
                 </motion.span>
@@ -405,17 +411,20 @@ export function InstallmentBars({
           </span>
         ))}
       </div>
-      <table className="sr-only">
-        <caption>Valor já comprometido em parcelas nas próximas faturas</caption>
-        <tbody>
-          {upcomingInvoices.map((entry) => (
-            <tr key={entry.month}>
-              <th scope="row">{entry.month}</th>
-              <td>{brl.format(entry.value)}</td>
-            </tr>
-          ))}
-        </tbody>
-      </table>
+      {/* sr-only goes on a wrapper: tables ignore overflow clipping, so the caption would leak. */}
+      <div className="sr-only">
+        <table>
+          <caption>Valor já comprometido em parcelas nas próximas faturas</caption>
+          <tbody>
+            {upcomingInvoices.map((entry) => (
+              <tr key={entry.month}>
+                <th scope="row">{entry.month}</th>
+                <td>{brl.format(entry.value)}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
     </div>
   );
 }
@@ -437,7 +446,7 @@ export function BudgetBars({ className }: { className?: string }) {
         const over = ratio > 1;
         return (
           <li key={budget.name}>
-            <div className="mb-1.5 flex items-baseline justify-between gap-3 text-[13px]">
+            <div className="mb-1.5 flex flex-wrap items-baseline justify-between gap-x-3 gap-y-0.5 text-[13px]">
               <span className="font-medium">{budget.name}</span>
               <span className="text-muted-foreground tabular-nums">
                 {brl.format(budget.spent)}{" "}
