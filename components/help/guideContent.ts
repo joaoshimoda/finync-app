@@ -18,8 +18,24 @@ import {
   type LucideIcon,
 } from "lucide-react";
 
+export type GuideGroupKey =
+  | "start"
+  | "daily"
+  | "planning"
+  | "tools"
+  | "account";
+
+export const guideGroups: Array<{ key: GuideGroupKey; label: string }> = [
+  { key: "start", label: "Primeiros passos" },
+  { key: "daily", label: "Dia a dia" },
+  { key: "planning", label: "Planejamento" },
+  { key: "tools", label: "Ferramentas" },
+  { key: "account", label: "Conta e segurança" },
+];
+
 export type GuideSection = {
   id: string;
+  group: GuideGroupKey;
   title: string;
   shortTitle: string;
   description: string;
@@ -34,6 +50,7 @@ export type GuideSection = {
 export const guideSections: GuideSection[] = [
   {
     id: "competencia",
+    group: "start",
     title: "Entenda o mês financeiro",
     shortTitle: "Mês financeiro",
     description:
@@ -51,6 +68,7 @@ export const guideSections: GuideSection[] = [
   },
   {
     id: "dashboard",
+    group: "start",
     title: "Leia sua Visão Geral",
     shortTitle: "Visão Geral",
     description:
@@ -69,6 +87,7 @@ export const guideSections: GuideSection[] = [
   },
   {
     id: "receitas",
+    group: "daily",
     title: "Registre receitas",
     shortTitle: "Receitas",
     description:
@@ -86,6 +105,7 @@ export const guideSections: GuideSection[] = [
   },
   {
     id: "transacoes",
+    group: "daily",
     title: "Registre e organize despesas",
     shortTitle: "Transações",
     description:
@@ -104,6 +124,7 @@ export const guideSections: GuideSection[] = [
   },
   {
     id: "cartoes",
+    group: "daily",
     title: "Cadastre cartões e ciclos",
     shortTitle: "Cartões",
     description:
@@ -122,6 +143,7 @@ export const guideSections: GuideSection[] = [
   },
   {
     id: "recorrencias",
+    group: "daily",
     title: "Controle fixos e assinaturas",
     shortTitle: "Recorrências",
     description:
@@ -139,61 +161,8 @@ export const guideSections: GuideSection[] = [
     tip: "Ao excluir uma recorrência, escolha entre remover somente o mês atual ou este e os próximos lançamentos.",
   },
   {
-    id: "dependentes",
-    title: "Separe gastos de dependentes",
-    shortTitle: "Dependentes",
-    description:
-      "Vincule despesas de terceiros sem distorcer sua leitura pessoal de renda, poupança e categorias.",
-    icon: UsersRound,
-    href: "/dashboard/dependentes",
-    actionLabel: "Gerenciar Dependentes",
-    accent: "text-cyan-400 bg-cyan-500/10",
-    steps: [
-      "Cadastre o nome da pessoa na área Dependentes.",
-      "Ao criar ou editar uma despesa, selecione opcionalmente quem é o responsável pelo gasto.",
-      "O valor continua compondo a fatura do cartão, mas é isolado nos resumos por dependente.",
-      "O Analytics considera somente seu fluxo pessoal e exclui essas despesas dos indicadores de saúde financeira.",
-    ],
-    tip: "Use a página de Dependentes para conferir quanto cada pessoa deve no período selecionado.",
-  },
-  {
-    id: "importacao",
-    title: "Importe faturas por arquivo",
-    shortTitle: "Importação",
-    description:
-      "O importador lê faturas, sugere categorias e compara lançamentos antes de gravar qualquer item.",
-    icon: FileUp,
-    href: "/dashboard/importar",
-    actionLabel: "Importar Fatura",
-    accent: "text-blue-400 bg-blue-500/10",
-    steps: [
-      "Exporte a fatura do banco e envie o arquivo aceito pelo importador.",
-      "Escolha o cartão e o mês de vencimento correspondente à fatura.",
-      "Revise descrições, parcelas, dependentes e categorias no preview.",
-      "Confira os itens novos, duplicados e que exigem revisão antes de confirmar a importação.",
-    ],
-    tip: "Pagamentos de fatura e estornos são tratados separadamente. Revise valores negativos antes da confirmação.",
-  },
-  {
-    id: "categorias",
-    title: "Personalize categorias",
-    shortTitle: "Categorias",
-    description:
-      "Categorias alimentam filtros e gráficos. Você pode criar opções próprias com nome, tipo e ícone.",
-    icon: Tags,
-    href: "/configuracoes",
-    actionLabel: "Configurar Categorias",
-    accent: "text-fuchsia-400 bg-fuchsia-500/10",
-    steps: [
-      "Em Configurações, abra Preferências e localize o gerenciador de categorias.",
-      "Defina um nome, escolha se é receita ou despesa e selecione um ícone.",
-      "A nova categoria aparece imediatamente nos formulários e filtros.",
-      "Categorias em uso não podem ser excluídas; Outros e Crédito/Estorno são protegidas.",
-    ],
-    tip: "Ao recategorizar uma parcela, o Finync atualiza todas as parcelas do mesmo grupo.",
-  },
-  {
     id: "orcamentos",
+    group: "planning",
     title: "Defina orçamentos por categoria",
     shortTitle: "Orçamentos",
     description:
@@ -211,7 +180,65 @@ export const guideSections: GuideSection[] = [
     tip: "Os limites analisam somente seus gastos pessoais; despesas de dependentes permanecem isoladas.",
   },
   {
+    id: "dependentes",
+    group: "planning",
+    title: "Separe gastos de dependentes",
+    shortTitle: "Dependentes",
+    description:
+      "Vincule despesas de terceiros sem distorcer sua leitura pessoal de renda, poupança e categorias.",
+    icon: UsersRound,
+    href: "/dashboard/dependentes",
+    actionLabel: "Gerenciar Dependentes",
+    accent: "text-cyan-400 bg-cyan-500/10",
+    steps: [
+      "Cadastre o nome da pessoa na área Dependentes.",
+      "Ao criar ou editar uma despesa, selecione opcionalmente quem é o responsável pelo gasto.",
+      "O valor continua compondo a fatura do cartão, mas é isolado nos resumos por dependente.",
+      "O Analytics considera somente seu fluxo pessoal e exclui essas despesas dos indicadores de saúde financeira.",
+    ],
+    tip: "Use a página de Dependentes para conferir quanto cada pessoa deve no período selecionado.",
+  },
+  {
+    id: "categorias",
+    group: "planning",
+    title: "Personalize categorias",
+    shortTitle: "Categorias",
+    description:
+      "Categorias alimentam filtros e gráficos. Você pode criar opções próprias com nome, tipo e ícone.",
+    icon: Tags,
+    href: "/configuracoes",
+    actionLabel: "Configurar Categorias",
+    accent: "text-fuchsia-400 bg-fuchsia-500/10",
+    steps: [
+      "Em Configurações, abra Preferências e localize o gerenciador de categorias.",
+      "Defina um nome, escolha se é receita ou despesa e selecione um ícone.",
+      "A nova categoria aparece imediatamente nos formulários e filtros.",
+      "Categorias em uso não podem ser excluídas; Outros e Crédito/Estorno são protegidas.",
+    ],
+    tip: "Ao recategorizar uma parcela, o Finync atualiza todas as parcelas do mesmo grupo.",
+  },
+  {
+    id: "importacao",
+    group: "tools",
+    title: "Importe faturas por arquivo",
+    shortTitle: "Importação",
+    description:
+      "O importador lê faturas, sugere categorias e compara lançamentos antes de gravar qualquer item.",
+    icon: FileUp,
+    href: "/dashboard/importar",
+    actionLabel: "Importar Fatura",
+    accent: "text-blue-400 bg-blue-500/10",
+    steps: [
+      "Exporte a fatura do banco e envie o arquivo aceito pelo importador.",
+      "Escolha o cartão e o mês de vencimento correspondente à fatura.",
+      "Revise descrições, parcelas, dependentes e categorias no preview.",
+      "Confira os itens novos, duplicados e que exigem revisão antes de confirmar a importação.",
+    ],
+    tip: "Pagamentos de fatura e estornos são tratados separadamente. Revise valores negativos antes da confirmação.",
+  },
+  {
     id: "analytics",
+    group: "tools",
     title: "Interprete o Analytics",
     shortTitle: "Analytics",
     description:
@@ -230,6 +257,7 @@ export const guideSections: GuideSection[] = [
   },
   {
     id: "integridade",
+    group: "tools",
     title: "Verifique a integridade dos dados",
     shortTitle: "Integridade",
     description:
@@ -248,6 +276,7 @@ export const guideSections: GuideSection[] = [
   },
   {
     id: "atividades",
+    group: "tools",
     title: "Consulte o histórico de alterações",
     shortTitle: "Atividades",
     description:
@@ -266,6 +295,7 @@ export const guideSections: GuideSection[] = [
   },
   {
     id: "backup",
+    group: "tools",
     title: "Exporte e preserve seus dados",
     shortTitle: "Backup",
     description:
@@ -284,6 +314,7 @@ export const guideSections: GuideSection[] = [
   },
   {
     id: "privacidade",
+    group: "account",
     title: "Ajuste perfil e privacidade",
     shortTitle: "Configurações",
     description:
@@ -302,6 +333,7 @@ export const guideSections: GuideSection[] = [
   },
   {
     id: "seguranca",
+    group: "account",
     title: "Saiba como seus dados são protegidos",
     shortTitle: "Segurança",
     description:
@@ -343,25 +375,89 @@ export const quickStartSteps = [
   },
 ];
 
-export const frequentlyAskedQuestions = [
+export type FrequentlyAskedQuestion = {
+  question: string;
+  answer: string;
+  topic: string;
+};
+
+export const frequentlyAskedQuestions: FrequentlyAskedQuestion[] = [
   {
+    topic: "Cartões",
     question: "Por que uma compra de agosto aparece em setembro?",
     answer:
       "Porque cartões seguem o mês de vencimento da fatura. Se a compra ocorreu no dia do fechamento ou depois, ela pertence à próxima fatura.",
   },
   {
+    topic: "Transações",
+    question: "Como lanço uma compra parcelada?",
+    answer:
+      "Ao criar a despesa no cartão, informe o valor total da compra e a quantidade de parcelas. O Finync divide o valor e lança cada parcela na fatura correspondente.",
+  },
+  {
+    topic: "Cartões",
+    question: "O que acontece quando eu pago a fatura?",
+    answer:
+      "Em Cartões, use Pagar Fatura: todas as transações daquele cartão no mês selecionado são marcadas como pagas e deixam de aparecer como pendentes.",
+  },
+  {
+    topic: "Cartões",
+    question: "Excluir um cartão apaga as compras dele?",
+    answer:
+      "Sim. As transações vinculadas ao cartão também são removidas, por isso o Finync sempre pede confirmação. Faça um backup antes se quiser guardar o histórico.",
+  },
+  {
+    topic: "Recorrências",
+    question: "Qual a diferença entre conta fixa e assinatura?",
+    answer:
+      "Conta fixa é paga por Débito ou PIX e fica pendente até você dar baixa. Assinatura é cobrada no cartão e entra sozinha na fatura na data de cobrança.",
+  },
+  {
+    topic: "Recorrências",
     question: "Assinatura futura reduz meu saldo disponível?",
     answer:
       "Sim. Ela entra na projeção do fim do mês, mas só passa a compor a fatura atual quando chega a data prevista de cobrança.",
   },
   {
+    topic: "Dependentes",
     question: "Gasto de dependente altera meus gráficos?",
     answer:
-      "Não. Ele continua na fatura bruta do cartão, mas é excluído do saldo pessoal e do Analytics.",
+      "Não. Ele continua na fatura bruta do cartão, mas é excluído do saldo pessoal, dos orçamentos e do Analytics.",
   },
   {
+    topic: "Dependentes",
+    question: "Como registro que um dependente me pagou?",
+    answer:
+      "Na aba Dependentes, use Registrar acerto no card da pessoa. Ele pode ser total ou parcial, e o saldo devido é atualizado na hora.",
+  },
+  {
+    topic: "Importação",
+    question: "E se eu importar a mesma fatura duas vezes?",
+    answer:
+      "O importador compara cada item com o que já existe e marca os duplicados antes de salvar. Se algo entrar por engano, exclua o lançamento em Transações.",
+  },
+  {
+    topic: "Categorias",
     question: "Por que não consigo excluir uma categoria?",
     answer:
       "Categorias vinculadas a transações não podem ser removidas. Recategorize os lançamentos antes de tentar novamente.",
+  },
+  {
+    topic: "Privacidade",
+    question: "Como escondo meus valores na tela?",
+    answer:
+      "Clique no ícone de olho da Visão Geral. Para que os saldos sempre iniciem ocultos, ative a opção em Configurações > Preferências.",
+  },
+  {
+    topic: "Backup",
+    question: "Como guardo uma cópia dos meus dados?",
+    answer:
+      "Em Exportar e Backup, baixe o arquivo JSON com todos os cadastros e histórico, ou o CSV para abrir as transações em uma planilha.",
+  },
+  {
+    topic: "Conta",
+    question: "Esqueci minha senha. O que faço?",
+    answer:
+      "Na tela de login, use Esqueci minha senha. Você receberá um link por e-mail para criar uma nova senha.",
   },
 ];
