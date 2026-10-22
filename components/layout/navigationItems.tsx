@@ -25,19 +25,16 @@ export interface NavigationItem {
 }
 
 export type NavigationSectionKey =
-  | "overview"
-  | "planning"
-  | "tools"
-  | "support";
+  "overview" | "planning" | "tools" | "support";
 
 export const navigationSections: Array<{
   key: NavigationSectionKey;
   label: string;
 }> = [
-  { key: "overview", label: "Visão" },
-  { key: "planning", label: "Planejamento" },
+  { key: "overview", label: "Principal" },
+  { key: "planning", label: "Finanças" },
   { key: "tools", label: "Ferramentas" },
-  { key: "support", label: "Suporte" },
+  { key: "support", label: "Ajuda" },
 ];
 
 export const navigationItems: NavigationItem[] = [
@@ -57,12 +54,44 @@ export const navigationItems: NavigationItem[] = [
     tourId: "nav-transactions",
   },
   {
+    label: "Analytics",
+    shortLabel: "Dados",
+    href: "/dashboard/analytics",
+    icon: BarChart3,
+    section: "overview",
+    tourId: "nav-analytics",
+  },
+  {
+    label: "Cartões",
+    shortLabel: "Cartões",
+    href: "/dashboard/cards",
+    icon: CreditCard,
+    section: "planning",
+    tourId: "nav-cards",
+  },
+  {
+    label: "Contas Fixas",
+    shortLabel: "Fixas",
+    href: "/dashboard/fixed",
+    icon: CalendarDays,
+    section: "planning",
+    tourId: "nav-fixed",
+  },
+  {
     label: "Orçamentos",
     shortLabel: "Limites",
     href: "/dashboard/orcamentos",
     icon: Gauge,
     section: "planning",
     tourId: "nav-budgets",
+  },
+  {
+    label: "Dependentes",
+    shortLabel: "Deps.",
+    href: "/dashboard/dependentes",
+    icon: UsersRound,
+    section: "planning",
+    tourId: "nav-dependents",
   },
   {
     label: "Importar Faturas",
@@ -81,14 +110,6 @@ export const navigationItems: NavigationItem[] = [
     tourId: "nav-export",
   },
   {
-    label: "Analytics",
-    shortLabel: "Dados",
-    href: "/dashboard/analytics",
-    icon: BarChart3,
-    section: "overview",
-    tourId: "nav-analytics",
-  },
-  {
     label: "Integridade",
     shortLabel: "Saúde",
     href: "/dashboard/integridade",
@@ -103,30 +124,6 @@ export const navigationItems: NavigationItem[] = [
     icon: Activity,
     section: "tools",
     tourId: "nav-activity",
-  },
-  {
-    label: "Dependentes",
-    shortLabel: "Deps.",
-    href: "/dashboard/dependentes",
-    icon: UsersRound,
-    section: "planning",
-    tourId: "nav-dependents",
-  },
-  {
-    label: "Contas Fixas",
-    shortLabel: "Fixas",
-    href: "/dashboard/fixed",
-    icon: CalendarDays,
-    section: "planning",
-    tourId: "nav-fixed",
-  },
-  {
-    label: "Cartões",
-    shortLabel: "Cartões",
-    href: "/dashboard/cards",
-    icon: CreditCard,
-    section: "planning",
-    tourId: "nav-cards",
   },
   {
     label: "Guia do Usuário",
