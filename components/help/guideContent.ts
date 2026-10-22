@@ -117,7 +117,8 @@ export const guideSections: GuideSection[] = [
     steps: [
       "Escolha Débito/PIX para gastos que saem da conta no momento da compra.",
       "Escolha Cartão de Crédito e selecione o cartão usado para lançar na fatura correta.",
-      "Use os filtros de tipo, origem, cartão e categoria para encontrar lançamentos.",
+      "Use a busca, os botões de tipo e os filtros de origem, cartão e categoria para encontrar lançamentos.",
+      "No botão de ordenação, escolha entre mais recentes, mais antigas, maior ou menor valor e ordem alfabética, e agrupe por dia, por categoria ou sem agrupar. A escolha fica salva.",
       "No menu de cada linha, edite ou exclua a transação; categorias de parcelas são propagadas para todo o grupo.",
     ],
     tip: "Uma compra parcelada deve receber o valor total e a quantidade de parcelas. O Finync divide e projeta cada ocorrência.",

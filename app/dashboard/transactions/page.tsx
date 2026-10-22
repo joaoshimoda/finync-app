@@ -2,38 +2,45 @@
 
 import { Suspense, useCallback, useEffect, useMemo, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
-import { motion, useReducedMotion } from "framer-motion";
+import { MotionConfig, motion } from "framer-motion";
 import {
   ArrowDownRight,
   ArrowUpRight,
-  CalendarDays,
-  ChevronLeft,
-  ChevronRight,
+  CheckSquare,
   CircleAlert,
-  CreditCard,
-  Eye,
-  Landmark,
-  MoreHorizontal,
-  Pencil,
   PlusCircle,
-  Search,
   SearchX,
-  SlidersHorizontal,
-  Tag,
-  Trash2,
-  Wallet,
 } from "lucide-react";
 import { toast } from "sonner";
 
+import {
+  dashboardPanelClassName,
+  dashboardReveal,
+  dashboardStagger,
+  usePrivateCurrency,
+} from "@/components/dashboard/shared";
+import { AnimatedMonthSelector } from "@/components/finance/AnimatedMonthSelector";
+import { AnimatedNumber } from "@/components/finance/AnimatedNumber";
 import { RecurringDeleteDialog } from "@/components/finance/RecurringDeleteDialog";
-import { TransactionDescription } from "@/components/finance/TransactionDescription";
 import { TransactionDetailSheet } from "@/components/finance/TransactionDetailSheet";
 import { TransactionEditSheet } from "@/components/finance/TransactionEditSheet";
 import { AddIncomeModal } from "@/components/modals/AddIncomeModal";
 import { AddTransactionModal } from "@/components/modals/AddTransactionModal";
-import { Badge } from "@/components/ui/badge";
+import { BulkActionBar } from "@/components/transactions/BulkActionBar";
+import { TransactionRow } from "@/components/transactions/TransactionRow";
+import { TransactionsToolbar } from "@/components/transactions/TransactionsToolbar";
+import {
+  getDependentId,
+  getOriginKind,
+  getOriginLabel,
+  getTransactionCardId,
+  groupTransactions,
+  type GroupOption,
+  type OriginFilter,
+  type SortOption,
+  type TypeFilter,
+} from "@/components/transactions/transactionList";
 import { Button } from "@/components/ui/button";
-import { Checkbox } from "@/components/ui/checkbox";
 import { ConfirmDialog } from "@/components/ui/ConfirmDialog";
 import {
   DropdownMenu,
@@ -41,110 +48,47 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import { Input } from "@/components/ui/input";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from "@/components/ui/table";
-import { formatDateOnlyBR } from "@/lib/dateUtils";
-import { reportAppError } from "@/lib/errorMonitoring";
 import { getCardSignedAmount, isCardCreditAdjustment } from "@/lib/cardCredits";
+import { reportAppError } from "@/lib/errorMonitoring";
 import { supabase } from "@/lib/supabaseClient";
-import { cn } from "@/lib/utils";
 import { isTransactionInSelectedCompetence } from "@/lib/transactionPeriod";
+import { cn } from "@/lib/utils";
 import { useFinanceStore, type Transaction } from "@/store/useFinanceStore";
-import { useCurrencyFormatter } from "@/hooks/useCurrencyFormatter";
 
-type TypeFilter = "all" | "income" | "expense" | "fixed";
-type OriginFilter = "all" | "card" | "debit-pix";
-type TransactionOrigin = Exclude<OriginFilter, "all"> | "income";
 type IntegrityReviewFilter = "missing-category" | "unknown-category";
 
-const monthFormatter = new Intl.DateTimeFormat("pt-BR", {
-  month: "long",
-  year: "numeric",
-});
+const viewStorageKey = "finync:transactions-view";
+const sortValues: SortOption[] = [
+  "recent",
+  "oldest",
+  "highest",
+  "lowest",
+  "alpha",
+];
+const groupValues: GroupOption[] = ["date", "category", "none"];
 
-function sortByRecentDate(left: Transaction, right: Transaction) {
-  const dateOrder = right.date.localeCompare(left.date);
+const monthFormatter = new Intl.DateTimeFormat("pt-BR", { month: "long" });
 
-  if (dateOrder !== 0) return dateOrder;
+function readStoredView(): { sort: SortOption; group: GroupOption } {
+  const fallback = {
+    sort: "recent" as SortOption,
+    group: "date" as GroupOption,
+  };
 
-  return (right.createdAt ?? "").localeCompare(left.createdAt ?? "");
-}
+  if (typeof window === "undefined") return fallback;
 
-function isSameSelectedMonth(
-  transaction: Transaction,
-  currentMonth: number,
-  currentYear: number,
-) {
-  return isTransactionInSelectedCompetence(
-    transaction,
-    currentMonth,
-    currentYear,
-  );
-}
+  try {
+    const stored = JSON.parse(
+      window.localStorage.getItem(viewStorageKey) ?? "{}",
+    );
 
-function getDependentId(transaction: Transaction) {
-  return (
-    (transaction as Transaction & { dependent_id?: string | null })
-      .dependent_id ?? transaction.dependentId
-  );
-}
-
-function getTransactionCardId(transaction: Transaction) {
-  return (
-    (transaction as Transaction & { card_id?: string | null }).card_id ??
-    transaction.cardId ??
-    null
-  );
-}
-
-function getTransactionOrigin(
-  transaction: Transaction,
-  cards: ReturnType<typeof useFinanceStore.getState>["cards"],
-) {
-  if (transaction.type === "income") return "Receita";
-  if (transaction.type === "fixed") return "Débito/PIX";
-
-  return (
-    cards.find((card) => card.id === getTransactionCardId(transaction))?.name ??
-    "Cartão de crédito"
-  );
-}
-
-function getTransactionOriginFilter(
-  transaction: Transaction,
-): TransactionOrigin {
-  if (transaction.type === "income") return "income";
-  if (transaction.type === "card" || Boolean(getTransactionCardId(transaction))) {
-    return "card";
+    return {
+      sort: sortValues.includes(stored.sort) ? stored.sort : fallback.sort,
+      group: groupValues.includes(stored.group) ? stored.group : fallback.group,
+    };
+  } catch {
+    return fallback;
   }
-
-  return "debit-pix";
-}
-
-function getOriginBadgeClassName(origin: TransactionOrigin) {
-  if (origin === "card") {
-    return "border-violet-400/15 bg-violet-400/10 text-violet-300";
-  }
-
-  if (origin === "income") {
-    return "border-emerald-400/15 bg-emerald-400/10 text-emerald-300";
-  }
-
-  return "border-sky-400/15 bg-sky-400/10 text-sky-300";
 }
 
 export default function TransactionsPage() {
@@ -156,8 +100,7 @@ export default function TransactionsPage() {
 }
 
 function TransactionsPageContent() {
-  const { formatCurrency } = useCurrencyFormatter();
-  const prefersReducedMotion = useReducedMotion();
+  const formatPrivateCurrency = usePrivateCurrency();
   const router = useRouter();
   const searchParams = useSearchParams();
   const reviewParam = searchParams.get("review");
@@ -170,6 +113,7 @@ function TransactionsPageContent() {
   const [typeFilter, setTypeFilter] = useState<TypeFilter>("all");
   const [originFilter, setOriginFilter] = useState<OriginFilter>("all");
   const [cardFilter, setCardFilter] = useState("all");
+  const [view, setView] = useState(readStoredView);
   const [isAddIncomeModalOpen, setIsAddIncomeModalOpen] = useState(false);
   const [isAddTransactionModalOpen, setIsAddTransactionModalOpen] =
     useState(false);
@@ -179,12 +123,14 @@ function TransactionsPageContent() {
     useState<Transaction | null>(null);
   const [deleteTarget, setDeleteTarget] = useState<Transaction | null>(null);
   const [selectedIds, setSelectedIds] = useState<string[]>([]);
+  const [isSelectionMode, setIsSelectionMode] = useState(false);
   const [isBulkSubmitting, setIsBulkSubmitting] = useState(false);
 
   const cards = useFinanceStore((state) => state.cards);
   const dependents = useFinanceStore((state) => state.dependents);
   const storedCategories = useFinanceStore((state) => state.categories);
   const transactions = useFinanceStore((state) => state.transactions);
+  const isFetching = useFinanceStore((state) => state.isFetching);
   const fetchTransactions = useFinanceStore((state) => state.fetchTransactions);
   const deleteTransaction = useFinanceStore((state) => state.deleteTransaction);
   const deleteTransactionGroup = useFinanceStore(
@@ -198,93 +144,108 @@ function TransactionsPageContent() {
   const nextMonth = useFinanceStore((state) => state.nextMonth);
   const prevMonth = useFinanceStore((state) => state.prevMonth);
   const refreshDisplayedTransactions = useCallback(
-    () =>
-      fetchTransactions({ includeAllMonths: Boolean(integrityReview) }),
+    () => fetchTransactions({ includeAllMonths: Boolean(integrityReview) }),
     [fetchTransactions, integrityReview],
   );
 
   useEffect(() => {
     void refreshDisplayedTransactions();
-  }, [
-    currentMonth,
-    currentYear,
-    refreshDisplayedTransactions,
-  ]);
+  }, [currentMonth, currentYear, refreshDisplayedTransactions]);
 
-  const selectedPeriodLabel = monthFormatter.format(
+  useEffect(() => {
+    try {
+      window.localStorage.setItem(viewStorageKey, JSON.stringify(view));
+    } catch {
+      // The chosen view only lasts for this visit when storage is unavailable.
+    }
+  }, [view]);
+
+  const selectedMonthName = monthFormatter.format(
     new Date(currentYear, currentMonth - 1, 1),
-  );
-  const formattedSelectedPeriodLabel =
-    selectedPeriodLabel.charAt(0).toUpperCase() + selectedPeriodLabel.slice(1);
-
-  const monthlyTransactions = useMemo(
-    () =>
-      transactions
-        .filter((transaction) =>
-          isSameSelectedMonth(transaction, currentMonth, currentYear),
-        )
-        .sort(sortByRecentDate),
-    [currentMonth, currentYear, transactions],
   );
 
   const displayedTransactions = useMemo(() => {
-    if (!integrityReview) return monthlyTransactions;
+    if (!integrityReview) {
+      return transactions.filter((transaction) =>
+        isTransactionInSelectedCompetence(
+          transaction,
+          currentMonth,
+          currentYear,
+        ),
+      );
+    }
 
     const registeredExpenseCategories = new Set(
       storedCategories
-        .filter((category) => category.kind === "expense" && !category.isDefault)
+        .filter(
+          (category) => category.kind === "expense" && !category.isDefault,
+        )
         .map((category) => category.label.trim().toLocaleLowerCase("pt-BR")),
     );
 
-    return transactions
-      .filter((transaction) => {
-        if (transaction.type === "income") return false;
+    return transactions.filter((transaction) => {
+      if (transaction.type === "income") return false;
 
-        const category = transaction.category?.trim();
+      const category = transaction.category?.trim();
 
-        if (integrityReview === "missing-category") return !category;
-        if (!category || isCardCreditAdjustment(transaction)) return false;
+      if (integrityReview === "missing-category") return !category;
+      if (!category || isCardCreditAdjustment(transaction)) return false;
 
-        return !registeredExpenseCategories.has(
-          category.toLocaleLowerCase("pt-BR"),
-        );
-      })
-      .sort(sortByRecentDate);
-  }, [integrityReview, monthlyTransactions, storedCategories, transactions]);
+      return !registeredExpenseCategories.has(
+        category.toLocaleLowerCase("pt-BR"),
+      );
+    });
+  }, [
+    currentMonth,
+    currentYear,
+    integrityReview,
+    storedCategories,
+    transactions,
+  ]);
 
-  const activeCategories = useMemo(() => {
-    const uniqueCategories = new Set(
-      displayedTransactions
-        .map((transaction) => transaction.category?.trim())
-        .filter((category): category is string => Boolean(category)),
-    );
+  const activeCategories = useMemo(
+    () =>
+      Array.from(
+        new Set(
+          displayedTransactions
+            .map((transaction) => transaction.category?.trim())
+            .filter((category): category is string => Boolean(category)),
+        ),
+      ).sort((left, right) => left.localeCompare(right, "pt-BR")),
+    [displayedTransactions],
+  );
 
-    return Array.from(uniqueCategories).sort((left, right) =>
-      left.localeCompare(right, "pt-BR"),
-    );
-  }, [displayedTransactions]);
+  const assignableCategories = useMemo(
+    () =>
+      Array.from(
+        new Set([
+          ...storedCategories.map((category) => category.label),
+          ...activeCategories,
+        ]),
+      ).sort((left, right) => left.localeCompare(right, "pt-BR")),
+    [activeCategories, storedCategories],
+  );
 
-  const assignableCategories = useMemo(() => {
-    const uniqueCategories = new Set([
-      ...storedCategories.map((category) => category.label),
-      ...activeCategories,
-    ]);
-
-    return Array.from(uniqueCategories).sort((left, right) =>
-      left.localeCompare(right, "pt-BR"),
-    );
-  }, [activeCategories, storedCategories]);
+  const dependentNamesById = useMemo(
+    () =>
+      new Map(dependents.map((dependent) => [dependent.id, dependent.name])),
+    [dependents],
+  );
 
   const filteredTransactions = useMemo(() => {
-    const normalizedSearch = searchTerm.trim().toLowerCase();
+    const normalizedSearch = searchTerm.trim().toLocaleLowerCase("pt-BR");
 
     return displayedTransactions.filter((transaction) => {
-      const originLabel = getTransactionOrigin(transaction, cards);
+      const originKind = getOriginKind(transaction);
       const matchesSearch =
         !normalizedSearch ||
-        transaction.description.toLowerCase().includes(normalizedSearch) ||
-        transaction.category?.toLowerCase().includes(normalizedSearch) ||
-        originLabel.toLowerCase().includes(normalizedSearch);
+        [
+          transaction.description,
+          transaction.category,
+          getOriginLabel(transaction, cards),
+        ].some((value) =>
+          value?.toLocaleLowerCase("pt-BR").includes(normalizedSearch),
+        );
       const matchesCategory =
         categoryFilter === "all" || transaction.category === categoryFilter;
       const matchesType =
@@ -293,8 +254,7 @@ function TransactionsPageContent() {
         (typeFilter === "expense" && transaction.type !== "income") ||
         (typeFilter === "fixed" && transaction.type === "fixed");
       const matchesOrigin =
-        originFilter === "all" ||
-        getTransactionOriginFilter(transaction) === originFilter;
+        originFilter === "all" || originKind === originFilter;
       const matchesCard =
         originFilter !== "card" ||
         cardFilter === "all" ||
@@ -318,21 +278,10 @@ function TransactionsPageContent() {
     typeFilter,
   ]);
 
-  const visibleTransactionIds = useMemo(
-    () => filteredTransactions.map((transaction) => transaction.id),
-    [filteredTransactions],
+  const groups = useMemo(
+    () => groupTransactions(filteredTransactions, view.sort, view.group),
+    [filteredTransactions, view.group, view.sort],
   );
-
-  const selectedVisibleIds = useMemo(
-    () => selectedIds.filter((id) => visibleTransactionIds.includes(id)),
-    [selectedIds, visibleTransactionIds],
-  );
-
-  const isAllVisibleSelected =
-    visibleTransactionIds.length > 0 &&
-    selectedVisibleIds.length === visibleTransactionIds.length;
-  const isSomeVisibleSelected =
-    selectedVisibleIds.length > 0 && !isAllVisibleSelected;
 
   const summary = useMemo(() => {
     const totalIncome = filteredTransactions
@@ -359,11 +308,14 @@ function TransactionsPageContent() {
     };
   }, [filteredTransactions]);
 
-  const hasActiveFilters =
-    searchTerm.trim().length > 0 ||
-    categoryFilter !== "all" ||
-    typeFilter !== "all" ||
-    originFilter !== "all";
+  const visibleIds = useMemo(
+    () => filteredTransactions.map((transaction) => transaction.id),
+    [filteredTransactions],
+  );
+  const selectedIdSet = useMemo(() => new Set(selectedIds), [selectedIds]);
+  const isSelecting = isSelectionMode || selectedIds.length > 0;
+  const areAllVisibleSelected =
+    visibleIds.length > 0 && visibleIds.every((id) => selectedIdSet.has(id));
 
   const clearFilters = useCallback(() => {
     setSearchTerm("");
@@ -373,94 +325,77 @@ function TransactionsPageContent() {
     setCardFilter("all");
   }, []);
 
-  const handleExitIntegrityReview = useCallback(() => {
+  const clearSelection = useCallback(() => {
     setSelectedIds([]);
+    setIsSelectionMode(false);
+  }, []);
+
+  const handleExitIntegrityReview = useCallback(() => {
+    clearSelection();
     clearFilters();
     router.replace("/dashboard/transactions");
-  }, [clearFilters, router]);
+  }, [clearFilters, clearSelection, router]);
 
-  const handleCloseIncomeModal = useCallback(() => {
-    setIsAddIncomeModalOpen(false);
+  const handleEditTransaction = useCallback((transaction: Transaction) => {
+    setDetailTransaction(null);
+    setSheetEditingTransaction(transaction);
   }, []);
 
-  const handleCloseTransactionModal = useCallback(() => {
-    setIsAddTransactionModalOpen(false);
-  }, []);
-
-  const handleEditTransaction = useCallback(
-    (transaction: Transaction) => {
-      setDetailTransaction(null);
-      setSheetEditingTransaction(transaction);
+  const toggleTransactionSelection = useCallback(
+    (transactionId: string, checked: boolean) => {
+      setSelectedIds((currentIds) =>
+        checked
+          ? currentIds.includes(transactionId)
+            ? currentIds
+            : [...currentIds, transactionId]
+          : currentIds.filter((id) => id !== transactionId),
+      );
     },
     [],
   );
 
-  const handleOpenTransactionDetail = useCallback(
-    (transaction: Transaction) => {
-      setDetailTransaction(transaction);
+  const toggleSelectAllVisible = useCallback(() => {
+    setSelectedIds((currentIds) =>
+      areAllVisibleSelected
+        ? currentIds.filter((id) => !visibleIds.includes(id))
+        : Array.from(new Set([...currentIds, ...visibleIds])),
+    );
+  }, [areAllVisibleSelected, visibleIds]);
+
+  const handleDeleteTransaction = useCallback(
+    async (transactionId: string) => {
+      try {
+        await deleteTransaction(transactionId);
+        toast.success("Movimentação excluída.");
+        setDeleteTarget(null);
+        setDetailTransaction((current) =>
+          current?.id === transactionId ? null : current,
+        );
+      } catch (error) {
+        console.error("Erro ao excluir movimentação:", error);
+        toast.error("Não foi possível excluir agora.");
+        throw error;
+      }
     },
-    [],
+    [deleteTransaction],
   );
 
-  const handleDeleteTransaction = useCallback(async (transactionId: string) => {
-    try {
-      await deleteTransaction(transactionId);
-      toast.success("Movimentação excluída.");
-      setDeleteTarget(null);
-      setDetailTransaction((current) =>
-        current?.id === transactionId ? null : current,
-      );
-    } catch (error) {
-      console.error("Erro ao excluir movimentação:", error);
-      toast.error("Não foi possível excluir agora.");
-      throw error;
-    }
-  }, [deleteTransaction]);
+  const handleDeleteFutureTransactions = useCallback(
+    async (transaction: Transaction) => {
+      if (!transaction.groupId) return;
 
-  const handleDeleteFutureTransactions = useCallback(async (transaction: Transaction) => {
-    if (!transaction.groupId) return;
-
-    try {
-      await deleteTransactionGroup(transaction.groupId, transaction.date);
-      toast.success("Recorrência atual e próximas excluídas.");
-      setDeleteTarget(null);
-    } catch (error) {
-      console.error("Erro ao excluir recorrência:", error);
-      toast.error("Não foi possível excluir a recorrência agora.");
-      throw error;
-    }
-  }, [deleteTransactionGroup]);
-
-  const toggleSelectAllVisible = useCallback((checked: boolean | "indeterminate") => {
-    if (checked) {
-      setSelectedIds((currentIds) =>
-        Array.from(new Set([...currentIds, ...visibleTransactionIds])),
-      );
-      return;
-    }
-
-    setSelectedIds((currentIds) =>
-      currentIds.filter((id) => !visibleTransactionIds.includes(id)),
-    );
-  }, [visibleTransactionIds]);
-
-  const toggleTransactionSelection = useCallback((
-    transactionId: string,
-    checked: boolean | "indeterminate",
-  ) => {
-    if (checked) {
-      setSelectedIds((currentIds) =>
-        currentIds.includes(transactionId)
-          ? currentIds
-          : [...currentIds, transactionId],
-      );
-      return;
-    }
-
-    setSelectedIds((currentIds) =>
-      currentIds.filter((id) => id !== transactionId),
-    );
-  }, []);
+      try {
+        await deleteTransactionGroup(transaction.groupId, transaction.date);
+        toast.success("Recorrência atual e próximas excluídas.");
+        setDeleteTarget(null);
+      } catch (error) {
+        console.error("Erro ao excluir recorrência:", error);
+        toast.error("Não foi possível excluir a recorrência agora.");
+        throw error;
+      }
+    },
+    [deleteTransactionGroup],
+  );
 
   const handleBulkDelete = useCallback(async () => {
     if (!selectedIds.length) return;
@@ -475,8 +410,10 @@ function TransactionsPageContent() {
 
       if (error) throw error;
 
-      toast.success(`${selectedIds.length} transações excluídas.`);
-      setSelectedIds([]);
+      toast.success(
+        `${selectedIds.length} ${selectedIds.length === 1 ? "transação excluída" : "transações excluídas"}.`,
+      );
+      clearSelection();
       await refreshDisplayedTransactions();
     } catch (error) {
       void reportAppError(error, {
@@ -488,723 +425,441 @@ function TransactionsPageContent() {
     } finally {
       setIsBulkSubmitting(false);
     }
-  }, [refreshDisplayedTransactions, selectedIds]);
+  }, [clearSelection, refreshDisplayedTransactions, selectedIds]);
 
-  const handleBulkCategory = useCallback(async (category: string) => {
-    if (!selectedIds.length) return;
+  const handleBulkCategory = useCallback(
+    async (category: string) => {
+      if (!selectedIds.length) return;
 
-    setIsBulkSubmitting(true);
+      setIsBulkSubmitting(true);
 
-    try {
-      await updateTransactionCategories(selectedIds, category);
+      try {
+        await updateTransactionCategories(selectedIds, category);
+        toast.success("Categoria atualizada nas transações selecionadas.");
+        clearSelection();
+        await refreshDisplayedTransactions();
+      } catch (error) {
+        console.error("Erro ao atualizar categoria em massa:", error);
+        toast.error("Não foi possível atualizar a categoria agora.");
+      } finally {
+        setIsBulkSubmitting(false);
+      }
+    },
+    [
+      clearSelection,
+      refreshDisplayedTransactions,
+      selectedIds,
+      updateTransactionCategories,
+    ],
+  );
 
-      toast.success("Categoria atualizada nas transações selecionadas.");
-      setSelectedIds([]);
-      await refreshDisplayedTransactions();
-    } catch (error) {
-      console.error("Erro ao atualizar categoria em massa:", error);
-      toast.error("Não foi possível atualizar a categoria agora.");
-    } finally {
-      setIsBulkSubmitting(false);
-    }
-  }, [
-    refreshDisplayedTransactions,
-    selectedIds,
-    updateTransactionCategories,
-  ]);
+  const summaryStats = [
+    {
+      label: "Entradas",
+      value: summary.totalIncome,
+      icon: ArrowUpRight,
+      iconClassName: "bg-emerald-500/10 text-emerald-300",
+      valueClassName: "text-emerald-300",
+    },
+    {
+      label: "Saídas pessoais",
+      value: summary.totalExpense,
+      icon: ArrowDownRight,
+      iconClassName: "bg-rose-500/10 text-rose-300",
+      valueClassName: "text-zinc-50",
+    },
+    {
+      label: "Saldo",
+      value: summary.netBalance,
+      icon: null,
+      iconClassName: "",
+      valueClassName: summary.netBalance < 0 ? "text-rose-400" : "text-zinc-50",
+    },
+  ];
+  const resultLabel = `${filteredTransactions.length} ${filteredTransactions.length === 1 ? "movimentação" : "movimentações"}`;
+  const firstUpcomingGroupKey =
+    view.group === "date" && view.sort !== "oldest"
+      ? groups.find((group) => group.hint === "Previsto")?.key
+      : undefined;
 
   return (
-    <div className="flex w-full flex-col gap-5 pb-4 md:gap-6">
-      <div className="flex items-start justify-between gap-4 border-b border-white/[0.06] pb-5">
-        <div>
-          <p className="mb-1.5 text-[10px] font-medium uppercase tracking-[0.18em] text-emerald-300">
-            Fluxo financeiro
-          </p>
-          <h1 className="text-2xl font-semibold tracking-[-0.035em] text-zinc-50 md:text-3xl">
-            Transações
-          </h1>
-          <p className="mt-1.5 max-w-2xl text-sm text-zinc-500">
-            Consulte, organize e ajuste todas as movimentações do período.
-          </p>
-        </div>
+    <MotionConfig reducedMotion="user">
+      <motion.div
+        variants={dashboardStagger}
+        initial="hidden"
+        animate="visible"
+        className="flex w-full flex-col gap-5 pb-24 sm:gap-6 md:pb-4"
+      >
+        <motion.header
+          variants={dashboardReveal}
+          className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between"
+        >
+          <div className="min-w-0">
+            <h1 className="text-2xl font-semibold tracking-[-0.03em] text-zinc-50 sm:text-3xl">
+              Transações
+            </h1>
+            <p className="mt-1 text-sm text-zinc-400">
+              {integrityReview
+                ? "Revisão de todo o histórico."
+                : `${resultLabel} em ${selectedMonthName}.`}
+            </p>
+          </div>
 
-        <DropdownMenu>
-          <DropdownMenuTrigger asChild>
+          <div className="grid w-full grid-cols-[minmax(0,1fr)_auto] items-center gap-2 sm:flex sm:w-auto">
+            {integrityReview ? (
+              <span className="flex h-11 items-center justify-center rounded-lg bg-amber-400/[0.08] px-4 text-sm text-amber-200 ring-1 ring-inset ring-amber-400/20">
+                Todo o histórico
+              </span>
+            ) : (
+              <div className="min-w-0 sm:shrink-0">
+                <AnimatedMonthSelector
+                  currentMonth={currentMonth}
+                  currentYear={currentYear}
+                  onPreviousMonth={prevMonth}
+                  onNextMonth={nextMonth}
+                  isLoading={isFetching}
+                />
+              </div>
+            )}
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button
+                  type="button"
+                  aria-label="Criar nova transação"
+                  data-tour="transactions-add"
+                  className="h-11 gap-2 rounded-lg bg-emerald-400 px-4 text-sm font-semibold text-zinc-950 hover:bg-emerald-300 sm:px-5"
+                >
+                  <PlusCircle className="size-5" />
+                  <span className="hidden min-[420px]:inline">Nova</span>
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent
+                align="end"
+                className="w-[calc(100vw-2rem)] max-w-72 p-2"
+              >
+                <DropdownMenuItem
+                  className="cursor-pointer gap-4 rounded-xl p-3"
+                  onClick={() => setIsAddIncomeModalOpen(true)}
+                >
+                  <div className="rounded-full bg-emerald-500/10 p-2.5 text-emerald-400">
+                    <ArrowUpRight className="size-4" />
+                  </div>
+                  <div className="flex flex-col">
+                    <span className="font-medium">Receita</span>
+                    <span className="text-xs text-muted-foreground">
+                      Registrar nova entrada
+                    </span>
+                  </div>
+                </DropdownMenuItem>
+                <DropdownMenuItem
+                  className="cursor-pointer gap-4 rounded-xl p-3"
+                  onClick={() => setIsAddTransactionModalOpen(true)}
+                >
+                  <div className="rounded-full bg-rose-500/10 p-2.5 text-rose-400">
+                    <ArrowDownRight className="size-4" />
+                  </div>
+                  <div className="flex flex-col">
+                    <span className="font-medium">Despesa</span>
+                    <span className="text-xs text-muted-foreground">
+                      Registrar novo gasto
+                    </span>
+                  </div>
+                </DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
+          </div>
+        </motion.header>
+
+        {integrityReview && (
+          <motion.section
+            variants={dashboardReveal}
+            className="flex flex-col gap-4 rounded-2xl border border-amber-400/15 bg-amber-400/[0.05] p-4 sm:flex-row sm:items-center sm:justify-between sm:p-5"
+          >
+            <div className="flex min-w-0 items-start gap-3">
+              <span className="flex size-10 shrink-0 items-center justify-center rounded-xl bg-amber-400/10 text-amber-300">
+                <CircleAlert className="size-5" />
+              </span>
+              <div className="min-w-0">
+                <h2 className="text-sm font-semibold text-zinc-100">
+                  {integrityReview === "missing-category"
+                    ? "Transações sem categoria"
+                    : "Categorias fora do cadastro"}
+                </h2>
+                <p className="mt-1 text-xs leading-5 text-zinc-400 sm:text-sm">
+                  {integrityReview === "missing-category"
+                    ? "Exibindo somente lançamentos sem categoria em todo o histórico."
+                    : "Exibindo categorias gravadas nas transações que não existem mais no seu cadastro."}
+                </p>
+              </div>
+            </div>
             <Button
               type="button"
-              aria-label="Criar nova transação"
-              data-tour="transactions-add"
-              className="h-11 gap-2 bg-emerald-600 px-3.5 text-sm font-semibold text-white hover:bg-emerald-700 md:h-12 md:px-6 md:text-base"
+              variant="outline"
+              className="h-10 shrink-0 border-zinc-700 bg-zinc-950"
+              onClick={handleExitIntegrityReview}
             >
-              <PlusCircle className="size-5" />
-              <span className="hidden min-[410px]:inline">Nova Transação</span>
+              Voltar ao mês atual
             </Button>
-          </DropdownMenuTrigger>
-          <DropdownMenuContent align="end" className="w-[calc(100vw-2rem)] max-w-72 p-2">
-            <DropdownMenuItem
-              className="flex cursor-pointer items-center gap-4 rounded-md p-3 hover:bg-muted"
-              onClick={() => {
-                setIsAddIncomeModalOpen(true);
-              }}
-            >
-              <div className="rounded-full bg-emerald-500/10 p-2 text-emerald-500">
-                <ArrowUpRight className="size-5" />
-              </div>
-              <div className="flex flex-col">
-                <span className="font-medium">Receita</span>
-                <span className="text-xs text-muted-foreground">
-                  Registrar nova entrada
-                </span>
-              </div>
-            </DropdownMenuItem>
-            <DropdownMenuItem
-              className="flex cursor-pointer items-center gap-4 rounded-md p-3 hover:bg-muted"
-              onClick={() => {
-                setIsAddTransactionModalOpen(true);
-              }}
-            >
-              <div className="rounded-full bg-red-500/10 p-2 text-red-500">
-                <ArrowDownRight className="size-5" />
-              </div>
-              <div className="flex flex-col">
-                <span className="font-medium">Despesa</span>
-                <span className="text-xs text-muted-foreground">
-                  Registrar novo gasto
-                </span>
-              </div>
-            </DropdownMenuItem>
-          </DropdownMenuContent>
-        </DropdownMenu>
-      </div>
+          </motion.section>
+        )}
 
-      {integrityReview ? (
-        <section className="flex flex-col gap-4 rounded-xl border border-amber-400/15 bg-amber-400/[0.055] p-4 sm:flex-row sm:items-center sm:justify-between sm:p-5">
-          <div className="flex min-w-0 items-start gap-3">
-            <span className="flex size-10 shrink-0 items-center justify-center rounded-lg bg-amber-400/10 text-amber-300">
-              <CircleAlert className="size-5" />
-            </span>
-            <div className="min-w-0">
-              <h2 className="text-sm font-semibold text-zinc-100">
-                {integrityReview === "missing-category"
-                  ? "Transações sem categoria"
-                  : "Categorias fora do cadastro"}
-              </h2>
-              <p className="mt-1 text-xs leading-5 text-zinc-400 sm:text-sm">
-                {integrityReview === "missing-category"
-                  ? "Exibindo somente lançamentos sem categoria em todo o histórico."
-                  : "Exibindo categorias gravadas nas transações que não existem mais no seu cadastro."}
-              </p>
-            </div>
-          </div>
-          <Button
-            type="button"
-            variant="outline"
-            className="h-10 shrink-0 border-zinc-700 bg-zinc-950"
-            onClick={handleExitIntegrityReview}
-          >
-            Voltar ao mês atual
-          </Button>
-        </section>
-      ) : (
         <motion.section
-          initial={prefersReducedMotion ? false : { opacity: 0, y: 10 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: prefersReducedMotion ? 0 : 0.35 }}
-          className="grid grid-cols-2 gap-3 lg:grid-cols-3 lg:gap-4"
-        >
-        <div className="min-h-28 rounded-xl border border-white/[0.07] bg-zinc-900/55 p-4 backdrop-blur-xl md:p-5">
-          <div className="flex items-center justify-between gap-4">
-            <p className="text-xs font-medium uppercase tracking-[0.12em] text-zinc-500">
-              Entradas
-            </p>
-            <span className="flex size-8 items-center justify-center rounded-lg bg-emerald-400/10 text-emerald-300">
-              <ArrowUpRight className="size-4" />
-            </span>
-          </div>
-          <strong className="mt-4 block text-xl font-semibold tracking-tight text-emerald-400 lg:text-2xl">
-            {formatCurrency(summary.totalIncome)}
-          </strong>
-        </div>
-
-        <div className="min-h-28 rounded-xl border border-white/[0.07] bg-zinc-900/55 p-4 backdrop-blur-xl md:p-5">
-          <div className="flex items-center justify-between gap-4">
-            <p className="text-xs font-medium uppercase tracking-[0.12em] text-zinc-500">
-              Saídas
-            </p>
-            <span className="flex size-8 items-center justify-center rounded-lg bg-rose-400/10 text-rose-300">
-              <ArrowDownRight className="size-4" />
-            </span>
-          </div>
-          <strong className="mt-4 block text-xl font-semibold tracking-tight text-rose-400 lg:text-2xl">
-            {formatCurrency(summary.totalExpense)}
-          </strong>
-        </div>
-
-        <div className="col-span-2 min-h-28 rounded-xl border border-white/[0.07] bg-zinc-900/55 p-4 backdrop-blur-xl md:p-5 lg:col-span-1">
-          <div className="flex items-center justify-between gap-4">
-            <p className="text-xs font-medium uppercase tracking-[0.12em] text-zinc-500">
-              Saldo líquido
-            </p>
-            <span className="flex size-8 items-center justify-center rounded-lg bg-white/[0.05] text-zinc-300">
-              <Wallet className="size-4" />
-            </span>
-          </div>
-          <strong
-            className={cn(
-              "mt-4 block text-xl font-semibold tracking-tight lg:text-2xl",
-              summary.netBalance >= 0 ? "text-zinc-100" : "text-rose-400",
-            )}
-          >
-            {formatCurrency(summary.netBalance)}
-          </strong>
-        </div>
-        </motion.section>
-      )}
-
-      <section className="flex flex-col gap-4 rounded-xl border border-white/[0.07] bg-zinc-900/60 p-4 backdrop-blur-xl xl:flex-row xl:items-center xl:justify-between">
-        <div
+          variants={dashboardReveal}
+          aria-label="Resumo das movimentações filtradas"
           className={cn(
-            "grid min-w-0 flex-1 grid-cols-1 gap-3 sm:grid-cols-2",
-            originFilter === "card"
-              ? "xl:grid-cols-[minmax(240px,1.4fr)_repeat(4,minmax(140px,0.7fr))]"
-              : "xl:grid-cols-[minmax(260px,1.5fr)_repeat(3,minmax(150px,0.7fr))]",
+            dashboardPanelClassName,
+            "grid grid-cols-2 divide-white/[0.06] sm:grid-cols-3 sm:divide-x",
           )}
         >
-          <div className="relative sm:col-span-2 xl:col-span-1">
-            <Search className="pointer-events-none absolute left-3.5 top-1/2 size-4 -translate-y-1/2 text-zinc-500" />
-            <Input
-              value={searchTerm}
-              onChange={(event) => setSearchTerm(event.target.value)}
-              placeholder="Buscar descrição, categoria ou origem"
-              className="h-11 border-white/[0.08] bg-zinc-950/65 pl-10 text-zinc-100 placeholder:text-zinc-600"
+          {summaryStats.map((stat, index) => {
+            const Icon = stat.icon;
+
+            return (
+              <div
+                key={stat.label}
+                className={cn(
+                  "flex min-w-0 items-center gap-3 p-4 sm:p-5",
+                  index === 2 &&
+                    "col-span-2 border-t border-white/[0.06] sm:col-span-1 sm:border-t-0",
+                )}
+              >
+                {Icon && (
+                  <span
+                    className={cn(
+                      "hidden size-10 shrink-0 items-center justify-center rounded-xl sm:flex",
+                      stat.iconClassName,
+                    )}
+                  >
+                    <Icon className="size-4" />
+                  </span>
+                )}
+                <div className="min-w-0">
+                  <p className="truncate text-xs text-zinc-500">{stat.label}</p>
+                  <AnimatedNumber
+                    value={stat.value}
+                    format={formatPrivateCurrency}
+                    className={cn(
+                      "mt-0.5 block truncate text-lg font-semibold tabular-nums sm:text-xl",
+                      stat.valueClassName,
+                    )}
+                  />
+                </div>
+              </div>
+            );
+          })}
+        </motion.section>
+
+        <motion.section
+          variants={dashboardReveal}
+          aria-label="Lista de transações"
+          className={cn(dashboardPanelClassName, "min-w-0 p-3 sm:p-5")}
+        >
+          <div className="px-1 pt-1 sm:px-0 sm:pt-0">
+            <TransactionsToolbar
+              searchTerm={searchTerm}
+              onSearchChange={setSearchTerm}
+              typeFilter={typeFilter}
+              onTypeChange={setTypeFilter}
+              categoryFilter={categoryFilter}
+              onCategoryChange={setCategoryFilter}
+              originFilter={originFilter}
+              onOriginChange={(value) => {
+                setOriginFilter(value);
+                if (value !== "card") setCardFilter("all");
+              }}
+              cardFilter={cardFilter}
+              onCardChange={setCardFilter}
+              sort={view.sort}
+              onSortChange={(sort) =>
+                setView((current) => ({ ...current, sort }))
+              }
+              group={view.group}
+              onGroupChange={(group) =>
+                setView((current) => ({ ...current, group }))
+              }
+              categories={activeCategories}
+              cards={cards}
+              onClearFilters={clearFilters}
             />
           </div>
 
-          <Select value={categoryFilter} onValueChange={setCategoryFilter}>
-            <SelectTrigger className="h-11 w-full border-white/[0.08] bg-zinc-950/65">
-              <SelectValue placeholder="Categoria" />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="all">Todas categorias</SelectItem>
-              {activeCategories.map((category) => (
-                <SelectItem key={category} value={category}>
-                  {category}
-                </SelectItem>
+          <div className="mt-5 flex items-center justify-between gap-3 px-1 sm:px-0">
+            <p className="text-xs font-medium text-zinc-500">{resultLabel}</p>
+            {filteredTransactions.length > 0 &&
+              (isSelecting ? (
+                <div className="flex items-center gap-3 text-xs font-medium">
+                  <button
+                    type="button"
+                    onClick={toggleSelectAllVisible}
+                    className="text-emerald-300 transition-colors hover:text-emerald-200"
+                  >
+                    {areAllVisibleSelected
+                      ? "Desmarcar todas"
+                      : "Selecionar todas"}
+                  </button>
+                  <button
+                    type="button"
+                    onClick={clearSelection}
+                    className="text-zinc-400 transition-colors hover:text-zinc-100"
+                  >
+                    Cancelar
+                  </button>
+                </div>
+              ) : (
+                <button
+                  type="button"
+                  onClick={() => setIsSelectionMode(true)}
+                  className="flex items-center gap-1.5 text-xs font-medium text-zinc-400 transition-colors hover:text-zinc-100"
+                >
+                  <CheckSquare className="size-3.5" />
+                  Selecionar
+                </button>
               ))}
-            </SelectContent>
-          </Select>
+          </div>
 
-          <Select
-            value={typeFilter}
-            onValueChange={(value) => setTypeFilter(value as TypeFilter)}
+          <div
+            className={cn(
+              "mt-2 transition-opacity duration-300",
+              isFetching && "pointer-events-none opacity-60",
+            )}
           >
-            <SelectTrigger className="h-11 w-full border-white/[0.08] bg-zinc-950/65">
-              <SelectValue placeholder="Tipo" />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="all">Todos os tipos</SelectItem>
-              <SelectItem value="income">Receita</SelectItem>
-              <SelectItem value="expense">Despesa</SelectItem>
-              <SelectItem value="fixed">Fixo</SelectItem>
-            </SelectContent>
-          </Select>
+            {groups.length ? (
+              <div className="space-y-4">
+                {groups.map((group, groupIndex) => (
+                  <motion.section
+                    key={`${view.group}-${view.sort}-${group.key}`}
+                    initial={{ opacity: 0, y: 8 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    transition={{
+                      duration: 0.3,
+                      delay: Math.min(groupIndex * 0.04, 0.24),
+                      ease: [0.22, 1, 0.36, 1],
+                    }}
+                    aria-label={group.label}
+                  >
+                    {group.key === firstUpcomingGroupKey && (
+                      <div className="mb-3 mt-6 flex items-center gap-3 px-1 sm:px-3">
+                        <span className="text-[11px] font-medium uppercase tracking-[0.14em] text-zinc-500">
+                          Próximos lançamentos
+                        </span>
+                        <span className="h-px flex-1 bg-white/[0.06]" />
+                      </div>
+                    )}
+                    {view.group !== "none" && (
+                      <div className="px-1 pb-1 sm:px-3">
+                        <div className="flex items-baseline justify-between gap-3">
+                          <h3 className="flex min-w-0 items-center gap-2 text-xs font-medium text-zinc-400">
+                            <span className="truncate">{group.label}</span>
+                            {group.hint && (
+                              <span
+                                className={cn(
+                                  "shrink-0 rounded-full px-1.5 py-px text-[10px]",
+                                  group.hint === "Previsto"
+                                    ? "bg-amber-500/10 text-amber-300"
+                                    : "bg-zinc-800 text-zinc-500",
+                                )}
+                              >
+                                {group.hint}
+                              </span>
+                            )}
+                          </h3>
+                          <span
+                            className={cn(
+                              "shrink-0 text-xs font-medium tabular-nums",
+                              group.total > 0
+                                ? "text-emerald-300"
+                                : "text-zinc-500",
+                            )}
+                          >
+                            {group.total > 0 ? "+" : group.total < 0 ? "-" : ""}
+                            {formatPrivateCurrency(Math.abs(group.total))}
+                          </span>
+                        </div>
+                        {group.share !== undefined && (
+                          <div className="mt-2 h-1 overflow-hidden rounded-full bg-zinc-800/80">
+                            <motion.div
+                              className="h-full rounded-full bg-emerald-400/70"
+                              initial={{ width: 0 }}
+                              animate={{ width: `${group.share}%` }}
+                              transition={{
+                                duration: 0.6,
+                                ease: [0.22, 1, 0.36, 1],
+                              }}
+                            />
+                          </div>
+                        )}
+                      </div>
+                    )}
+                    <ul>
+                      {group.transactions.map((transaction) => {
+                        const dependentId = getDependentId(transaction);
 
-          <Select
-            value={originFilter}
-            onValueChange={(value) => {
-              const nextOrigin = value as OriginFilter;
-
-              setOriginFilter(nextOrigin);
-              if (nextOrigin !== "card") setCardFilter("all");
-            }}
-          >
-            <SelectTrigger className="h-11 w-full border-white/[0.08] bg-zinc-950/65">
-              <SelectValue placeholder="Origem" />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="all">Todas as origens</SelectItem>
-              <SelectItem value="card">Cartões</SelectItem>
-              <SelectItem value="debit-pix">Débito / Pix</SelectItem>
-            </SelectContent>
-          </Select>
-
-          {originFilter === "card" ? (
-            <Select value={cardFilter} onValueChange={setCardFilter}>
-              <SelectTrigger className="h-11 w-full border-violet-400/15 bg-violet-400/[0.06]">
-                <SelectValue placeholder="Selecionar cartão" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="all">Todos os cartões</SelectItem>
-                {cards.map((card) => (
-                  <SelectItem key={card.id} value={card.id}>
-                    {card.name}
-                  </SelectItem>
+                        return (
+                          <TransactionRow
+                            key={transaction.id}
+                            transaction={transaction}
+                            originLabel={getOriginLabel(transaction, cards)}
+                            dependentName={
+                              dependentId
+                                ? dependentNamesById.get(dependentId)
+                                : null
+                            }
+                            showDate={view.group !== "date"}
+                            showCategory={view.group !== "category"}
+                            isSelected={selectedIdSet.has(transaction.id)}
+                            isSelecting={isSelecting}
+                            formatAmount={formatPrivateCurrency}
+                            onOpen={setDetailTransaction}
+                            onEdit={handleEditTransaction}
+                            onDelete={setDeleteTarget}
+                            onToggleSelect={toggleTransactionSelection}
+                          />
+                        );
+                      })}
+                    </ul>
+                  </motion.section>
                 ))}
-              </SelectContent>
-            </Select>
-          ) : null}
-        </div>
-
-        <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
-          {hasActiveFilters ? (
-            <Button
-              type="button"
-              variant="ghost"
-              onClick={clearFilters}
-              className="h-11 justify-center text-zinc-400 hover:bg-white/[0.05] hover:text-zinc-100"
-            >
-              <SlidersHorizontal className="size-4" />
-              Limpar filtros
-            </Button>
-          ) : null}
-
-        {integrityReview ? (
-          <Badge
-            variant="outline"
-            className="flex h-11 w-full items-center justify-center border-amber-400/15 bg-amber-400/[0.06] px-4 text-amber-200 sm:w-auto"
-          >
-            Todo o histórico
-          </Badge>
-        ) : (
-          <div className="flex h-11 w-full items-center rounded-lg border border-white/[0.08] bg-zinc-950/65 sm:w-auto">
-          <Button
-            type="button"
-            variant="ghost"
-            size="icon-sm"
-            onClick={prevMonth}
-            aria-label="Mês anterior"
-            className="rounded-r-none"
-          >
-            <ChevronLeft />
-          </Button>
-          <span className="flex flex-1 items-center justify-center gap-2 px-3 text-center text-sm font-medium text-foreground lg:flex-none">
-            <CalendarDays className="size-4 text-muted-foreground" />
-            {formattedSelectedPeriodLabel}
-          </span>
-          <Button
-            type="button"
-            variant="ghost"
-            size="icon-sm"
-            onClick={nextMonth}
-            aria-label="Próximo mês"
-            className="rounded-l-none"
-          >
-            <ChevronRight />
-          </Button>
-          </div>
-        )}
-        </div>
-      </section>
-
-      <section className="overflow-hidden rounded-xl border border-white/[0.07] bg-zinc-900/45 backdrop-blur-xl">
-        <div className="flex items-center justify-between gap-4 border-b border-white/[0.06] px-4 py-3.5 md:px-5">
-          <div>
-            <h2 className="text-sm font-medium text-zinc-100 md:text-base">
-              Lançamentos
-            </h2>
-            <p className="mt-0.5 text-xs text-zinc-500">
-              {filteredTransactions.length} movimentações encontradas
-            </p>
-          </div>
-          <Badge
-            variant="outline"
-            className="border-white/[0.08] bg-zinc-950/50 text-zinc-400"
-          >
-            {integrityReview ? "Todo o histórico" : formattedSelectedPeriodLabel}
-          </Badge>
-        </div>
-        {selectedIds.length > 0 ? (
-          <div className="flex flex-col gap-3 border-b border-emerald-400/15 bg-emerald-400/[0.06] p-4 sm:flex-row sm:items-center sm:justify-between">
-            <p className="text-sm font-medium text-zinc-100">
-              {selectedIds.length} transações selecionadas
-            </p>
-            <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
-              <DropdownMenu>
-                <DropdownMenuTrigger asChild>
+              </div>
+            ) : (
+              <div className="flex min-h-56 flex-col items-center justify-center gap-3 text-center">
+                <span className="flex size-12 items-center justify-center rounded-full bg-zinc-800/80 text-zinc-500">
+                  <SearchX className="size-5" />
+                </span>
+                <div>
+                  <p className="text-sm font-medium text-zinc-200">
+                    Nenhuma transação encontrada
+                  </p>
+                  <p className="mt-1 text-xs text-zinc-500">
+                    {displayedTransactions.length
+                      ? "Tente ajustar a busca ou os filtros."
+                      : `Nada lançado em ${selectedMonthName} ainda.`}
+                  </p>
+                </div>
+                {displayedTransactions.length > 0 && (
                   <Button
                     type="button"
                     variant="outline"
                     size="sm"
-                    disabled={isBulkSubmitting || !assignableCategories.length}
+                    onClick={clearFilters}
+                    className="border-white/[0.1] bg-zinc-950"
                   >
-                    Definir Categoria
+                    Limpar filtros
                   </Button>
-                </DropdownMenuTrigger>
-                <DropdownMenuContent align="end" className="max-h-72 w-56 overflow-y-auto">
-                  {assignableCategories.map((category) => (
-                    <DropdownMenuItem
-                      key={category}
-                      className="cursor-pointer"
-                      onClick={() => void handleBulkCategory(category)}
-                    >
-                      {category}
-                    </DropdownMenuItem>
-                  ))}
-                </DropdownMenuContent>
-              </DropdownMenu>
-              <ConfirmDialog
-                title="Excluir transações selecionadas?"
-                description="Os lançamentos serão removidos permanentemente. Esta ação não altera somente a visualização atual."
-                confirmLabel="Excluir selecionadas"
-                loadingLabel="Excluindo..."
-                details={`${selectedIds.length} ${selectedIds.length === 1 ? "transação selecionada" : "transações selecionadas"}`}
-                onConfirm={handleBulkDelete}
-              >
-                <Button
-                  type="button"
-                  variant="destructive"
-                  size="sm"
-                  disabled={isBulkSubmitting}
-                >
-                  Excluir em massa
-                </Button>
-              </ConfirmDialog>
-            </div>
-          </div>
-        ) : null}
-        <div className="space-y-2 p-3 md:hidden">
-          {filteredTransactions.length ? (
-            filteredTransactions.map((transaction, index) => {
-              const categoryLabel = transaction.category?.trim() || "Sem categoria";
-              const originLabel = getTransactionOrigin(transaction, cards);
-              const originKind = getTransactionOriginFilter(transaction);
-              const isPositive =
-                transaction.type === "income" ||
-                isCardCreditAdjustment(transaction);
-              const dependentId = getDependentId(transaction);
-              const dependentName = dependentId
-                ? dependents.find((dependent) => dependent.id === dependentId)
-                    ?.name
-                : null;
-
-              return (
-                <motion.article
-                  key={transaction.id}
-                  onClick={() => handleOpenTransactionDetail(transaction)}
-                  initial={prefersReducedMotion ? false : { opacity: 0, y: 8 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  transition={{
-                    duration: prefersReducedMotion ? 0 : 0.28,
-                    delay: prefersReducedMotion ? 0 : Math.min(index * 0.035, 0.28),
-                  }}
-                  className="flex min-h-24 cursor-pointer items-center gap-3 rounded-xl border border-white/[0.06] bg-zinc-950/45 p-3 transition-colors hover:bg-zinc-800/50"
-                >
-                  <Checkbox
-                    onClick={(event) => event.stopPropagation()}
-                    checked={selectedIds.includes(transaction.id)}
-                    onCheckedChange={(checked) =>
-                      toggleTransactionSelection(transaction.id, checked)
-                    }
-                    aria-label={`Selecionar ${transaction.description}`}
-                    className="size-5 shrink-0 border-zinc-600"
-                  />
-                  <span
-                    className={cn(
-                      "flex size-10 shrink-0 items-center justify-center rounded-lg border",
-                      getOriginBadgeClassName(originKind),
-                    )}
-                  >
-                    {originKind === "card" ? (
-                      <CreditCard className="size-4" />
-                    ) : originKind === "income" ? (
-                      <ArrowUpRight className="size-4" />
-                    ) : (
-                      <Landmark className="size-4" />
-                    )}
-                  </span>
-                  <div className="min-w-0 flex-1">
-                    <div className="truncate text-sm font-medium text-zinc-100">
-                      <TransactionDescription transaction={transaction} />
-                    </div>
-                    <p className="mt-1 text-xs text-zinc-500">
-                      {formatDateOnlyBR(transaction.date)}
-                    </p>
-                    <div className="mt-2 flex min-w-0 flex-wrap gap-1.5">
-                      <Badge
-                        variant="outline"
-                        className="max-w-full border-white/[0.07] bg-white/[0.04] text-[10px] text-zinc-400"
-                      >
-                        <Tag className="size-3" />
-                        <span className="truncate">{categoryLabel}</span>
-                      </Badge>
-                      <Badge
-                        variant="outline"
-                        className={cn(
-                          "max-w-full text-[10px]",
-                          getOriginBadgeClassName(originKind),
-                        )}
-                      >
-                        <span className="truncate">{originLabel}</span>
-                      </Badge>
-                      {dependentName ? (
-                        <Badge
-                          variant="outline"
-                          className="border-amber-400/15 bg-amber-400/10 text-[10px] text-amber-300"
-                        >
-                          {dependentName}
-                        </Badge>
-                      ) : null}
-                    </div>
-                  </div>
-                  <div className="flex shrink-0 flex-col items-end gap-2">
-                    <strong
-                      className={cn(
-                        "text-sm font-semibold tabular-nums",
-                        isPositive ? "text-emerald-400" : "text-rose-400",
-                      )}
-                    >
-                      {isPositive ? "+" : "-"}
-                      {formatCurrency(transaction.amount)}
-                    </strong>
-                    <DropdownMenu>
-                      <DropdownMenuTrigger asChild>
-                        <Button
-                          type="button"
-                          onClick={(event) => event.stopPropagation()}
-                          variant="ghost"
-                          size="icon"
-                          className="size-9 rounded-lg text-zinc-500 hover:text-zinc-100"
-                          aria-label="Ações da transação"
-                        >
-                          <MoreHorizontal className="size-5" />
-                        </Button>
-                      </DropdownMenuTrigger>
-                      <DropdownMenuContent
-                        align="end"
-                        className="w-52 p-2"
-                        onClick={(event) => event.stopPropagation()}
-                      >
-                        <DropdownMenuItem
-                          className="min-h-11 cursor-pointer rounded-lg"
-                          onClick={() => handleOpenTransactionDetail(transaction)}
-                        >
-                          <Eye className="size-4" />
-                          Ver detalhes
-                        </DropdownMenuItem>
-                        <DropdownMenuItem
-                          className="min-h-11 cursor-pointer rounded-lg"
-                          onClick={() => handleEditTransaction(transaction)}
-                        >
-                          <Pencil className="size-4" />
-                          Editar transação
-                        </DropdownMenuItem>
-                        <DropdownMenuItem
-                          variant="destructive"
-                          className="min-h-11 cursor-pointer rounded-lg"
-                          onClick={() => setDeleteTarget(transaction)}
-                        >
-                          <Trash2 className="size-4" />
-                          Excluir transação
-                        </DropdownMenuItem>
-                      </DropdownMenuContent>
-                    </DropdownMenu>
-                  </div>
-                </motion.article>
-              );
-            })
-          ) : (
-            <div className="flex min-h-44 flex-col items-center justify-center gap-2 text-center text-sm text-muted-foreground">
-              <SearchX className="size-7" />
-              Nenhuma transação encontrada para os filtros selecionados.
-            </div>
-          )}
-        </div>
-
-        <Table className="hidden min-w-[820px] md:table lg:min-w-full">
-          <TableHeader className="bg-zinc-950/55 [&_th]:h-11 [&_th]:text-[10px] [&_th]:font-medium [&_th]:uppercase [&_th]:tracking-[0.14em] [&_th]:text-zinc-500">
-            <TableRow className="hover:bg-transparent">
-              <TableHead className="w-12">
-                <Checkbox
-                  checked={
-                    isAllVisibleSelected ||
-                    (isSomeVisibleSelected ? "indeterminate" : false)
-                  }
-                  onCheckedChange={toggleSelectAllVisible}
-                  aria-label="Selecionar todas as transações visíveis"
-                />
-              </TableHead>
-              <TableHead>Data</TableHead>
-              <TableHead>Descrição</TableHead>
-              <TableHead className="hidden lg:table-cell">Categoria</TableHead>
-              <TableHead className="hidden lg:table-cell">Origem</TableHead>
-              <TableHead className="text-right">Valor</TableHead>
-              <TableHead className="w-14 text-right" />
-            </TableRow>
-          </TableHeader>
-          <TableBody>
-            {filteredTransactions.length ? (
-              filteredTransactions.map((transaction, index) => {
-                const originLabel = getTransactionOrigin(transaction, cards);
-                const originKind = getTransactionOriginFilter(transaction);
-                const categoryLabel =
-                  transaction.category?.trim() || "Sem categoria";
-                const dependentId = getDependentId(transaction);
-                const dependentName = dependentId
-                  ? dependents.find((dependent) => dependent.id === dependentId)
-                      ?.name
-                  : null;
-                const details = [
-                  dependentName,
-                  transaction.is_recurring
-                    ? transaction.type === "card"
-                      ? "Assinatura"
-                      : "Recorrente"
-                    : null,
-                ].filter(Boolean);
-                const isPositive =
-                  transaction.type === "income" ||
-                  isCardCreditAdjustment(transaction);
-
-                return (
-                  <motion.tr
-                    key={transaction.id}
-                    onClick={() => handleOpenTransactionDetail(transaction)}
-                    initial={
-                      prefersReducedMotion ? false : { opacity: 0, y: 7 }
-                    }
-                    animate={{ opacity: 1, y: 0 }}
-                    transition={{
-                      duration: prefersReducedMotion ? 0 : 0.26,
-                      delay: prefersReducedMotion
-                        ? 0
-                        : Math.min(index * 0.028, 0.3),
-                    }}
-                    className="cursor-pointer border-b border-white/[0.055] transition-colors hover:bg-zinc-800/50"
-                  >
-                    <TableCell className="py-4.5">
-                      <Checkbox
-                        onClick={(event) => event.stopPropagation()}
-                        checked={selectedIds.includes(transaction.id)}
-                        onCheckedChange={(checked) =>
-                          toggleTransactionSelection(transaction.id, checked)
-                        }
-                        aria-label="Selecionar transação"
-                      />
-                    </TableCell>
-                    <TableCell className="py-4.5 text-sm text-zinc-500">
-                      {formatDateOnlyBR(transaction.date)}
-                    </TableCell>
-                    <TableCell className="py-4.5">
-                      <div className="font-medium text-zinc-100">
-                        <TransactionDescription transaction={transaction} />
-                      </div>
-                      {details.length ? (
-                        <div className="mt-1.5 flex flex-wrap gap-1.5">
-                          {details.map((detail, detailIndex) => (
-                            <Badge
-                              key={`${transaction.id}-${detailIndex}-${detail}`}
-                              variant="outline"
-                              className="border-white/[0.07] bg-white/[0.035] text-[10px] text-zinc-500"
-                            >
-                              {detail}
-                            </Badge>
-                          ))}
-                        </div>
-                      ) : null}
-                    </TableCell>
-                    <TableCell className="hidden py-4.5 lg:table-cell">
-                      <Badge
-                        variant="outline"
-                        className="max-w-44 border-white/[0.07] bg-white/[0.04] text-zinc-400"
-                      >
-                        <Tag className="size-3" />
-                        <span className="truncate">
-                        {categoryLabel}
-                        </span>
-                      </Badge>
-                    </TableCell>
-                    <TableCell className="hidden py-4.5 lg:table-cell">
-                      <Badge
-                        variant="outline"
-                        className={cn(
-                          "max-w-48",
-                          getOriginBadgeClassName(originKind),
-                        )}
-                      >
-                        {originKind === "card" ? (
-                          <CreditCard className="size-3" />
-                        ) : originKind === "income" ? (
-                          <ArrowUpRight className="size-3" />
-                        ) : (
-                          <Landmark className="size-3" />
-                        )}
-                        <span className="truncate">{originLabel}</span>
-                      </Badge>
-                    </TableCell>
-                    <TableCell
-                      className={cn(
-                        "py-4.5 text-right font-semibold tabular-nums",
-                        isPositive ? "text-emerald-400" : "text-rose-400",
-                      )}
-                    >
-                      {isPositive ? "+" : "-"}
-                      {formatCurrency(transaction.amount)}
-                    </TableCell>
-                    <TableCell className="py-4.5">
-                      <DropdownMenu>
-                        <DropdownMenuTrigger asChild>
-                          <Button
-                            type="button"
-                            onClick={(event) => event.stopPropagation()}
-                            variant="ghost"
-                            size="icon-sm"
-                            aria-label="Ações da transação"
-                            className="ml-auto cursor-pointer"
-                          >
-                            <MoreHorizontal />
-                          </Button>
-                        </DropdownMenuTrigger>
-                        <DropdownMenuContent
-                          align="end"
-                          className="w-48"
-                          onClick={(event) => event.stopPropagation()}
-                        >
-                          <DropdownMenuItem
-                            className="cursor-pointer"
-                            onClick={() => handleOpenTransactionDetail(transaction)}
-                          >
-                            <Eye className="size-4" />
-                            Ver detalhes
-                          </DropdownMenuItem>
-                          <DropdownMenuItem
-                            className="cursor-pointer"
-                            onClick={() => handleEditTransaction(transaction)}
-                          >
-                            <Pencil className="size-4" />
-                            Editar transação
-                          </DropdownMenuItem>
-                          <DropdownMenuItem
-                            variant="destructive"
-                            className="cursor-pointer"
-                            onClick={() => setDeleteTarget(transaction)}
-                          >
-                            <Trash2 className="size-4" />
-                            Excluir transação
-                          </DropdownMenuItem>
-                        </DropdownMenuContent>
-                      </DropdownMenu>
-                    </TableCell>
-                  </motion.tr>
-                );
-              })
-            ) : (
-              <TableRow className="hover:bg-transparent">
-                <TableCell
-                  colSpan={7}
-                  className="h-40 text-center text-muted-foreground"
-                >
-                  <div className="flex h-full flex-col items-center justify-center gap-2">
-                    <SearchX className="size-7 text-muted-foreground/60" />
-                    <span>
-                      Nenhuma transação encontrada para os filtros selecionados.
-                    </span>
-                  </div>
-                </TableCell>
-              </TableRow>
+                )}
+              </div>
             )}
-          </TableBody>
-        </Table>
-      </section>
+          </div>
+        </motion.section>
+      </motion.div>
+
+      <BulkActionBar
+        selectedCount={selectedIds.length}
+        categories={assignableCategories}
+        isSubmitting={isBulkSubmitting}
+        onAssignCategory={(category) => void handleBulkCategory(category)}
+        onDelete={handleBulkDelete}
+        onClear={clearSelection}
+      />
 
       <TransactionDetailSheet
         transaction={detailTransaction}
@@ -1212,17 +867,13 @@ function TransactionsPageContent() {
         cardName={
           detailTransaction
             ? cards.find(
-                (card) =>
-                  card.id === getTransactionCardId(detailTransaction),
+                (card) => card.id === getTransactionCardId(detailTransaction),
               )?.name
             : null
         }
         dependentName={
           detailTransaction
-            ? dependents.find(
-                (dependent) =>
-                  dependent.id === getDependentId(detailTransaction),
-              )?.name
+            ? dependentNamesById.get(getDependentId(detailTransaction) ?? "")
             : null
         }
         open={Boolean(detailTransaction)}
@@ -1271,7 +922,7 @@ function TransactionsPageContent() {
 
       <AddIncomeModal
         isOpen={isAddIncomeModalOpen}
-        onClose={handleCloseIncomeModal}
+        onClose={() => setIsAddIncomeModalOpen(false)}
         onSelectExpense={() => {
           setIsAddIncomeModalOpen(false);
           setIsAddTransactionModalOpen(true);
@@ -1279,12 +930,12 @@ function TransactionsPageContent() {
       />
       <AddTransactionModal
         isOpen={isAddTransactionModalOpen}
-        onClose={handleCloseTransactionModal}
+        onClose={() => setIsAddTransactionModalOpen(false)}
         onSelectIncome={() => {
           setIsAddTransactionModalOpen(false);
           setIsAddIncomeModalOpen(true);
         }}
       />
-    </div>
+    </MotionConfig>
   );
 }

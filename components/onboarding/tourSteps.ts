@@ -123,9 +123,9 @@ export const productTourSteps: ProductTourStep[] = [
       },
       {
         icon: Filter,
-        title: "Busque e filtre",
+        title: "Busque, filtre e organize",
         description:
-          "Encontre qualquer lançamento por texto, tipo, origem, cartão ou categoria.",
+          "Encontre qualquer lançamento e escolha a ordem: mais recentes, maior valor ou A–Z, agrupados por dia ou por categoria.",
       },
       {
         icon: ListChecks,
