@@ -31,7 +31,7 @@ const walletCardSizeClassName = `aspect-[1.586/1] h-auto ${walletCardWidthClassN
 
 const cardFlipTransition = { duration: 0.2, ease: dashboardEase };
 
-function getCardGradientClassName(cardName: string, cardColor?: string) {
+export function getCardGradientClassName(cardName: string, cardColor?: string) {
   const normalizedColor = cardColor?.toLowerCase();
   if (normalizedColor === "#18181b")
     return "bg-gradient-to-br from-zinc-700 via-zinc-900 to-black";

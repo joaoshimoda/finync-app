@@ -137,7 +137,7 @@ export const guideSections: GuideSection[] = [
     steps: [
       "Cadastre nome, limite, dia de fechamento e dia de vencimento.",
       "Compras anteriores ao fechamento entram na fatura vigente; no dia do fechamento ou depois, vão para a próxima.",
-      "Vire o cartão para conferir total, gastos pessoais e valores por dependente.",
+      "Selecione um cartão para ver a fatura em detalhe: quanto já foi pago, quem gastou, parcelamentos ativos, assinaturas e o limite disponível.",
       "Use Pagar Fatura para liquidar as transações daquele cartão no mês selecionado.",
     ],
     tip: "Excluir um cartão também remove suas transações vinculadas. O Finync sempre pede confirmação antes dessa ação.",

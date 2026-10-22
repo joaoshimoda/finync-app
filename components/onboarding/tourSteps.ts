@@ -153,7 +153,7 @@ export const productTourSteps: ProductTourStep[] = [
         icon: WalletCards,
         title: "Detalhes da fatura",
         description:
-          "Vire o cartão para ver o total separado entre seus gastos e os de cada dependente.",
+          "Selecione o cartão para ver quem gastou, a composição da fatura, parcelamentos, assinaturas e o melhor dia de compra.",
       },
       {
         icon: HandCoins,
