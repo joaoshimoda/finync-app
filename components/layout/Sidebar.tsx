@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useMemo, useState } from "react";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import {
@@ -27,7 +27,6 @@ import {
 import { supabase } from "@/lib/supabaseClient";
 import { useFinanceStore } from "@/store/useFinanceStore";
 import { toast } from "sonner";
-import { PRODUCT_TOUR_EVENT } from "@/components/onboarding/tourSteps";
 
 function isActiveRoute(pathname: string, href: string) {
   if (href === "/dashboard") return pathname === href;
@@ -45,7 +44,6 @@ export function Sidebar() {
   const updatePreferences = useFinanceStore((state) => state.updatePreferences);
   const clearFinanceState = useFinanceStore((state) => state.clearFinanceState);
   const [customizationOpen, setCustomizationOpen] = useState(false);
-  const [expandForTour, setExpandForTour] = useState(false);
   const metadataName = authUser?.user_metadata?.name;
   const displayName =
     typeof metadataName === "string" && metadataName.trim()
@@ -63,8 +61,6 @@ export function Sidebar() {
       .map((part) => part[0])
       .join("")
       .toUpperCase() || "US";
-  const expandAllSections =
-    expandForTour || authUser?.user_metadata?.onboarding_completed === false;
 
   const orderedNavigationItems = useMemo(() => {
     const validHrefs = new Set(navigationItems.map((item) => item.href));
@@ -87,13 +83,6 @@ export function Sidebar() {
   const pinnedItems = orderedNavigationItems.filter((item) =>
     navigationPreferences.pinnedHrefs.includes(item.href),
   );
-
-  useEffect(() => {
-    const expandNavigation = () => setExpandForTour(true);
-    window.addEventListener(PRODUCT_TOUR_EVENT, expandNavigation);
-
-    return () => window.removeEventListener(PRODUCT_TOUR_EVENT, expandNavigation);
-  }, []);
 
   function renderNavigationItem(item: (typeof navigationItems)[number]) {
     const active = isActiveRoute(pathname, item.href);
@@ -193,9 +182,9 @@ export function Sidebar() {
           );
           if (!sectionItems.length) return null;
 
-          const collapsed =
-            !expandAllSections &&
-            navigationPreferences.collapsedSections.includes(section.key);
+          const collapsed = navigationPreferences.collapsedSections.includes(
+            section.key,
+          );
 
           return (
             <div key={section.key} className="space-y-1">

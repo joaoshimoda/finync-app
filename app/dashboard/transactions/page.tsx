@@ -31,7 +31,6 @@ import { TransactionDetailSheet } from "@/components/finance/TransactionDetailSh
 import { TransactionEditSheet } from "@/components/finance/TransactionEditSheet";
 import { AddIncomeModal } from "@/components/modals/AddIncomeModal";
 import { AddTransactionModal } from "@/components/modals/AddTransactionModal";
-import { PRODUCT_TOUR_PREVIEW_EVENTS } from "@/components/onboarding/tourSteps";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
@@ -386,38 +385,6 @@ function TransactionsPageContent() {
 
   const handleCloseTransactionModal = useCallback(() => {
     setIsAddTransactionModalOpen(false);
-  }, []);
-
-  useEffect(() => {
-    function openExpensePreview() {
-      setIsAddIncomeModalOpen(false);
-      setIsAddTransactionModalOpen(true);
-    }
-
-    function openIncomePreview() {
-      setIsAddTransactionModalOpen(false);
-      setIsAddIncomeModalOpen(true);
-    }
-
-    window.addEventListener(
-      PRODUCT_TOUR_PREVIEW_EVENTS.expense,
-      openExpensePreview,
-    );
-    window.addEventListener(
-      PRODUCT_TOUR_PREVIEW_EVENTS.income,
-      openIncomePreview,
-    );
-
-    return () => {
-      window.removeEventListener(
-        PRODUCT_TOUR_PREVIEW_EVENTS.expense,
-        openExpensePreview,
-      );
-      window.removeEventListener(
-        PRODUCT_TOUR_PREVIEW_EVENTS.income,
-        openIncomePreview,
-      );
-    };
   }, []);
 
   const handleEditTransaction = useCallback(

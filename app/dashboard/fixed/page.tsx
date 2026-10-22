@@ -18,7 +18,6 @@ import { toast } from "sonner";
 import { RecurringDeleteDialog } from "@/components/finance/RecurringDeleteDialog";
 import { TransactionDescription } from "@/components/finance/TransactionDescription";
 import { AddTransactionModal } from "@/components/modals/AddTransactionModal";
-import { PRODUCT_TOUR_PREVIEW_EVENTS } from "@/components/onboarding/tourSteps";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
@@ -608,24 +607,6 @@ export default function FixedExpensesPage() {
       </div>
     );
   }
-
-  useEffect(() => {
-    function openRecurringPreview() {
-      setEditingTransaction(null);
-      setIsTransactionModalOpen(true);
-    }
-
-    window.addEventListener(
-      PRODUCT_TOUR_PREVIEW_EVENTS.recurring,
-      openRecurringPreview,
-    );
-
-    return () =>
-      window.removeEventListener(
-        PRODUCT_TOUR_PREVIEW_EVENTS.recurring,
-        openRecurringPreview,
-      );
-  }, []);
 
   function renderSubscriptionList(groups: SubscriptionGroup[]) {
     return (

@@ -229,7 +229,6 @@ function CardModalContent({
   return (
     <DialogContent
       data-tour="card-modal"
-      data-tour-preview-modal
       showCloseButton={false}
       onOpenAutoFocus={(event) => {
         event.preventDefault();

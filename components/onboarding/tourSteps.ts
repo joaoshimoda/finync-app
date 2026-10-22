@@ -1,242 +1,343 @@
-export type ProductTourStep = {
-  id: string;
-  eyebrow: string;
+import {
+  Activity,
+  BarChart3,
+  CalendarDays,
+  CalendarRange,
+  CircleDollarSign,
+  CircleHelp,
+  CreditCard,
+  Eye,
+  FileDown,
+  FileUp,
+  Filter,
+  Gauge,
+  HandCoins,
+  LayoutDashboard,
+  ListChecks,
+  PieChart,
+  Plus,
+  Receipt,
+  Repeat2,
+  Search,
+  Settings,
+  ShieldCheck,
+  Sparkles,
+  SplitSquareHorizontal,
+  TrendingUp,
+  UsersRound,
+  WalletCards,
+  type LucideIcon,
+} from "lucide-react";
+
+export type ProductTourFeature = {
+  icon: LucideIcon;
   title: string;
   description: string;
-  route?: string;
-  target?: string;
-  previewEvent?: string;
-  nextLabel?: string;
+  href?: string;
+};
+
+export type ProductTourStep = {
+  id: string;
+  section: string;
+  icon: LucideIcon;
+  title: string;
+  summary: string;
+  features: ProductTourFeature[];
+  tip?: string;
 };
 
 export const PRODUCT_TOUR_EVENT = "finync:start-product-tour";
-export const PRODUCT_TOUR_PREVIEW_EVENTS = {
-  card: "finync:tour-preview-card",
-  expense: "finync:tour-preview-expense",
-  income: "finync:tour-preview-income",
-  recurring: "finync:tour-preview-recurring",
-} as const;
 
 export const productTourSteps: ProductTourStep[] = [
   {
     id: "welcome",
-    eyebrow: "Bem-vindo ao Finync",
-    title: "Vamos configurar seu controle financeiro",
-    description:
-      "Este tour acontece dentro do aplicativo. Em poucos passos, você verá onde acessar e como usar cada função essencial.",
+    section: "Boas-vindas",
+    icon: Sparkles,
+    title: "Bem-vindo ao Finync",
+    summary:
+      "Em poucos minutos você vai conhecer cada aba e saber exatamente por onde começar. Para o Finync funcionar bem, siga esta ordem:",
+    features: [
+      {
+        icon: CreditCard,
+        title: "1. Cadastre seus cartões",
+        description:
+          "Com o dia de fechamento e vencimento, cada compra cai na fatura certa.",
+      },
+      {
+        icon: CircleDollarSign,
+        title: "2. Registre suas receitas",
+        description:
+          "Salário e outras entradas são a base do seu saldo projetado.",
+      },
+      {
+        icon: Repeat2,
+        title: "3. Adicione contas fixas e assinaturas",
+        description:
+          "Aluguel, internet e streaming são projetados para os próximos meses.",
+      },
+    ],
+    tip: "Use as setas do teclado para avançar ou clique em qualquer etapa da lista.",
   },
   {
-    id: "month",
-    eyebrow: "Seu período financeiro",
-    title: "Tudo começa pelo mês selecionado",
-    description:
-      "Use este controle para navegar entre períodos. Receitas e contas seguem o mês civil; cartões seguem o mês de vencimento da fatura.",
-    route: "/dashboard",
-    target: "month-selector",
+    id: "dashboard",
+    section: "Visão",
+    icon: LayoutDashboard,
+    title: "Visão Geral",
+    summary:
+      "Sua página inicial. Mostra num relance como está o mês: receitas, saldo projetado, faturas e o que ainda falta pagar.",
+    features: [
+      {
+        icon: CalendarRange,
+        title: "Seletor de mês",
+        description:
+          "Fica no topo e muda o período de todas as telas. Receitas e contas seguem o mês do lançamento; o cartão segue o mês de vencimento da fatura.",
+      },
+      {
+        icon: Plus,
+        title: "Botão Novo",
+        description:
+          "O atalho para registrar uma despesa, uma receita ou um cartão de qualquer lugar.",
+      },
+      {
+        icon: Eye,
+        title: "Ocultar valores",
+        description:
+          "O ícone de olho esconde todos os saldos da tela, útil em lugares públicos.",
+      },
+    ],
+    tip: "Saldo Disponível é o que deve sobrar no fim do mês depois de todos os seus gastos planejados.",
   },
   {
-    id: "privacy",
-    eyebrow: "Privacidade rápida",
-    title: "Oculte seus valores quando precisar",
-    description:
-      "Use o ícone de olho para esconder ou revelar todos os saldos da Dashboard sem alterar nenhum dado financeiro.",
-    route: "/dashboard",
-    target: "dashboard-privacy",
+    id: "transactions",
+    section: "Visão",
+    icon: Receipt,
+    title: "Transações",
+    summary:
+      "Seu extrato completo. Todas as receitas e despesas ficam aqui, de todas as origens.",
+    features: [
+      {
+        icon: Plus,
+        title: "Lance receitas e despesas",
+        description:
+          "Débito e PIX saem na hora. No cartão, escolha qual foi usado e, se quiser, parcele: informe o valor total e o Finync divide as parcelas.",
+      },
+      {
+        icon: Filter,
+        title: "Busque e filtre",
+        description:
+          "Encontre qualquer lançamento por texto, tipo, origem, cartão ou categoria.",
+      },
+      {
+        icon: ListChecks,
+        title: "Edite e recategorize",
+        description:
+          "Pelo menu de cada linha. Ao mudar a categoria de uma parcela, todas as parcelas da compra são atualizadas.",
+      },
+    ],
   },
   {
-    id: "new",
-    eyebrow: "Ação principal",
-    title: "Crie lançamentos pelo menu Novo",
-    description:
-      "Aqui você registra uma despesa, adiciona uma receita ou cadastra um novo cartão sem sair da Visão Geral.",
-    route: "/dashboard",
-    target: "dashboard-new",
+    id: "cards",
+    section: "Planejamento",
+    icon: CreditCard,
+    title: "Cartões",
+    summary:
+      "Cadastre seus cartões de crédito e acompanhe cada fatura: total, limite usado e quanto é seu ou de dependentes.",
+    features: [
+      {
+        icon: CalendarDays,
+        title: "Fechamento e vencimento",
+        description:
+          "Compras antes do fechamento entram na fatura atual; no dia do fechamento ou depois, vão para a próxima.",
+      },
+      {
+        icon: WalletCards,
+        title: "Detalhes da fatura",
+        description:
+          "Vire o cartão para ver o total separado entre seus gastos e os de cada dependente.",
+      },
+      {
+        icon: HandCoins,
+        title: "Pagar fatura",
+        description:
+          "Marca como pagas todas as compras daquele cartão no mês selecionado.",
+      },
+    ],
+    tip: "Se uma compra aparecer no mês errado, confira os dias de fechamento e vencimento do cartão.",
   },
   {
-    id: "cards-navigation",
-    eyebrow: "Passo 1 · Cartões",
-    title: "Abra a gestão de cartões",
-    description:
-      "Esta aba concentra cartões, limites, ciclos, faturas, pagamentos e o detalhamento entre gastos pessoais e dependentes.",
-    route: "/dashboard",
-    target: "nav-cards",
-  },
-  {
-    id: "cards-create",
-    eyebrow: "Cadastro do cartão",
-    title: "Comece informando fechamento e vencimento",
-    description:
-      "Este botão abre o formulário do cartão. Esses dois dias definem automaticamente em qual fatura cada compra será contabilizada.",
-    route: "/dashboard/cards",
-    target: "cards-add",
-    nextLabel: "Abrir formulário",
-  },
-  {
-    id: "cards-modal",
-    eyebrow: "Dentro do cadastro",
-    title: "Estes dados organizam todo o ciclo",
-    description:
-      "Nome e limite identificam o cartão. Fechamento decide quando uma compra muda de fatura; vencimento define o mês em que ela será paga.",
-    route: "/dashboard/cards",
-    target: "card-modal",
-    previewEvent: PRODUCT_TOUR_PREVIEW_EVENTS.card,
-  },
-  {
-    id: "transactions-navigation",
-    eyebrow: "Passo 2 · Movimentações",
-    title: "Seu extrato completo fica em Transações",
-    description:
-      "Use esta área para buscar, filtrar, editar, excluir e recategorizar qualquer lançamento.",
-    route: "/dashboard/cards",
-    target: "nav-transactions",
-  },
-  {
-    id: "transactions-create",
-    eyebrow: "Receitas e despesas",
-    title: "Adicione uma nova movimentação",
-    description:
-      "Este menu separa entradas de saídas. Primeiro vamos abrir o formulário de despesa para você reconhecer cada campo.",
-    route: "/dashboard/transactions",
-    target: "transactions-add",
-    nextLabel: "Abrir despesa",
-  },
-  {
-    id: "expense-modal",
-    eyebrow: "Formulário de despesa",
-    title: "O método de pagamento muda o lançamento",
-    description:
-      "Débito ou PIX sai da conta no momento. Cartão exige escolher o cartão e permite parcelar, repetir como assinatura e vincular um dependente.",
-    route: "/dashboard/transactions",
-    target: "transaction-modal",
-    previewEvent: PRODUCT_TOUR_PREVIEW_EVENTS.expense,
-    nextLabel: "Ver receita",
-  },
-  {
-    id: "income-modal",
-    eyebrow: "Formulário de receita",
-    title: "Entradas têm um fluxo mais simples",
-    description:
-      "Informe valor, descrição, data e categoria. A receita atualiza imediatamente o saldo projetado e os indicadores pessoais.",
-    route: "/dashboard/transactions",
-    target: "income-modal",
-    previewEvent: PRODUCT_TOUR_PREVIEW_EVENTS.income,
+    id: "fixed",
+    section: "Planejamento",
+    icon: CalendarDays,
+    title: "Contas Fixas",
+    summary:
+      "Gastos que se repetem todo mês. Você cadastra uma vez e o Finync projeta os próximos 12 meses.",
+    features: [
+      {
+        icon: Receipt,
+        title: "Contas fixas (Débito/PIX)",
+        description:
+          "Aluguel, luz, internet. Ficam pendentes até você dar baixa, uma por uma ou várias de uma vez.",
+      },
+      {
+        icon: Repeat2,
+        title: "Assinaturas (Cartão)",
+        description:
+          "Streaming, apps, academia. Entram sozinhas na fatura do cartão quando chega a data de cobrança.",
+      },
+    ],
+    tip: "Ao excluir, você escolhe remover só o mês atual ou também os próximos.",
   },
   {
     id: "budgets",
-    eyebrow: "Planejamento pessoal",
-    title: "Defina limites por categoria",
-    description:
-      "Escolha uma categoria, informe o limite mensal e o Finync acompanhará o consumo pessoal automaticamente.",
-    route: "/dashboard/orcamentos",
-    target: "budgets-add",
+    section: "Planejamento",
+    icon: Gauge,
+    title: "Orçamentos",
+    summary:
+      "Defina quanto quer gastar por mês em cada categoria e acompanhe o consumo sem fazer contas.",
+    features: [
+      {
+        icon: Gauge,
+        title: "Limite por categoria",
+        description:
+          "Ex.: R$ 800 em Alimentação. A barra enche conforme você gasta, em PIX, débito, contas fixas ou cartão.",
+      },
+      {
+        icon: Sparkles,
+        title: "Alerta de consumo",
+        description:
+          "Escolha em qual percentual quer ser avisado, como 80% do limite.",
+      },
+    ],
+    tip: "Só seus gastos pessoais contam. Despesas de dependentes ficam de fora.",
   },
   {
-    id: "fixed-navigation",
-    eyebrow: "Passo 3 · Recorrências",
-    title: "Fixos e assinaturas vivem nesta área",
-    description:
-      "Contas em PIX ou débito ficam separadas das assinaturas mensais cobradas no cartão.",
-    route: "/dashboard/transactions",
-    target: "nav-fixed",
+    id: "dependents",
+    section: "Planejamento",
+    icon: UsersRound,
+    title: "Dependentes",
+    summary:
+      "Para quando outras pessoas usam seu cartão, como familiares ou amigos. O gasto fica na fatura, mas não bagunça suas finanças pessoais.",
+    features: [
+      {
+        icon: UsersRound,
+        title: "Cadastre a pessoa",
+        description:
+          "Depois, basta selecioná-la ao lançar uma despesa, recorrência ou importação.",
+      },
+      {
+        icon: SplitSquareHorizontal,
+        title: "Veja quanto cada um deve",
+        description:
+          "O resumo mostra o valor de cada dependente no mês selecionado.",
+      },
+      {
+        icon: HandCoins,
+        title: "Registre acertos",
+        description:
+          "Quando a pessoa te pagar, registre o acerto total ou parcial.",
+      },
+    ],
   },
   {
-    id: "fixed-create",
-    eyebrow: "Planejamento recorrente",
-    title: "Crie uma recorrência uma única vez",
-    description:
-      "O Finync projeta as próximas ocorrências e permite dar baixa em contas fixas sem microgerenciar compras do dia a dia.",
-    route: "/dashboard/fixed",
-    target: "recurrence-add",
-    nextLabel: "Abrir recorrência",
-  },
-  {
-    id: "fixed-modal",
-    eyebrow: "Formulário de recorrência",
-    title: "Escolha entre conta fixa e assinatura",
-    description:
-      "Débito ou PIX cria uma conta a pagar. Cartão cria uma assinatura mensal. Nos dois casos, o Finync projeta 12 ocorrências ligadas pelo mesmo grupo.",
-    route: "/dashboard/fixed",
-    target: "recurring-modal",
-    previewEvent: PRODUCT_TOUR_PREVIEW_EVENTS.recurring,
-  },
-  {
-    id: "dependents-navigation",
-    eyebrow: "Passo 4 · Dependentes",
-    title: "Separe gastos de outras pessoas",
-    description:
-      "O valor continua na fatura do cartão, mas não distorce seu saldo pessoal nem os indicadores do Analytics.",
-    route: "/dashboard/fixed",
-    target: "nav-dependents",
-  },
-  {
-    id: "dependents-create",
-    eyebrow: "Cadastro de pessoas",
-    title: "Cadastre e acompanhe cada dependente",
-    description:
-      "Adicione o nome aqui. Depois, o dependente ficará disponível nos formulários de despesas, recorrências e importação.",
-    route: "/dashboard/dependentes",
-    target: "dependent-add",
-  },
-  {
-    id: "import-navigation",
-    eyebrow: "Passo 5 · Importação",
-    title: "Importe uma fatura completa",
-    description:
-      "O importador lê o arquivo, sugere categorias e compara duplicidades antes de salvar qualquer lançamento.",
-    route: "/dashboard/dependentes",
-    target: "nav-import",
-  },
-  {
-    id: "import-upload",
-    eyebrow: "Revisão antes de salvar",
-    title: "Envie o arquivo e confira o preview",
-    description:
-      "Selecione o cartão e o mês da fatura, envie o CSV ou PDF e revise parcelas, dependentes, créditos e possíveis duplicidades.",
-    route: "/dashboard/importar",
-    target: "import-upload",
-  },
-  {
-    id: "analytics-navigation",
-    eyebrow: "Passo 6 · Analytics",
-    title: "Acompanhe sua saúde financeira",
-    description:
-      "O Analytics isola seus gastos pessoais e transforma o histórico em balanço, taxa de poupança e concentração por categoria.",
-    route: "/dashboard/importar",
-    target: "nav-analytics",
+    id: "import",
+    section: "Ferramentas",
+    icon: FileUp,
+    title: "Importar Faturas",
+    summary:
+      "Economize tempo: envie a fatura do banco em vez de lançar compra por compra.",
+    features: [
+      {
+        icon: FileUp,
+        title: "Envie CSV ou PDF",
+        description:
+          "Escolha o cartão e o mês de vencimento e envie o arquivo exportado do seu banco.",
+      },
+      {
+        icon: ListChecks,
+        title: "Revise antes de salvar",
+        description:
+          "O Finync sugere categorias, identifica parcelas e avisa sobre duplicadas. Nada é gravado sem sua confirmação.",
+      },
+    ],
   },
   {
     id: "analytics",
-    eyebrow: "Centro de comando",
-    title: "Leia tendências sem montar planilhas",
-    description:
-      "Entradas, saídas, balanço líquido, categorias e composição são calculados automaticamente para o período escolhido.",
-    route: "/dashboard/analytics",
-    target: "analytics-dashboard",
+    section: "Visão",
+    icon: BarChart3,
+    title: "Analytics",
+    summary:
+      "Gráficos prontos sobre sua saúde financeira, sem precisar montar planilhas.",
+    features: [
+      {
+        icon: TrendingUp,
+        title: "Indicadores do período",
+        description:
+          "Entradas, saídas, balanço líquido e quanto da renda você conseguiu poupar.",
+      },
+      {
+        icon: PieChart,
+        title: "Para onde vai o dinheiro",
+        description:
+          "Ranking de categorias, composição entre fixos e cartão e as maiores despesas.",
+      },
+    ],
+    tip: "Considera apenas seus gastos pessoais. O que é de dependentes não entra nos números.",
   },
   {
-    id: "integrity",
-    eyebrow: "Diagnóstico",
-    title: "Confira a consistência dos seus dados",
-    description:
-      "A Central de Integridade identifica vínculos incompletos, parcelas isoladas e divergências em faturas sem alterar seus lançamentos.",
-    route: "/dashboard/integridade",
-    target: "integrity-dashboard",
-  },
-  {
-    id: "activity",
-    eyebrow: "Rastreabilidade",
-    title: "Entenda cada alteração financeira",
-    description:
-      "O histórico registra criações, edições e exclusões para você conferir quando e como seus dados mudaram.",
-    route: "/dashboard/atividades",
-    target: "activity-dashboard",
+    id: "tools",
+    section: "Ferramentas",
+    icon: ShieldCheck,
+    title: "Segurança dos seus dados",
+    summary:
+      "Três ferramentas para manter tudo correto e sob seu controle. Você não precisa usá-las todo dia.",
+    features: [
+      {
+        icon: ShieldCheck,
+        title: "Integridade",
+        description:
+          "Faz uma verificação e aponta parcelas soltas, vínculos incompletos e faturas divergentes. Não altera nenhum dado.",
+      },
+      {
+        icon: Activity,
+        title: "Atividades",
+        description:
+          "Histórico de tudo o que foi criado, editado ou excluído, com opção de desfazer alterações.",
+      },
+      {
+        icon: FileDown,
+        title: "Exportar e Backup",
+        description:
+          "Baixe uma cópia completa em JSON ou o extrato em CSV para usar em planilhas.",
+      },
+    ],
   },
   {
     id: "finish",
-    eyebrow: "Tudo pronto",
-    title: "Você já conhece o fluxo essencial",
-    description:
-      "O Guia do Usuário permanece disponível na navegação com instruções detalhadas, busca e este tour para consultar novamente.",
-    route: "/dashboard",
+    section: "Suporte",
+    icon: CircleHelp,
+    title: "Tudo pronto!",
+    summary:
+      "Você já conhece o Finync. Se surgir alguma dúvida, a ajuda está sempre à mão:",
+    features: [
+      {
+        icon: Search,
+        title: "Busca rápida (Ctrl + K)",
+        description: "Encontre qualquer página ou ação sem usar o menu.",
+      },
+      {
+        icon: CircleHelp,
+        title: "Guia do Usuário",
+        description:
+          "Explicações detalhadas, perguntas frequentes e este tutorial para rever quando quiser.",
+        href: "/dashboard/ajuda",
+      },
+      {
+        icon: Settings,
+        title: "Configurações",
+        description:
+          "Perfil, senha, moeda, categorias personalizadas e preferências de privacidade.",
+        href: "/configuracoes",
+      },
+    ],
   },
 ];

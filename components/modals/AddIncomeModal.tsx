@@ -259,7 +259,6 @@ function IncomeModalContent({
   return (
     <DialogContent
       data-tour="income-modal"
-      data-tour-preview-modal
       showCloseButton={false}
       onOpenAutoFocus={(event) => {
         event.preventDefault();

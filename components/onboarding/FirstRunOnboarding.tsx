@@ -1,16 +1,10 @@
 "use client";
 
-import {
-  type CSSProperties,
-  useCallback,
-  useEffect,
-  useMemo,
-  useState,
-} from "react";
-import { createPortal } from "react-dom";
-import { usePathname, useRouter } from "next/navigation";
+import { useCallback, useEffect, useState } from "react";
+import { useRouter } from "next/navigation";
+import { Dialog as DialogPrimitive } from "radix-ui";
 import { AnimatePresence, motion } from "framer-motion";
-import { ArrowLeft, ArrowRight, Check, Loader2, Sparkles } from "lucide-react";
+import { ArrowLeft, ArrowRight, Check, Loader2, X } from "lucide-react";
 import { toast } from "sonner";
 
 import {
@@ -18,100 +12,40 @@ import {
   productTourSteps,
 } from "@/components/onboarding/tourSteps";
 import { Button } from "@/components/ui/button";
+import {
+  Dialog,
+  DialogDescription,
+  DialogOverlay,
+  DialogPortal,
+  DialogTitle,
+} from "@/components/ui/dialog";
 import { supabase } from "@/lib/supabaseClient";
+import { cn } from "@/lib/utils";
 import { useFinanceStore } from "@/store/useFinanceStore";
 
-type TargetRect = {
-  top: number;
-  right: number;
-  bottom: number;
-  left: number;
-  width: number;
-  height: number;
-};
-
-type TargetSnapshot = {
-  step: number;
-  rect: TargetRect;
-};
-
-const focusPadding = 7;
-const coachmarkWidth = 360;
-const coachmarkEstimatedHeight = 230;
-
-function findVisibleTarget(target: string) {
-  const elements = Array.from(
-    document.querySelectorAll<HTMLElement>('[data-tour="' + target + '"]'),
-  );
-
-  return elements.find((element) => {
-    const rect = element.getBoundingClientRect();
-    const style = window.getComputedStyle(element);
-
-    return (
-      rect.width > 0 &&
-      rect.height > 0 &&
-      style.display !== "none" &&
-      style.visibility !== "hidden"
-    );
-  });
-}
-
-function toTargetRect(element: HTMLElement): TargetRect {
-  const rect = element.getBoundingClientRect();
-
-  return {
-    top: rect.top,
-    right: rect.right,
-    bottom: rect.bottom,
-    left: rect.left,
-    width: rect.width,
-    height: rect.height,
-  };
-}
-
-function closeOpenPreviewModal() {
-  const modal = document.querySelector<HTMLElement>(
-    "[data-tour-preview-modal]",
-  );
-
-  if (!modal) return;
-
-  const closeButton = modal.querySelector<HTMLElement>(
-    '[data-slot="dialog-close"]',
-  );
-  const cancelButton = Array.from(
-    modal.querySelectorAll<HTMLButtonElement>("button"),
-  ).find((button) => button.textContent?.trim() === "Cancelar");
-
-  if (closeButton) {
-    closeButton.click();
-    return;
-  }
-
-  cancelButton?.click();
-}
+const slideOffset = 24;
 
 export function FirstRunOnboarding() {
-  const pathname = usePathname();
   const router = useRouter();
   const authUser = useFinanceStore((state) => state.authUser);
   const updateAuthUser = useFinanceStore((state) => state.updateAuthUser);
   const [manualOpen, setManualOpen] = useState(false);
+  const [dismissed, setDismissed] = useState(false);
   const [activeStep, setActiveStep] = useState(0);
+  const [direction, setDirection] = useState(1);
   const [isSaving, setIsSaving] = useState(false);
-  const [targetSnapshot, setTargetSnapshot] = useState<TargetSnapshot | null>(
-    null,
-  );
-  const automaticOpen = authUser?.user_metadata?.onboarding_completed === false;
+  const automaticOpen =
+    !dismissed && authUser?.user_metadata?.onboarding_completed === false;
   const isOpen = automaticOpen || manualOpen;
   const step = productTourSteps[activeStep];
+  const StepIcon = step.icon;
+  const isFirstStep = activeStep === 0;
   const isLastStep = activeStep === productTourSteps.length - 1;
-  const currentTargetRect =
-    targetSnapshot?.step === activeStep ? targetSnapshot.rect : null;
+  const progress = ((activeStep + 1) / productTourSteps.length) * 100;
 
   useEffect(() => {
     function startTour() {
+      setDirection(1);
       setActiveStep(0);
       setManualOpen(true);
     }
@@ -121,179 +55,29 @@ export function FirstRunOnboarding() {
     return () => window.removeEventListener(PRODUCT_TOUR_EVENT, startTour);
   }, []);
 
-  useEffect(() => {
-    if (!isOpen) return;
-
-    const previousOverflow = document.body.style.overflow;
-    document.body.style.overflow = "hidden";
-
-    return () => {
-      document.body.style.overflow = previousOverflow;
-    };
-  }, [isOpen]);
-
-  useEffect(() => {
-    if (!isOpen) return;
-
-    const nextRoute = productTourSteps[activeStep + 1]?.route;
-
-    if (nextRoute && nextRoute !== pathname) {
-      router.prefetch(nextRoute);
-    }
-  }, [activeStep, isOpen, pathname, router]);
-
-  useEffect(() => {
-    if (!isOpen) return;
-
-    if (step.route && pathname !== step.route) {
-      router.push(step.route);
-      return;
-    }
-
-    if (!step.target) return;
-
-    let attempts = 0;
-    let locateFrame = 0;
-    let positionFrame = 0;
-    let targetElement: HTMLElement | undefined;
-    let resizeObserver: ResizeObserver | undefined;
-
-    function updatePosition() {
-      if (!targetElement) return;
-      setTargetSnapshot({
-        step: activeStep,
-        rect: toTargetRect(targetElement),
-      });
-    }
-
-    function schedulePositionUpdate() {
-      window.cancelAnimationFrame(positionFrame);
-      positionFrame = window.requestAnimationFrame(updatePosition);
-    }
-
-    function locateTarget() {
-      targetElement = findVisibleTarget(step.target as string);
-
-      if (!targetElement && attempts < 120) {
-        attempts += 1;
-        locateFrame = window.requestAnimationFrame(locateTarget);
-        return;
-      }
-
-      if (!targetElement) return;
-
-      targetElement.scrollIntoView({
-        behavior: "auto",
-        block: "center",
-        inline: "center",
-      });
-      updatePosition();
-      resizeObserver = new ResizeObserver(schedulePositionUpdate);
-      resizeObserver.observe(targetElement);
-      window.addEventListener("resize", schedulePositionUpdate);
-      window.addEventListener("scroll", schedulePositionUpdate, true);
-    }
-
-    locateFrame = window.requestAnimationFrame(locateTarget);
-
-    return () => {
-      window.cancelAnimationFrame(locateFrame);
-      window.cancelAnimationFrame(positionFrame);
-      resizeObserver?.disconnect();
-      window.removeEventListener("resize", schedulePositionUpdate);
-      window.removeEventListener("scroll", schedulePositionUpdate, true);
-    };
-  }, [activeStep, isOpen, pathname, router, step.route, step.target]);
-
-  const focusRect = useMemo(() => {
-    if (!currentTargetRect || typeof window === "undefined") return null;
-
-    const left = Math.max(currentTargetRect.left - focusPadding, 0);
-    const top = Math.max(currentTargetRect.top - focusPadding, 0);
-    const right = Math.min(
-      currentTargetRect.right + focusPadding,
-      window.innerWidth,
-    );
-    const bottom = Math.min(
-      currentTargetRect.bottom + focusPadding,
-      window.innerHeight,
-    );
-
-    return {
-      left,
-      top,
-      right,
-      bottom,
-      width: right - left,
-      height: bottom - top,
-    };
-  }, [currentTargetRect]);
-
-  const coachmarkStyle = useMemo<CSSProperties>(() => {
-    if (!focusRect || typeof window === "undefined") {
-      return {
-        left: "50%",
-        top: "50%",
-        transform: "translate(-50%, -50%)",
-        width: "min(400px, calc(100vw - 24px))",
-      };
-    }
-
-    const width = Math.min(coachmarkWidth, window.innerWidth - 24);
-
-    if (step.previewEvent) {
-      const compactWidth = Math.min(320, window.innerWidth - 24);
-      const spaceOnRight = window.innerWidth - focusRect.right - 16;
-      const spaceOnLeft = focusRect.left - 16;
-      const top = Math.min(
-        Math.max(focusRect.top, 12),
-        window.innerHeight - coachmarkEstimatedHeight - 12,
+  const goToStep = useCallback(
+    (nextStep: number) => {
+      const nextStepIndex = Math.min(
+        Math.max(nextStep, 0),
+        productTourSteps.length - 1,
       );
 
-      if (spaceOnRight >= compactWidth) {
-        return { left: focusRect.right + 16, top, width: compactWidth };
-      }
+      setDirection(nextStepIndex >= activeStep ? 1 : -1);
+      setActiveStep(nextStepIndex);
+    },
+    [activeStep],
+  );
 
-      if (spaceOnLeft >= compactWidth) {
-        return {
-          left: focusRect.left - compactWidth - 16,
-          top,
-          width: compactWidth,
-        };
-      }
+  const finishTour = useCallback(
+    async (message: string, destination?: string) => {
+      const wasAutomatic = automaticOpen;
 
-      return {
-        bottom: 12,
-        left: 12,
-        width: Math.min(400, window.innerWidth - 24),
-      };
-    }
+      setManualOpen(false);
+      setDismissed(true);
+      if (destination) router.push(destination);
 
-    const centeredLeft = focusRect.left + focusRect.width / 2 - width / 2;
-    const left = Math.min(
-      Math.max(centeredLeft, 12),
-      window.innerWidth - width - 12,
-    );
-    const hasSpaceBelow =
-      window.innerHeight - focusRect.bottom > coachmarkEstimatedHeight + 16;
-    const top = hasSpaceBelow
-      ? focusRect.bottom + 14
-      : Math.max(12, focusRect.top - coachmarkEstimatedHeight - 14);
-
-    return {
-      left,
-      top,
-      width,
-    };
-  }, [focusRect, step.previewEvent]);
-
-  const saveCompletion = useCallback(
-    async (message: string) => {
-      if (!automaticOpen) {
-        closeOpenPreviewModal();
-        setManualOpen(false);
+      if (!wasAutomatic) {
         setActiveStep(0);
-        router.push("/dashboard");
         return;
       }
 
@@ -316,13 +100,13 @@ export function FirstRunOnboarding() {
         if (!data.user) throw new Error("Usuário não retornado pelo Supabase.");
 
         updateAuthUser(data.user);
-        closeOpenPreviewModal();
         setActiveStep(0);
         toast.success(message);
-        router.push("/dashboard");
       } catch (error) {
         console.error("Erro ao concluir onboarding:", error);
-        toast.error("Não foi possível salvar o progresso do tutorial.");
+        toast.error(
+          "Não foi possível salvar o progresso. O tutorial aparecerá no próximo acesso.",
+        );
       } finally {
         setIsSaving(false);
       }
@@ -330,189 +114,254 @@ export function FirstRunOnboarding() {
     [authUser, automaticOpen, router, updateAuthUser],
   );
 
-  function goToStep(nextStep: number) {
-    const nextStepIndex = Math.min(
-      Math.max(nextStep, 0),
-      productTourSteps.length - 1,
-    );
-    const nextTourStep = productTourSteps[nextStepIndex];
+  const skipTour = useCallback(() => {
+    void finishTour("Tutorial pulado. Você pode refazê-lo no Guia do Usuário.");
+  }, [finishTour]);
 
-    closeOpenPreviewModal();
-
-    if (nextTourStep.previewEvent) {
-      window.dispatchEvent(new Event(nextTourStep.previewEvent));
-      window.requestAnimationFrame(() => setActiveStep(nextStepIndex));
-      return;
-    }
-
-    setActiveStep(nextStepIndex);
-  }
-
-  function handleNext() {
+  const handleNext = useCallback(() => {
     if (isLastStep) {
-      void saveCompletion("Tutorial concluído. Bem-vindo ao Finync!");
+      void finishTour("Tutorial concluído. Bem-vindo ao Finync!", "/dashboard");
       return;
     }
 
     goToStep(activeStep + 1);
-  }
+  }, [activeStep, finishTour, goToStep, isLastStep]);
 
-  if (!isOpen || typeof document === "undefined") return null;
+  useEffect(() => {
+    if (!isOpen) return;
 
-  return createPortal(
-    <AnimatePresence>
-      <div
-        className="pointer-events-none fixed inset-0 z-[100]"
-        role="dialog"
-        aria-modal="true"
-        aria-label="Tutorial guiado do Finync"
-      >
-        {focusRect ? (
-          <>
-            <div
-              className="pointer-events-auto fixed inset-x-0 top-0 bg-black/80"
-              style={{ height: focusRect.top }}
-            />
-            <div
-              className="pointer-events-auto fixed left-0 bg-black/80"
-              style={{
-                top: focusRect.top,
-                width: focusRect.left,
-                height: focusRect.height,
-              }}
-            />
-            <div
-              className="pointer-events-auto fixed right-0 bg-black/80"
-              style={{
-                top: focusRect.top,
-                width: window.innerWidth - focusRect.right,
-                height: focusRect.height,
-              }}
-            />
-            <div
-              className="pointer-events-auto fixed inset-x-0 bottom-0 bg-black/80"
-              style={{ top: focusRect.bottom }}
-            />
-            <motion.div
-              key={"focus-" + step.id}
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 1 }}
-              transition={{ duration: 0.1 }}
-              className="pointer-events-auto fixed rounded-xl border-2 border-emerald-400 shadow-[0_0_0_4px_rgba(16,185,129,0.16),0_0_32px_rgba(16,185,129,0.28)]"
-              style={{
-                left: focusRect.left,
-                top: focusRect.top,
-                width: focusRect.width,
-                height: focusRect.height,
-              }}
-            />
-          </>
-        ) : (
-          <div className="pointer-events-auto fixed inset-0 bg-black/80" />
-        )}
+    function handleKeyDown(event: KeyboardEvent) {
+      if (event.key === "ArrowRight" && !isLastStep) goToStep(activeStep + 1);
+      if (event.key === "ArrowLeft") goToStep(activeStep - 1);
+    }
 
-        <AnimatePresence mode="wait">
-          {(!step.target || focusRect) && (
-            <motion.section
-              key={step.id}
-              initial={{ opacity: 0, y: 2 }}
-              animate={{ opacity: 1, y: 0 }}
-              exit={{ opacity: 0 }}
-              transition={{ duration: 0.08, ease: "easeOut" }}
-              className="pointer-events-auto fixed overflow-hidden rounded-xl border border-white/10 bg-zinc-950 text-zinc-100 shadow-2xl shadow-black/60"
-              style={coachmarkStyle}
-            >
-              <div className="h-1 bg-zinc-900">
+    window.addEventListener("keydown", handleKeyDown);
+
+    return () => window.removeEventListener("keydown", handleKeyDown);
+  }, [activeStep, goToStep, isLastStep, isOpen]);
+
+  return (
+    <Dialog
+      open={isOpen}
+      onOpenChange={(open) => {
+        if (!open && !isSaving) skipTour();
+      }}
+    >
+      <DialogPortal>
+        <DialogOverlay className="z-[100] bg-black/75" />
+        <DialogPrimitive.Content
+          aria-describedby="product-tour-summary"
+          onOpenAutoFocus={(event) => event.preventDefault()}
+          className="fixed left-1/2 top-1/2 z-[100] flex h-[min(660px,calc(100dvh-1.5rem))] w-[calc(100%-1.5rem)] max-w-[920px] -translate-x-1/2 -translate-y-1/2 overflow-hidden rounded-2xl border border-white/10 bg-zinc-950 text-zinc-100 shadow-2xl shadow-black/60 outline-none duration-150 data-open:animate-in data-open:fade-in-0 data-open:zoom-in-95 data-closed:animate-out data-closed:fade-out-0 data-closed:zoom-out-95"
+        >
+          <aside className="hidden w-64 shrink-0 flex-col border-r border-white/[0.06] bg-zinc-900/40 p-4 md:flex">
+            <p className="px-2 pb-3 text-[11px] font-medium uppercase tracking-wide text-zinc-500">
+              Tutorial do Finync
+            </p>
+            <nav className="flex-1 space-y-0.5 overflow-y-auto">
+              {productTourSteps.map((item, index) => {
+                const ItemIcon = item.icon;
+                const isActive = index === activeStep;
+                const isDone = index < activeStep;
+
+                return (
+                  <button
+                    key={item.id}
+                    type="button"
+                    onClick={() => goToStep(index)}
+                    aria-current={isActive ? "step" : undefined}
+                    className={cn(
+                      "flex h-9 w-full items-center gap-2.5 rounded-lg px-2.5 text-left text-[13px] transition-colors",
+                      isActive
+                        ? "bg-emerald-500/10 text-emerald-100"
+                        : "text-zinc-500 hover:bg-white/[0.04] hover:text-zinc-200",
+                    )}
+                  >
+                    <span
+                      className={cn(
+                        "flex size-5 shrink-0 items-center justify-center",
+                        isActive && "text-emerald-400",
+                        isDone && "text-emerald-500/70",
+                      )}
+                    >
+                      {isDone ? (
+                        <Check className="size-3.5" />
+                      ) : (
+                        <ItemIcon className="size-4" />
+                      )}
+                    </span>
+                    <span className="truncate">{item.title}</span>
+                  </button>
+                );
+              })}
+            </nav>
+          </aside>
+
+          <div className="flex min-w-0 flex-1 flex-col">
+            <div className="flex items-center gap-4 px-5 pt-5 sm:px-8 sm:pt-7">
+              <div className="h-1 flex-1 overflow-hidden rounded-full bg-zinc-800/80">
                 <motion.div
-                  className="h-full bg-emerald-500"
-                  animate={{
-                    width:
-                      ((activeStep + 1) / productTourSteps.length) * 100 + "%",
-                  }}
-                  transition={{ duration: 0.12 }}
+                  className="h-full rounded-full bg-emerald-500"
+                  initial={false}
+                  animate={{ width: progress + "%" }}
+                  transition={{ duration: 0.3, ease: "easeOut" }}
                 />
               </div>
+              <span className="text-xs tabular-nums text-zinc-500">
+                {activeStep + 1}/{productTourSteps.length}
+              </span>
+              <button
+                type="button"
+                onClick={skipTour}
+                disabled={isSaving}
+                aria-label="Fechar tutorial"
+                className="-mr-1.5 flex size-8 items-center justify-center rounded-lg text-zinc-500 transition-colors hover:bg-white/[0.06] hover:text-zinc-200"
+              >
+                <X className="size-4" />
+              </button>
+            </div>
 
-              <div className="p-5">
-                <div className="flex items-start justify-between gap-4">
-                  <div>
-                    <p className="text-[11px] font-medium uppercase text-emerald-400">
-                      {step.eyebrow}
+            <div className="relative min-h-0 flex-1 overflow-y-auto overflow-x-hidden px-5 py-6 sm:px-8 sm:py-8">
+              <AnimatePresence mode="wait" initial={false} custom={direction}>
+                <motion.div
+                  key={step.id}
+                  custom={direction}
+                  initial={{ opacity: 0, x: direction * slideOffset }}
+                  animate={{ opacity: 1, x: 0 }}
+                  exit={{ opacity: 0, x: direction * -slideOffset }}
+                  transition={{ duration: 0.2, ease: "easeOut" }}
+                >
+                  <div className="flex items-center gap-3">
+                    <span className="flex size-11 shrink-0 items-center justify-center rounded-xl bg-emerald-500/10 text-emerald-400 ring-1 ring-emerald-500/20">
+                      <StepIcon className="size-5" />
+                    </span>
+                    <p className="text-[11px] font-medium uppercase tracking-wide text-emerald-400/90">
+                      {step.section}
                     </p>
-                    <h2 className="mt-2 text-lg font-semibold tracking-tight text-white">
-                      {step.title}
-                    </h2>
                   </div>
-                  <span className="flex size-8 shrink-0 items-center justify-center rounded-lg bg-emerald-500/10 text-emerald-400">
-                    {isLastStep ? (
+
+                  <DialogTitle className="mt-5 text-2xl font-semibold tracking-tight text-white sm:text-[28px]">
+                    {step.title}
+                  </DialogTitle>
+                  <DialogDescription
+                    id="product-tour-summary"
+                    className="mt-2 max-w-xl text-sm leading-6 text-zinc-400"
+                  >
+                    {step.summary}
+                  </DialogDescription>
+
+                  <ul className="mt-6 grid gap-2.5">
+                    {step.features.map((feature) => {
+                      const FeatureIcon = feature.icon;
+                      const content = (
+                        <>
+                          <span className="mt-0.5 flex size-8 shrink-0 items-center justify-center rounded-lg bg-zinc-800/70 text-zinc-300">
+                            <FeatureIcon className="size-4" />
+                          </span>
+                          <span className="min-w-0 flex-1">
+                            <span className="block text-sm font-medium text-zinc-100">
+                              {feature.title}
+                            </span>
+                            <span className="mt-0.5 block text-[13px] leading-5 text-zinc-500">
+                              {feature.description}
+                            </span>
+                          </span>
+                          {feature.href && (
+                            <ArrowRight className="mt-2 size-4 shrink-0 text-zinc-600 transition-transform group-hover:translate-x-0.5 group-hover:text-emerald-400" />
+                          )}
+                        </>
+                      );
+
+                      return (
+                        <li key={feature.title}>
+                          {feature.href ? (
+                            <button
+                              type="button"
+                              disabled={isSaving}
+                              onClick={() =>
+                                void finishTour(
+                                  "Tutorial concluído. Bem-vindo ao Finync!",
+                                  feature.href,
+                                )
+                              }
+                              className="group flex w-full items-start gap-3 rounded-xl border border-white/[0.06] bg-zinc-900/40 p-3.5 text-left transition-colors hover:border-emerald-500/20 hover:bg-zinc-900/80"
+                            >
+                              {content}
+                            </button>
+                          ) : (
+                            <div className="flex items-start gap-3 rounded-xl border border-white/[0.06] bg-zinc-900/40 p-3.5">
+                              {content}
+                            </div>
+                          )}
+                        </li>
+                      );
+                    })}
+                  </ul>
+
+                  {step.tip && (
+                    <p className="mt-5 border-l-2 border-emerald-500/40 pl-3 text-[13px] leading-5 text-zinc-400">
+                      {step.tip}
+                    </p>
+                  )}
+                </motion.div>
+              </AnimatePresence>
+            </div>
+
+            <div className="flex items-center justify-between gap-3 border-t border-white/[0.06] px-5 py-4 sm:px-8">
+              {isLastStep ? (
+                <span />
+              ) : (
+                <Button
+                  type="button"
+                  variant="ghost"
+                  disabled={isSaving}
+                  onClick={skipTour}
+                  className="h-9 px-2.5 text-xs text-zinc-500 hover:text-zinc-200"
+                >
+                  Pular tutorial
+                </Button>
+              )}
+              <div className="flex items-center gap-2">
+                {!isFirstStep && (
+                  <Button
+                    type="button"
+                    variant="outline"
+                    disabled={isSaving}
+                    onClick={() => goToStep(activeStep - 1)}
+                    className="h-10 border-zinc-800 bg-zinc-950 px-3"
+                  >
+                    <ArrowLeft className="size-4" />
+                    <span className="hidden sm:inline">Voltar</span>
+                  </Button>
+                )}
+                <Button
+                  type="button"
+                  disabled={isSaving}
+                  onClick={handleNext}
+                  className="h-10 bg-emerald-600 px-4 text-white hover:bg-emerald-700"
+                >
+                  {isSaving ? (
+                    <>
+                      <Loader2 className="size-4 animate-spin" />
+                      Salvando
+                    </>
+                  ) : isLastStep ? (
+                    <>
+                      Começar a usar
                       <Check className="size-4" />
-                    ) : (
-                      <Sparkles className="size-4" />
-                    )}
-                  </span>
-                </div>
-
-                <p className="mt-3 text-sm leading-6 text-zinc-400">
-                  {step.description}
-                </p>
-
-                <div className="mt-5 flex items-center justify-between gap-3">
-                  <span className="text-xs text-zinc-600">
-                    {activeStep + 1} de {productTourSteps.length}
-                  </span>
-                  <div className="flex items-center gap-2">
-                    <Button
-                      type="button"
-                      variant="ghost"
-                      disabled={isSaving}
-                      onClick={() =>
-                        void saveCompletion(
-                          "Tutorial pulado. Você pode refazê-lo no Guia do Usuário.",
-                        )
-                      }
-                      className="h-9 px-2.5 text-xs text-zinc-500 hover:text-zinc-200"
-                    >
-                      Pular
-                    </Button>
-                    <Button
-                      type="button"
-                      variant="outline"
-                      size="icon"
-                      disabled={activeStep === 0 || isSaving}
-                      onClick={() => goToStep(activeStep - 1)}
-                      className="size-9 border-zinc-800 bg-zinc-950"
-                      aria-label="Voltar etapa"
-                    >
-                      <ArrowLeft className="size-4" />
-                    </Button>
-                    <Button
-                      type="button"
-                      disabled={isSaving}
-                      onClick={handleNext}
-                      className="h-9 bg-emerald-600 px-3 text-white hover:bg-emerald-700"
-                    >
-                      {isSaving ? (
-                        <>
-                          <Loader2 className="size-4 animate-spin" />
-                          Salvando
-                        </>
-                      ) : isLastStep ? (
-                        "Concluir"
-                      ) : (
-                        <>
-                          {step.nextLabel ?? "Próximo"}
-                          <ArrowRight className="size-4" />
-                        </>
-                      )}
-                    </Button>
-                  </div>
-                </div>
+                    </>
+                  ) : (
+                    <>
+                      {isFirstStep ? "Começar tour" : "Próximo"}
+                      <ArrowRight className="size-4" />
+                    </>
+                  )}
+                </Button>
               </div>
-            </motion.section>
-          )}
-        </AnimatePresence>
-      </div>
-    </AnimatePresence>,
-    document.body,
+            </div>
+          </div>
+        </DialogPrimitive.Content>
+      </DialogPortal>
+    </Dialog>
   );
 }

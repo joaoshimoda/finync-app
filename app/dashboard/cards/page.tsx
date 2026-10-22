@@ -19,7 +19,6 @@ import { toast } from "sonner";
 
 import { AddCardModal } from "@/components/modals/AddCardModal";
 import { PayInvoiceModal } from "@/components/modals/PayInvoiceModal";
-import { PRODUCT_TOUR_PREVIEW_EVENTS } from "@/components/onboarding/tourSteps";
 import { TransactionDescription } from "@/components/finance/TransactionDescription";
 import { MobileTransactionItem } from "@/components/finance/MobileTransactionItem";
 import { AnimatedMonthSelector } from "@/components/finance/AnimatedMonthSelector";
@@ -797,24 +796,6 @@ export default function CardsPage() {
   const openCreateModal = useCallback(() => {
     setEditingCard(null);
     setIsAddCardModalOpen(true);
-  }, []);
-
-  useEffect(() => {
-    function openCardPreview() {
-      setEditingCard(null);
-      setIsAddCardModalOpen(true);
-    }
-
-    window.addEventListener(
-      PRODUCT_TOUR_PREVIEW_EVENTS.card,
-      openCardPreview,
-    );
-
-    return () =>
-      window.removeEventListener(
-        PRODUCT_TOUR_PREVIEW_EVENTS.card,
-        openCardPreview,
-      );
   }, []);
 
   const openEditModal = useCallback((card: FinanceCard) => {

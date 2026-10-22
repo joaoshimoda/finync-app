@@ -550,7 +550,6 @@ function TransactionModalContent({
   return (
     <DialogContent
       data-tour={isFixedMode ? "recurring-modal" : "transaction-modal"}
-      data-tour-preview-modal
       showCloseButton={false}
       onOpenAutoFocus={(event) => {
         event.preventDefault();
