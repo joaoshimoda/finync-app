@@ -18,6 +18,10 @@ import {
   LimitPanel,
   SubscriptionsPanel,
 } from "@/components/cards/CardDetailPanels";
+import {
+  CardFlight,
+  type CardFlightRequest,
+} from "@/components/cards/CardFlight";
 import { CardsWallet } from "@/components/cards/CardsWallet";
 import { InvoiceTransactions } from "@/components/cards/InvoiceTransactions";
 import { useCardsData } from "@/components/cards/useCardsData";
@@ -60,6 +64,8 @@ export default function CardsPage() {
   );
   const [isDeletingCard, setIsDeletingCard] = useState(false);
   const [selectedCardId, setSelectedCardId] = useState<string | null>(null);
+  const [cardFlight, setCardFlight] = useState<CardFlightRequest | null>(null);
+  const endCardFlight = useCallback(() => setCardFlight(null), []);
   useFocusRequest("card", (target) => setSelectedCardId(target.id));
   const [paymentTarget, setPaymentTarget] = useState<{
     invoice: CardInvoice;
@@ -224,7 +230,12 @@ export default function CardsPage() {
             <CardsWallet
               overviews={overviews}
               selectedCardId={selected.card.id}
-              onSelect={setSelectedCardId}
+              onSelect={(cardId, from) => {
+                if (cardId === selected.card.id) return;
+                const card = overviews.find((item) => item.card.id === cardId)?.card;
+                setSelectedCardId(cardId);
+                if (card) setCardFlight({ id: Date.now(), card, from });
+              }}
               onAddCard={openCreateModal}
             />
 
@@ -256,6 +267,7 @@ export default function CardsPage() {
                   }
                   onEdit={() => openEditModal(selected.card)}
                   onDelete={() => setDeleteTargetCard(selected.card)}
+                  isCardInFlight={cardFlight?.card.id === selected.card.id}
                 />
                 <LimitPanel
                   selected={selected}
@@ -349,6 +361,9 @@ export default function CardsPage() {
         details={deleteTargetCard?.name}
         onConfirm={handleDeleteCard}
       />
+      {cardFlight ? (
+        <CardFlight key={cardFlight.id} flight={cardFlight} onLand={endCardFlight} />
+      ) : null}
     </MotionConfig>
   );
 }

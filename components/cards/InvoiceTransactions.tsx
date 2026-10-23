@@ -32,6 +32,7 @@ import {
 import { formatDateOnlyBR, getLocalTodayDateOnly } from "@/lib/dateUtils";
 import { cn } from "@/lib/utils";
 import type { Transaction } from "@/store/useFinanceStore";
+import { NewItemGlow } from "@/components/motion/NewItemGlow";
 
 type ViewFilter =
   | "all"
@@ -237,13 +238,14 @@ export function InvoiceTransactions({
                     delay: Math.min(index * 0.025, 0.25),
                   }}
                   className={cn(
-                    "flex items-center gap-3 px-2 py-2.5",
+                    "relative flex items-center gap-3 rounded-xl px-2 py-2.5",
                     isScheduled && "opacity-70",
                     !showAll &&
                       index >= MOBILE_VISIBLE_COUNT &&
                       "max-lg:hidden",
                   )}
                 >
+                  <NewItemGlow id={transaction.id} />
                   <span
                     className={cn(
                       "flex size-9 shrink-0 items-center justify-center rounded-xl",

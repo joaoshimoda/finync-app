@@ -2,6 +2,7 @@
 
 import { getSessionUser, supabase } from "@/lib/supabaseClient";
 import { fetchAllPages } from "@/lib/supabasePaging";
+import { markRecentlyAdded } from "@/lib/recentlyAdded";
 import {
   getCardInvoiceMonthStart,
   getCurrentFinancialMonthStart,
@@ -1893,6 +1894,7 @@ export const useFinanceStore = create<FinanceState>()((set, get) => ({
       set((state) => ({
         transactions: [...visibleTransactions, ...state.transactions],
       }));
+      markRecentlyAdded(newTransactions.map((transaction) => transaction.id));
       await get().fetchCardInvoices();
     } catch (error) {
       reportFinanceError("Adicionar transações", error);

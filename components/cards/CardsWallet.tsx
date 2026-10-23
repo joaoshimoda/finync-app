@@ -37,7 +37,7 @@ function CardFace({
 }: {
   overview: CardOverview;
   isSelected: boolean;
-  onSelect: () => void;
+  onSelect: (from: DOMRect) => void;
 }) {
   const formatValue = usePrivateCurrency();
   const { card } = overview;
@@ -46,7 +46,7 @@ function CardFace({
     <div className={cardWidthClassName}>
       <motion.button
         type="button"
-        onClick={onSelect}
+        onClick={(event) => onSelect(event.currentTarget.getBoundingClientRect())}
         aria-pressed={isSelected}
         aria-label={`Selecionar cartão ${card.name}`}
         whileHover={{ y: -4 }}
@@ -136,7 +136,8 @@ export function CardsWallet({
 }: {
   overviews: CardOverview[];
   selectedCardId: string | null;
-  onSelect: (cardId: string) => void;
+  /* `from` is where the card sits on screen, for the flight to the panel. */
+  onSelect: (cardId: string, from: DOMRect) => void;
   onAddCard: () => void;
 }) {
   return (
@@ -169,7 +170,7 @@ export function CardsWallet({
               <CardFace
                 overview={overview}
                 isSelected={overview.card.id === selectedCardId}
-                onSelect={() => onSelect(overview.card.id)}
+                onSelect={(from) => onSelect(overview.card.id, from)}
               />
             </CarouselItem>
           ))}

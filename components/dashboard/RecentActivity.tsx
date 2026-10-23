@@ -15,6 +15,7 @@ import {
 import { TransactionDescription } from "@/components/finance/TransactionDescription";
 import { cn } from "@/lib/utils";
 import type { Transaction } from "@/store/useFinanceStore";
+import { NewItemGlow } from "@/components/motion/NewItemGlow";
 
 const typeLabel: Record<Transaction["type"], string> = {
   card: "Cartão",
@@ -83,8 +84,9 @@ export function RecentActivity({
                     return (
                       <li
                         key={transaction.id}
-                        className="flex items-center gap-3 rounded-lg px-2 py-1.5"
+                        className="relative flex items-center gap-3 rounded-lg px-2 py-1.5"
                       >
+                        <NewItemGlow id={transaction.id} />
                         <span
                           className={cn(
                             "flex size-8 shrink-0 items-center justify-center rounded-full",

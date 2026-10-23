@@ -7,13 +7,20 @@ interface AnimatedNumberProps {
   value: number;
   format: (value: number) => string;
   className?: string;
+  /* Seconds; match it to a bar or ring animating alongside. */
+  duration?: number;
 }
 
 /**
  * Tweens between values by writing straight to the DOM, so the parent page
  * does not re-render on every animation frame.
  */
-export function AnimatedNumber({ value, format, className }: AnimatedNumberProps) {
+export function AnimatedNumber({
+  value,
+  format,
+  className,
+  duration = 0.7,
+}: AnimatedNumberProps) {
   const nodeRef = useRef<HTMLSpanElement>(null);
   const formatRef = useRef(format);
   const displayedValueRef = useRef(0);
@@ -38,7 +45,7 @@ export function AnimatedNumber({ value, format, className }: AnimatedNumberProps
     }
 
     const controls = animate(displayedValueRef.current, safeValue, {
-      duration: 0.7,
+      duration,
       ease: [0.22, 1, 0.36, 1],
       onUpdate: (latest) => {
         displayedValueRef.current = latest;
@@ -47,7 +54,7 @@ export function AnimatedNumber({ value, format, className }: AnimatedNumberProps
     });
 
     return () => controls.stop();
-  }, [reduceMotion, value]);
+  }, [duration, reduceMotion, value]);
 
   return <span ref={nodeRef} className={className} />;
 }

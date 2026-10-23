@@ -30,6 +30,7 @@ import {
 import { formatDateOnlyBR } from "@/lib/dateUtils";
 import { cn } from "@/lib/utils";
 import type { Transaction } from "@/store/useFinanceStore";
+import { NewItemGlow } from "@/components/motion/NewItemGlow";
 
 const originStyles: Record<OriginKind, string> = {
   card: "bg-violet-500/10 text-violet-300",
@@ -91,6 +92,7 @@ export const TransactionRow = memo(function TransactionRow({
         isSelected ? "bg-emerald-500/[0.07]" : "hover:bg-white/[0.03]",
       )}
     >
+      <NewItemGlow id={transaction.id} reveal />
       <div
         className={cn(
           "flex shrink-0 items-center transition-all duration-200",

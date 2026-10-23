@@ -13,6 +13,7 @@ import {
   type InvoicePayment,
   type Transaction,
 } from "@/store/useFinanceStore";
+import { markRecentlyAdded } from "@/lib/recentlyAdded";
 
 type FinanceState = ReturnType<typeof useFinanceStore.getState>;
 
@@ -126,19 +127,27 @@ export function installDemoStore(data: DemoData) {
       setState({ hideBalancesByDefault: !getState().hideBalancesByDefault }),
 
     addTransaction: async (transaction) => {
-      all = [...all, toTransaction(transaction)];
+      const created = toTransaction(transaction);
+      all = [...all, created];
       commit();
+      markRecentlyAdded([created.id]);
     },
     addTransactions: async (transactions) => {
-      all = [...all, ...transactions.map(toTransaction)];
+      const created = transactions.map(toTransaction);
+      all = [...all, ...created];
       commit();
+      markRecentlyAdded(created.map((transaction) => transaction.id));
     },
     addIncome: async (income) => {
-      all = [
-        ...all,
-        toTransaction({ ...income, type: "income", category: "Receita", status: "confirmed" }),
-      ];
+      const created = toTransaction({
+        ...income,
+        type: "income",
+        category: "Receita",
+        status: "confirmed",
+      });
+      all = [...all, created];
       commit();
+      markRecentlyAdded([created.id]);
     },
     updateTransaction: async (transactionId, patch) => {
       all = all.map((transaction) =>

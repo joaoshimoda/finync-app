@@ -444,6 +444,23 @@ html.light
   --tw-ring-color: rgb(9 9 11 / 0.13);
 }
 
+/* Touch feedback: on touch screens, controls sink slightly while pressed.
+   Uses the standalone `scale` property so it composes with the
+   translate/transform utilities some controls already carry. */
+@media (hover: none) and (pointer: coarse) and (prefers-reduced-motion: no-preference) {
+  :where(
+      button,
+      a[href],
+      summary,
+      [role="button"],
+      [role="tab"],
+      [role="radio"],
+      [role="menuitem"]
+    ):not(:disabled, [aria-disabled="true"]):active {
+    scale: 0.97;
+  }
+}
+
 /* Landing page palette: sage paper and the logo's green ink. Amber marks
    purchases that belong to someone else. Overrides the forced dark tokens. */
 .landing {

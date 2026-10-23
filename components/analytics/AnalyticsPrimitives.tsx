@@ -31,12 +31,15 @@ export const analyticsColors = {
 export function AnalyticsPanel({
   title,
   description,
+  leading,
   action,
   className,
   children,
 }: {
   title: string;
   description?: string;
+  /* Shown before the title, e.g. a small card thumbnail. */
+  leading?: ReactNode;
   action?: ReactNode;
   className?: string;
   children: ReactNode;
@@ -51,11 +54,14 @@ export function AnalyticsPanel({
       )}
     >
       <div className="flex flex-wrap items-start justify-between gap-3">
-        <div className="min-w-0">
-          <h2 className="text-base font-semibold text-zinc-100">{title}</h2>
-          {description && (
-            <p className="mt-0.5 text-xs text-zinc-500">{description}</p>
-          )}
+        <div className="flex min-w-0 items-start gap-3">
+          {leading}
+          <div className="min-w-0">
+            <h2 className="text-base font-semibold text-zinc-100">{title}</h2>
+            {description && (
+              <p className="mt-0.5 text-xs text-zinc-500">{description}</p>
+            )}
+          </div>
         </div>
         {action}
       </div>

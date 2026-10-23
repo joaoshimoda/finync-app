@@ -17,6 +17,7 @@ import {
   dashboardEase,
   usePrivateCurrency,
 } from "@/components/dashboard/shared";
+import { getCardGradientClassName } from "@/components/dashboard/CardsSection";
 import { AnimatedNumber } from "@/components/finance/AnimatedNumber";
 import { TransactionDescription } from "@/components/finance/TransactionDescription";
 import { Button } from "@/components/ui/button";
@@ -78,12 +79,15 @@ export function InvoicePanel({
   onPay,
   onEdit,
   onDelete,
+  isCardInFlight = false,
 }: {
   selected: SelectedCard;
   monthLabel: string;
   onPay: () => void;
   onEdit: () => void;
   onDelete: () => void;
+  /* Hides the thumbnail while the wallet card is flying onto it. */
+  isCardInFlight?: boolean;
 }) {
   const formatValue = usePrivateCurrency();
   const status = statusStyles[selected.invoice?.status ?? "none"];
@@ -116,6 +120,17 @@ export function InvoicePanel({
     <AnalyticsPanel
       title={`Fatura de ${monthLabel}`}
       description={`Ciclo de ${formatDateOnlyBR(selected.cycle.startDate)} a ${formatDateOnlyBR(selected.cycle.endDate)}`}
+      leading={
+        <span
+          aria-hidden
+          data-card-flight-target={selected.card.id}
+          className={cn(
+            "mt-0.5 block h-7 w-11 shrink-0 rounded-md shadow-sm shadow-black/20 transition-opacity duration-150",
+            getCardGradientClassName(selected.card.name, selected.card.color),
+            isCardInFlight ? "opacity-0" : "opacity-100",
+          )}
+        />
+      }
       action={
         <div className="flex items-center gap-2">
           <span

@@ -1,7 +1,7 @@
 "use client";
 
-import { useState } from "react";
-import { AnimatePresence, motion } from "framer-motion";
+import { useRef, useState } from "react";
+import { AnimatePresence, motion, useInView } from "framer-motion";
 import { ChevronDown, MoreHorizontal, Pencil, Trash2 } from "lucide-react";
 
 import {
@@ -9,6 +9,7 @@ import {
   dashboardPanelClassName,
   usePrivateCurrency,
 } from "@/components/dashboard/shared";
+import { AnimatedNumber } from "@/components/finance/AnimatedNumber";
 import { CategoryGlyph } from "@/components/finance/categoryIcons";
 import { TransactionDescription } from "@/components/finance/TransactionDescription";
 import { Button } from "@/components/ui/button";
@@ -27,6 +28,7 @@ import { budgetStatusTone } from "./BudgetOverview";
 import type { BudgetRow } from "./useBudgetsData";
 
 const PREVIEW_COUNT = 4;
+const BAR_FILL_SECONDS = 0.9;
 
 function BudgetCard({
   row,
@@ -41,6 +43,10 @@ function BudgetCard({
 }) {
   const formatValue = usePrivateCurrency();
   const [isOpen, setIsOpen] = useState(false);
+  /* The bar fills and the amount counts up together once the card is on
+     screen, so cards further down still animate when scrolled to. */
+  const barRef = useRef<HTMLDivElement>(null);
+  const isOnScreen = useInView(barRef, { once: true, amount: 0.8 });
   const tone = budgetStatusTone[row.status];
   const projectedOver =
     row.projected !== null && row.status !== "exceeded" && row.projected > row.amount;
@@ -105,22 +111,25 @@ function BudgetCard({
       </div>
 
       <p className="mt-5 flex items-baseline gap-1.5">
-        <span className="text-2xl font-semibold tracking-[-0.02em] tabular-nums text-zinc-50">
-          {formatValue(row.spent)}
-        </span>
+        <AnimatedNumber
+          value={isOnScreen ? row.spent : 0}
+          format={formatValue}
+          duration={BAR_FILL_SECONDS}
+          className="text-2xl font-semibold tracking-[-0.02em] tabular-nums text-zinc-50"
+        />
         <span className="truncate text-xs text-zinc-500">
           de {formatValue(row.amount)}
         </span>
       </p>
 
       {/* Bar with the alert threshold and today's pace marked on it. */}
-      <div className="relative mt-3">
+      <div ref={barRef} className="relative mt-3">
         <div className="h-2 overflow-hidden rounded-full bg-zinc-800">
           <motion.div
             className={cn("h-full rounded-full", tone.bar)}
             initial={{ width: 0 }}
-            animate={{ width: `${row.progress}%` }}
-            transition={{ duration: 0.8, ease: dashboardEase }}
+            animate={{ width: isOnScreen ? `${row.progress}%` : 0 }}
+            transition={{ duration: BAR_FILL_SECONDS, ease: dashboardEase }}
           />
         </div>
         <span
