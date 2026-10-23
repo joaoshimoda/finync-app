@@ -1,7 +1,9 @@
 import { defineConfig, devices } from "@playwright/test";
 
 const port = 3000;
-const baseURL = process.env.PLAYWRIGHT_BASE_URL ?? `http://127.0.0.1:${port}`;
+/* localhost, not 127.0.0.1: the Next dev server only serves its client
+   scripts to the hostname it started with, and local runs reuse `npm run dev`. */
+const baseURL = process.env.PLAYWRIGHT_BASE_URL ?? `http://localhost:${port}`;
 const browserChannel =
   process.env.PLAYWRIGHT_CHANNEL ?? (process.env.CI ? undefined : "chrome");
 
@@ -34,7 +36,7 @@ export default defineConfig({
     },
   ],
   webServer: {
-    command: `npm run dev -- --hostname 127.0.0.1 --port ${port}`,
+    command: `npm run dev -- --hostname localhost --port ${port}`,
     url: baseURL,
     reuseExistingServer: !process.env.CI,
     timeout: 120_000,

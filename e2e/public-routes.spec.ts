@@ -22,7 +22,7 @@ test.describe("public routes", () => {
     await page.goto("/demo");
 
     await expect(
-      page.getByRole("heading", { name: "Visão geral" }),
+      page.getByRole("heading", { level: 1, name: /Olá, Marina/ }),
     ).toBeVisible();
     await expect
       .poll(() =>
@@ -40,8 +40,10 @@ test.describe("public routes", () => {
       page.getByRole("heading", { name: "Bem-vindo de volta" }),
     ).toBeVisible();
     await expect(page.getByLabel("E-mail")).toBeVisible();
-    await expect(page.getByLabel("Senha")).toBeVisible();
-    await expect(page.getByRole("button", { name: "Entrar" })).toBeEnabled();
+    await expect(page.getByRole("textbox", { name: "Senha" })).toBeVisible();
+    await expect(
+      page.locator("form").getByRole("button", { name: "Entrar" }),
+    ).toBeEnabled();
     await expect(
       page.getByRole("link", { name: "Esqueci minha senha" }),
     ).toHaveAttribute("href", "/recuperar-senha");
@@ -54,7 +56,9 @@ test.describe("public routes", () => {
       page.getByRole("heading", { name: "Crie sua conta" }),
     ).toBeVisible();
     await expect(page.getByLabel("Nome")).toBeVisible();
-    await expect(page.getByRole("button", { name: "Criar conta" })).toBeEnabled();
+    await expect(
+      page.locator("form").getByRole("button", { name: "Criar conta" }),
+    ).toBeEnabled();
   });
 });
 

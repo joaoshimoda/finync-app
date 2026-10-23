@@ -204,6 +204,7 @@ export function DemoApp() {
               type="button"
               variant="ghost"
               size="sm"
+              aria-label="Reiniciar demonstração"
               onClick={() => {
                 setSession((value) => value + 1);
                 toast.success("Demonstração reiniciada.");
