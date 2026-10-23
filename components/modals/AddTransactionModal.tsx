@@ -3,6 +3,7 @@
 import { FormEvent, useEffect, useMemo, useState } from "react";
 import {
   ArrowDownLeft,
+  ArrowUpRight,
   CalendarDays,
   Check,
   CreditCard,
@@ -12,7 +13,6 @@ import {
   Tag,
   UserRound,
   UsersRound,
-  X,
 } from "lucide-react";
 import { toast } from "sonner";
 
@@ -25,16 +25,34 @@ import {
 } from "@/lib/transactionProjection";
 import { parseCurrencyValue } from "@/lib/financeUtils";
 import { useCurrencyFormatter } from "@/hooks/useCurrencyFormatter";
-import { Button } from "@/components/ui/button";
-import { TransactionLivePreview } from "@/components/modals/TransactionLivePreview";
+import { CategoryGlyph } from "@/components/finance/categoryIcons";
 import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogTitle,
-} from "@/components/ui/dialog";
+  AmountInput,
+  CardPicker,
+  Field,
+  FieldLabel,
+  GroupScopeChooser,
+  ModalBody,
+  ModalFooter,
+  ModalShell,
+  ModalStage,
+  MobileSteps,
+  OptionGroup,
+  OptionRow,
+  PrimaryButton,
+  SecondaryButton,
+  Segmented,
+  StageAmount,
+  accentSwitchClassName,
+  fieldClassName,
+  selectTriggerClassName,
+} from "@/components/modals/ModalKit";
+import {
+  TransactionLivePreview,
+  parsePreviewAmount,
+} from "@/components/modals/TransactionLivePreview";
+import { Dialog } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
 import {
   Select,
   SelectContent,
@@ -533,10 +551,24 @@ function TransactionModalContent({
     }
   }
 
-  const lineInputClassName =
-    "h-9 rounded-none border-0 border-b border-zinc-700 bg-transparent px-0 text-zinc-100 shadow-none placeholder:text-zinc-600 focus-visible:border-rose-500 focus-visible:ring-0 dark:bg-transparent";
-  const pillFieldClassName =
-    "h-10 rounded-full border-zinc-700 bg-transparent px-3 text-zinc-100 shadow-none focus:border-rose-500 focus:ring-1 focus:ring-rose-500/30 dark:bg-transparent [@media_(max-height:_700px)_and_(max-width:_767px)]:h-9";
+  const inputClassName = fieldClassName("rose");
+  const triggerClassName = selectTriggerClassName("rose");
+  const switchClassName = accentSwitchClassName("rose");
+  const parsedInstallments = Math.max(Number(installmentCount) || 2, 2);
+  const categoryIcon = expenseCategories.find(
+    (item) => item.label === category,
+  )?.icon;
+  const installmentDetail =
+    transactionType === "card" && isInstallmentPurchase
+      ? `${parsedInstallments}x de ${formatCurrency(
+          Math.round((parsePreviewAmount(amount) / parsedInstallments) * 100) /
+            100,
+        )}`
+      : undefined;
+  const isReviewingGroup = Boolean(
+    editingTransaction?.groupId &&
+      (editingTransaction.is_recurring || isEditingInstallment),
+  );
 
   function selectPaymentType(type: ExpenseTransactionType) {
     setTransactionType(type);
@@ -548,66 +580,74 @@ function TransactionModalContent({
   }
 
   return (
-    <DialogContent
-      data-tour={isFixedMode ? "recurring-modal" : "transaction-modal"}
-      showCloseButton={false}
-      onOpenAutoFocus={(event) => {
-        event.preventDefault();
-        window.requestAnimationFrame(() => {
-          document.getElementById("transaction-amount")?.focus();
-        });
-      }}
-      className="inset-x-0 bottom-0 left-0 top-auto flex max-h-[94dvh] w-full max-w-none translate-x-0 translate-y-0 overflow-hidden rounded-b-none rounded-t-xl border border-b-0 border-zinc-800 bg-zinc-950 p-0 text-zinc-50 shadow-2xl md:left-1/2 md:top-1/2 md:h-[560px] md:max-h-[90dvh] md:max-w-[920px] md:-translate-x-1/2 md:-translate-y-1/2 md:rounded-xl md:border-b"
-    >
-      <form
-        className="grid min-h-0 w-full md:grid-cols-[44%_56%]"
-        onSubmit={handleSubmit}
-      >
-        <aside className="relative flex min-h-44 flex-col overflow-hidden bg-rose-800 p-5 text-white md:min-h-0 md:p-8 [@media_(max-height:_700px)_and_(max-width:_767px)]:min-h-32 [@media_(max-height:_700px)_and_(max-width:_767px)]:p-4">
-          <div className="pointer-events-none absolute inset-y-0 right-0 w-28 border-l border-white/10 bg-black/10 [transform:skewX(-10deg)_translateX(45%)]" />
-          <div className="pointer-events-none absolute bottom-0 left-0 h-px w-full bg-white/10" />
-
-          <button
-            type="button"
-            aria-label="Fechar"
-            onClick={onClose}
-            className="absolute right-5 top-5 z-10 flex size-10 items-center justify-center rounded-full text-white/75 transition-colors hover:bg-black/10 hover:text-white md:right-7 md:top-7"
-          >
-            <X className="size-5" />
-          </button>
-
-          <div className="relative z-10">
-            <p className="text-[10px] font-bold uppercase text-white/65">
-              {isFixedMode ? "Recorrência" : "Lançamento"}
-            </p>
-            <div className="mt-5 hidden size-10 items-center justify-center rounded-lg bg-white/15 md:flex">
-              {isFixedMode ? (
-                <Repeat2 className="size-5" />
-              ) : (
-                <ArrowDownLeft className="size-5" />
-              )}
-            </div>
-            <DialogTitle className="mt-3 max-w-xs text-2xl font-semibold leading-tight text-white md:mt-5 md:text-4xl [@media_(max-height:_700px)_and_(max-width:_767px)]:mt-1 [@media_(max-height:_700px)_and_(max-width:_767px)]:text-xl">
-              {editingTransaction
-                ? isFixedMode
-                  ? "Editar recorrência."
-                  : "Editar transação."
-                : isFixedMode
-                  ? "Nova recorrência."
-                  : "Nova transação."}
-            </DialogTitle>
-            <DialogDescription className="mt-2 max-w-[250px] text-xs leading-5 text-white/80 md:mt-3 [@media_(max-height:_700px)_and_(max-width:_767px)]:hidden">
-              {isFixedMode
-                ? "Organize uma cobrança que se repete ao longo dos meses."
-                : "Registre seu movimento e mantenha o controle do seu dinheiro."}
-            </DialogDescription>
-          </div>
-
+    <ModalShell
+      tour={isFixedMode ? "recurring-modal" : "transaction-modal"}
+      focusId="transaction-amount"
+      onSubmit={handleSubmit}
+      stage={
+        <ModalStage
+          accent="rose"
+          context={isFixedMode ? "Contas fixas e assinaturas" : "Lançamento"}
+          title={
+            editingTransaction
+              ? isFixedMode
+                ? "Editar recorrência"
+                : "Editar despesa"
+              : isFixedMode
+                ? "Nova recorrência"
+                : "Nova despesa"
+          }
+          description={
+            isFixedMode
+              ? "Uma cobrança que se repete todo mês, como aluguel ou streaming."
+              : "Registre um gasto no PIX, débito ou cartão de crédito."
+          }
+          onClose={onClose}
+          compact={
+            <StageAmount
+              label={isFixedMode ? "Por mês" : "Valor"}
+              value={formatCurrency(parsePreviewAmount(amount))}
+            />
+          }
+          footer={
+            isFixedMode ? (
+              <Segmented
+                label="Tipo de recorrência"
+                className="bg-black/25"
+                value={transactionType}
+                onChange={selectPaymentType}
+                options={[
+                  { value: "fixed", label: "Conta fixa", icon: Landmark },
+                  { value: "card", label: "Assinatura", icon: CreditCard },
+                ]}
+              />
+            ) : (
+              <Segmented
+                label="Tipo de lançamento"
+                className="bg-black/25"
+                value="expense"
+                onChange={(value) => {
+                  if (value === "income") onSelectIncome?.();
+                }}
+                options={[
+                  { value: "expense", label: "Despesa", icon: ArrowDownLeft },
+                  {
+                    value: "income",
+                    label: "Receita",
+                    icon: ArrowUpRight,
+                    disabled: !onSelectIncome || Boolean(editingTransaction),
+                  },
+                ]}
+              />
+            )
+          }
+        >
           <TransactionLivePreview
             type="expense"
             amount={amount}
             description={description}
             category={category}
+            categoryIcon={categoryIcon}
             origin={
               transactionType === "card"
                 ? selectedCard?.name || "Cartão de crédito"
@@ -616,553 +656,347 @@ function TransactionModalContent({
             owner={selectedDependentName}
             date={date}
             recurring={isFixedMode || isRecurring}
+            detail={installmentDetail}
           />
+        </ModalStage>
+      }
+    >
+      <ModalBody>
+        {pendingRecurringUpdate ? (
+          <GroupScopeChooser
+            title="Onde aplicar as mudanças?"
+            description="Este lançamento faz parte de um grupo. Escolha até onde a alteração vale."
+            disabled={isSubmitting}
+            onSelect={(scope: GroupEditScope) => void saveGroupedUpdate(scope)}
+            options={[
+              {
+                value: "single",
+                label: "Somente este",
+                description: "Os outros lançamentos ficam como estão.",
+              },
+              {
+                value: "future",
+                label: "Este e os próximos",
+                description: "Os meses anteriores não mudam.",
+                primary: true,
+              },
+              ...(isEditingInstallment
+                ? [
+                    {
+                      value: "all" as const,
+                      label: "Todas as parcelas",
+                      description: "Inclui as parcelas que já passaram.",
+                    },
+                  ]
+                : []),
+            ]}
+          />
+        ) : (
+          <fieldset disabled={isSubmitting} className="min-w-0">
+            <MobileSteps
+              step={mobileStep}
+              labels={["O que foi", "Detalhes"]}
+              accent="rose"
+            />
 
-          <div className="relative z-10 mt-auto flex items-end justify-between gap-3 pt-4 md:block [@media_(max-height:_700px)_and_(max-width:_767px)]:pt-2">
-            <p className="mb-2 text-[10px] font-bold uppercase text-white/60">
-              {isFixedMode ? "Tipo de recorrência" : "Tipo de lançamento"}
-            </p>
-            <div className="flex gap-2">
-              {isFixedMode ? (
-                <>
-                  <button
-                    type="button"
-                    onClick={() => selectPaymentType("fixed")}
-                    className={cn(
-                      "h-8 rounded-full px-4 text-xs font-semibold transition-colors",
-                      transactionType === "fixed"
-                        ? "bg-white text-rose-800"
-                        : "bg-white/10 text-white hover:bg-white/15",
-                    )}
-                  >
-                    Conta fixa
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => selectPaymentType("card")}
-                    className={cn(
-                      "h-8 rounded-full px-4 text-xs font-semibold transition-colors",
-                      transactionType === "card"
-                        ? "bg-white text-rose-800"
-                        : "bg-white/10 text-white hover:bg-white/15",
-                    )}
-                  >
-                    Assinatura
-                  </button>
-                </>
-              ) : (
-                <>
-                  <button
-                    type="button"
-                    className="h-8 rounded-full bg-white px-4 text-xs font-semibold text-rose-800"
-                  >
-                    Despesa
-                  </button>
-                  <button
-                    type="button"
-                    disabled={!onSelectIncome || Boolean(editingTransaction)}
-                    onClick={onSelectIncome}
-                    className="h-8 rounded-full bg-white/10 px-4 text-xs font-semibold text-white transition-colors hover:bg-white/15 disabled:cursor-not-allowed disabled:opacity-50"
-                  >
-                    Receita
-                  </button>
-                </>
-              )}
+            <div className={cn("space-y-6 md:block", mobileStep !== 1 && "hidden")}>
+              <AmountInput
+                id="transaction-amount"
+                label={isFixedMode ? "Valor mensal" : "Valor"}
+                accent="rose"
+                currencySymbol={currencySymbol}
+                value={amount}
+                onChange={(event) => setAmount(event.target.value)}
+                inputMode="decimal"
+                placeholder="0,00"
+                required
+              />
+
+              <Field label="Descrição" htmlFor="transaction-description">
+                <Input
+                  id="transaction-description"
+                  value={description}
+                  onChange={(event) => setDescription(event.target.value)}
+                  placeholder={
+                    isFixedMode
+                      ? "Ex.: Aluguel, internet, Netflix"
+                      : "Ex.: Supermercado, farmácia"
+                  }
+                  autoComplete="off"
+                  className={inputClassName}
+                  required
+                />
+              </Field>
             </div>
-          </div>
-        </aside>
 
-        <section className="flex min-h-0 flex-col bg-zinc-950">
-          <div className="min-h-0 flex-1 overflow-y-auto px-5 py-4 [scrollbar-width:thin] md:px-7 md:py-6 [@media_(max-height:_700px)_and_(max-width:_767px)]:py-3">
-            {pendingRecurringUpdate ? (
-              <div className="flex h-full items-center">
-                <section className="w-full border-y border-zinc-800 py-5">
-                  <p className="text-base font-semibold text-zinc-50">
-                    Onde aplicar as mudanças?
-                  </p>
-                  <p className="mt-1 text-sm leading-5 text-zinc-400">
-                    Escolha quais lançamentos deste grupo devem ser atualizados.
-                  </p>
-                  <div className="mt-5 grid gap-2 sm:grid-cols-3">
-                    <Button
-                      type="button"
-                      variant="secondary"
-                      disabled={isSubmitting}
-                      onClick={() => void saveGroupedUpdate("single")}
-                    >
-                      Somente este
-                    </Button>
-                    <Button
-                      type="button"
-                      disabled={isSubmitting}
-                      onClick={() => void saveGroupedUpdate("future")}
-                      className="bg-rose-600 text-white hover:bg-rose-700"
-                    >
-                      Este e os próximos
-                    </Button>
-                    {isEditingInstallment ? (
-                      <Button
-                        type="button"
-                        variant="outline"
-                        disabled={isSubmitting}
-                        onClick={() => void saveGroupedUpdate("all")}
-                        className="border-zinc-700"
-                      >
-                        Todas
-                      </Button>
-                    ) : null}
-                  </div>
-                </section>
+            <div
+              className={cn(
+                "space-y-5 md:mt-7 md:block md:border-t md:border-white/[0.06] md:pt-6",
+                mobileStep !== 2 && "hidden",
+              )}
+            >
+              {!isFixedMode ? (
+                <Field label="Forma de pagamento">
+                  <Segmented
+                    label="Forma de pagamento"
+                    value={transactionType}
+                    onChange={selectPaymentType}
+                    options={[
+                      { value: "fixed", label: "PIX ou débito", icon: Landmark },
+                      { value: "card", label: "Cartão", icon: CreditCard },
+                    ]}
+                  />
+                </Field>
+              ) : null}
+
+              {transactionType === "card" ? (
+                <Field label={isFixedMode ? "Cobrada no cartão" : "Cartão utilizado"}>
+                  <CardPicker
+                    cards={cards}
+                    value={selectedCardId}
+                    onChange={setSelectedCardId}
+                    accent="rose"
+                  />
+                </Field>
+              ) : null}
+
+              <div className="grid gap-4 sm:grid-cols-2">
+                <Field
+                  label={isFixedMode ? "Primeiro vencimento" : "Data"}
+                  htmlFor="transaction-date"
+                  icon={CalendarDays}
+                >
+                  <Input
+                    id="transaction-date"
+                    value={date}
+                    onChange={(event) => setDate(event.target.value)}
+                    type="date"
+                    className={inputClassName}
+                    required
+                  />
+                </Field>
+
+                <Field label="Categoria" htmlFor="transaction-category" icon={Tag}>
+                  <Select value={category} onValueChange={setCategory}>
+                    <SelectTrigger id="transaction-category" className={triggerClassName}>
+                      <SelectValue placeholder="Categoria" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {expenseCategories.map((item) => (
+                        <SelectItem key={item.id} value={item.label}>
+                          <CategoryGlyph name={item.icon} className="size-4 text-zinc-400" />
+                          {item.label}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </Field>
               </div>
-            ) : (
-              <fieldset disabled={isSubmitting} className="h-full">
-                <div
-                  className={cn(
-                    "space-y-4 md:block",
-                    mobileStep !== 1 && "hidden",
-                  )}
+
+              <Field label="De quem é o gasto" htmlFor="transaction-owner" icon={UserRound}>
+                <Select
+                  value={selectedDependentId || "__no_dependent__"}
+                  onValueChange={(nextValue) => {
+                    const nextDependentId =
+                      nextValue === "__no_dependent__" ? "" : nextValue;
+
+                    setSelectedDependentId(nextDependentId);
+                    if (!nextDependentId) {
+                      setIsSplitExpense(false);
+                      setDependentShare("");
+                    }
+                  }}
                 >
-                  <div className="flex items-center justify-between md:hidden">
-                    <p className="text-[10px] font-bold uppercase text-zinc-500">
-                      Dados principais
-                    </p>
-                    <span className="text-xs text-zinc-600">1 / 2</span>
-                  </div>
+                  <SelectTrigger id="transaction-owner" className={triggerClassName}>
+                    <SelectValue placeholder="Gasto pessoal" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="__no_dependent__">Gasto pessoal</SelectItem>
+                    {dependents.map((dependent) => (
+                      <SelectItem key={dependent.id} value={dependent.id}>
+                        {dependent.name}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </Field>
 
-                  <div className="space-y-1">
-                    <Label
-                      htmlFor="transaction-amount"
-                      className="text-[10px] font-bold uppercase text-zinc-500"
-                    >
-                      Valor da transação
-                    </Label>
-                    <div className="flex items-center border-b border-zinc-700">
-                      <span className="shrink-0 text-xs font-semibold text-rose-400">
-                        {currencySymbol}
-                      </span>
-                      <Input
-                        id="transaction-amount"
-                        value={amount}
-                        onChange={(event) => setAmount(event.target.value)}
-                        inputMode="decimal"
-                        placeholder="0,00"
-                        className="h-10 rounded-none border-0 bg-transparent px-2 text-base font-medium shadow-none focus-visible:ring-0 dark:bg-transparent"
-                        required
-                      />
-                    </div>
-                  </div>
-
-                  <div className="space-y-1">
-                    <Label
-                      htmlFor="transaction-description"
-                      className="text-sm font-medium text-zinc-300"
-                    >
-                      O que foi?
-                    </Label>
-                    <Input
-                      id="transaction-description"
-                      value={description}
-                      onChange={(event) => setDescription(event.target.value)}
-                      placeholder="Ex.: Supermercado, farmácia..."
-                      className={lineInputClassName}
-                      required
-                    />
-                  </div>
-                </div>
-
-                <div
-                  className={cn(
-                    "space-y-4 md:mt-5 md:block md:border-t md:border-zinc-800 md:pt-5",
-                    mobileStep !== 2 && "hidden",
-                  )}
-                >
-                  <div className="flex items-center justify-between md:hidden">
-                    <p className="text-[10px] font-bold uppercase text-zinc-500">
-                      Organização
-                    </p>
-                    <span className="text-xs text-zinc-600">2 / 2</span>
-                  </div>
-
-                  <div className="grid gap-4 sm:grid-cols-2 [@media_(max-height:_700px)_and_(max-width:_767px)]:gap-3">
-                    <div className="space-y-2">
-                      <Label
-                        htmlFor="transaction-date"
-                        className="flex items-center gap-2 text-[10px] font-bold uppercase text-zinc-500"
-                      >
-                        <CalendarDays className="size-3.5" />
-                        Data
-                      </Label>
-                      <Input
-                        id="transaction-date"
-                        value={date}
-                        onChange={(event) => setDate(event.target.value)}
-                        type="date"
-                        className={cn(
-                          pillFieldClassName,
-                          "[color-scheme:dark]",
-                        )}
-                        required
-                      />
-                    </div>
-
-                    <div className="space-y-2">
-                      <Label
-                        htmlFor="transaction-category"
-                        className="flex items-center gap-2 text-[10px] font-bold uppercase text-zinc-500"
-                      >
-                        <Tag className="size-3.5" />
-                        Categoria
-                      </Label>
-                      <Select value={category} onValueChange={setCategory}>
-                        <SelectTrigger
-                          id="transaction-category"
-                          className={pillFieldClassName}
-                        >
-                          <SelectValue placeholder="Categoria" />
-                        </SelectTrigger>
-                        <SelectContent>
-                          {expenseCategories.map((item) => (
-                            <SelectItem key={item.id} value={item.label}>
-                              {item.label}
-                            </SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
-                    </div>
-
-                    <div className="space-y-2">
-                      <Label
-                        htmlFor="transaction-owner"
-                        className="flex items-center gap-2 text-[10px] font-bold uppercase text-zinc-500"
-                      >
-                        <UserRound className="size-3.5" />
-                        Responsável
-                      </Label>
-                      <Select
-                        value={selectedDependentId || "__no_dependent__"}
-                        onValueChange={(nextValue) => {
-                          const nextDependentId =
-                            nextValue === "__no_dependent__" ? "" : nextValue;
-
-                          setSelectedDependentId(nextDependentId);
-                          if (!nextDependentId) {
-                            setIsSplitExpense(false);
-                            setDependentShare("");
-                          }
-                        }}
-                      >
-                        <SelectTrigger
-                          id="transaction-owner"
-                          className={pillFieldClassName}
-                        >
-                          <SelectValue placeholder="Gasto pessoal" />
-                        </SelectTrigger>
-                        <SelectContent>
-                          <SelectItem value="__no_dependent__">
-                            Gasto pessoal
-                          </SelectItem>
-                          {dependents.map((dependent) => (
-                            <SelectItem key={dependent.id} value={dependent.id}>
-                              {dependent.name}
-                            </SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
-                    </div>
-
-                    <div className="space-y-2">
-                      <Label className="flex items-center gap-2 text-[10px] font-bold uppercase text-zinc-500">
-                        <CreditCard className="size-3.5" />
-                        Pagamento
-                      </Label>
-                      <div className="grid grid-cols-2 gap-2">
-                        <button
-                          type="button"
-                          onClick={() => selectPaymentType("fixed")}
-                          className={cn(
-                            "flex h-10 items-center justify-center gap-2 rounded-full border text-xs font-semibold transition-colors",
-                            transactionType === "fixed"
-                              ? "border-rose-500 bg-rose-500/10 text-rose-300"
-                              : "border-zinc-700 text-zinc-400 hover:text-zinc-200",
-                          )}
-                        >
-                          <Landmark className="size-3.5" />
-                          PIX
-                        </button>
-                        <button
-                          type="button"
-                          onClick={() => selectPaymentType("card")}
-                          className={cn(
-                            "flex h-10 items-center justify-center gap-2 rounded-full border text-xs font-semibold transition-colors",
-                            transactionType === "card"
-                              ? "border-rose-500 bg-rose-500/10 text-rose-300"
-                              : "border-zinc-700 text-zinc-400 hover:text-zinc-200",
-                          )}
-                        >
-                          <CreditCard className="size-3.5" />
-                          Cartão
-                        </button>
-                      </div>
-                    </div>
-                  </div>
-
+              {(!editingTransaction && selectedDependentId) ||
+              showBehaviorSection ||
+              isFixedMode ? (
+                <OptionGroup>
                   {!editingTransaction && selectedDependentId ? (
-                    <div className="border-t border-zinc-800 pt-3">
-                      <div className="flex items-center justify-between gap-4">
-                        <span className="flex items-center gap-2.5">
-                          <span className="flex size-8 items-center justify-center rounded-full bg-zinc-900 text-zinc-400">
-                            <UsersRound className="size-4" />
-                          </span>
-                          <span>
-                            <span className="block text-xs font-semibold text-zinc-100">
-                              Dividir comigo
-                            </span>
-                            <span className="block text-[10px] text-zinc-500">
-                              Separe a parte pessoal e do dependente
-                            </span>
-                          </span>
-                        </span>
+                    <OptionRow
+                      id="expense-split-toggle"
+                      icon={UsersRound}
+                      title="Dividir comigo"
+                      description="Separe a sua parte da parte do dependente."
+                      control={
                         <Switch
                           id="expense-split-toggle"
                           aria-label="Dividir gasto com dependente"
+                          className={switchClassName}
                           checked={isSplitExpense}
                           onCheckedChange={(checked) => {
                             setIsSplitExpense(checked);
                             if (!checked) setDependentShare("");
                           }}
                         />
-                      </div>
-
+                      }
+                    >
                       {isSplitExpense ? (
-                        <div className="mt-3 grid grid-cols-2 gap-3 rounded-lg border border-zinc-800 bg-zinc-900/45 p-3">
-                          <div className="space-y-1">
-                            <Label
-                              htmlFor="dependent-share"
-                              className="text-[10px] font-bold uppercase text-zinc-500"
-                            >
-                              Parte de{" "}
-                              {selectedDependentName.replace("Você + ", "")}
-                            </Label>
-                            <div className="flex h-9 items-center border-b border-zinc-700">
-                              <span className="text-[11px] font-semibold text-zinc-500">
-                                {currencySymbol}
-                              </span>
-                              <Input
-                                id="dependent-share"
-                                value={dependentShare}
-                                onChange={(event) =>
-                                  setDependentShare(event.target.value)
-                                }
-                                inputMode="decimal"
-                                placeholder="0,00"
-                                className="h-8 rounded-none border-0 bg-transparent px-2 text-sm font-semibold text-zinc-100 shadow-none focus-visible:ring-0 dark:bg-transparent"
-                              />
-                            </div>
-                          </div>
-                          <div className="space-y-1 border-l border-zinc-800 pl-3">
-                            <p className="text-[10px] font-bold uppercase text-zinc-500">
-                              Sua parte
-                            </p>
-                            <p className="pt-2 text-sm font-semibold text-zinc-100">
+                        <div className="grid grid-cols-2 gap-3">
+                          <Field
+                            label={`Parte de ${selectedDependentName.replace("Você + ", "")}`}
+                            htmlFor="dependent-share"
+                          >
+                            <Input
+                              id="dependent-share"
+                              value={dependentShare}
+                              onChange={(event) => setDependentShare(event.target.value)}
+                              inputMode="decimal"
+                              placeholder="0,00"
+                              className={inputClassName}
+                            />
+                          </Field>
+                          <div>
+                            <FieldLabel>Sua parte</FieldLabel>
+                            <p className="flex h-11 items-center rounded-xl bg-white/[0.02] px-3.5 text-[15px] font-medium tabular-nums text-zinc-200 ring-1 ring-inset ring-white/[0.06]">
                               {formatCurrency(personalShareAmount)}
                             </p>
                           </div>
                         </div>
                       ) : null}
-                    </div>
+                    </OptionRow>
                   ) : null}
 
-                  {transactionType === "card" ? (
-                    <div className="space-y-2">
-                      <Label
-                        htmlFor="transaction-card"
-                        className="text-[10px] font-bold uppercase text-zinc-500"
-                      >
-                        Cartão utilizado
-                      </Label>
-                      <Select
-                        value={selectedCardId}
-                        onValueChange={setSelectedCardId}
-                        disabled={!cards.length}
-                      >
-                        <SelectTrigger
-                          id="transaction-card"
-                          className={pillFieldClassName}
-                        >
-                          <SelectValue placeholder="Selecionar cartão" />
-                        </SelectTrigger>
-                        <SelectContent>
-                          {cards.map((card) => (
-                            <SelectItem key={card.id} value={card.id}>
-                              {card.name}
-                            </SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
-                    </div>
+                  {isFixedMode ? (
+                    <OptionRow
+                      icon={Repeat2}
+                      title="Repete todo mês"
+                      description="Os próximos 12 meses entram como pendentes."
+                    />
+                  ) : showBehaviorSection ? (
+                    <OptionRow
+                      id="recurring-toggle"
+                      icon={Repeat2}
+                      title={
+                        transactionType === "card"
+                          ? "Assinatura recorrente"
+                          : "Repetir todo mês"
+                      }
+                      description="Lança o mesmo valor nos próximos 12 meses."
+                      control={
+                        <Switch
+                          id="recurring-toggle"
+                          aria-label="Ativar recorrência"
+                          className={switchClassName}
+                          checked={isRecurring}
+                          onCheckedChange={(checked) => {
+                            setIsRecurring(checked);
+                            if (checked) setIsInstallmentPurchase(false);
+                          }}
+                        />
+                      }
+                    />
                   ) : null}
 
-                  {showBehaviorSection || isFixedMode ? (
-                    <div className="grid gap-2 border-t border-zinc-800 pt-4 sm:grid-cols-2">
-                      {!isFixedMode ? (
-                        <div className="flex min-h-12 items-center justify-between gap-3">
-                          <span className="flex items-center gap-2.5">
-                            <span className="flex size-8 items-center justify-center rounded-full bg-zinc-900 text-zinc-400">
-                              <Repeat2 className="size-4" />
-                            </span>
-                            <span>
-                              <span className="block text-xs font-semibold text-zinc-100">
-                                {transactionType === "card"
-                                  ? "Assinatura recorrente"
-                                  : "Transação recorrente"}
+                  {transactionType === "card" && !isFixedMode && !editingTransaction ? (
+                    <OptionRow
+                      id="installment-toggle"
+                      icon={Layers3}
+                      title="Compra parcelada"
+                      description="Divide o valor entre as próximas faturas."
+                      control={
+                        <Switch
+                          id="installment-toggle"
+                          aria-label="Ativar parcelamento"
+                          className={switchClassName}
+                          checked={isInstallmentPurchase}
+                          onCheckedChange={(checked) => {
+                            setIsInstallmentPurchase(checked);
+                            if (checked) setIsRecurring(false);
+                          }}
+                        />
+                      }
+                    >
+                      {isInstallmentPurchase ? (
+                        <div className="flex items-center justify-between gap-4">
+                          <label htmlFor="installments" className="text-[13px] text-zinc-300">
+                            Número de parcelas
+                            {installmentDetail ? (
+                              <span className="block text-xs tabular-nums text-zinc-500">
+                                {installmentDetail}
                               </span>
-                              <span className="block text-[10px] text-zinc-500">
-                                Repetir por 12 meses
-                              </span>
-                            </span>
-                          </span>
-                          <Switch
-                            id="recurring-toggle"
-                            aria-label="Ativar recorrência"
-                            checked={isRecurring}
-                            onCheckedChange={(checked) => {
-                              setIsRecurring(checked);
-                              if (checked) setIsInstallmentPurchase(false);
-                            }}
-                          />
-                        </div>
-                      ) : (
-                        <div className="flex min-h-12 items-center gap-2.5">
-                          <span className="flex size-8 items-center justify-center rounded-full bg-zinc-900 text-zinc-400">
-                            <Repeat2 className="size-4" />
-                          </span>
-                          <span>
-                            <span className="block text-xs font-semibold text-zinc-100">
-                              Recorrência mensal
-                            </span>
-                            <span className="block text-[10px] text-zinc-500">
-                              Projeção de 12 meses
-                            </span>
-                          </span>
-                        </div>
-                      )}
-
-                      {transactionType === "card" &&
-                      !isFixedMode &&
-                      !editingTransaction ? (
-                        <div className="flex min-h-12 items-center justify-between gap-3">
-                          <span className="flex items-center gap-2.5">
-                            <span className="flex size-8 items-center justify-center rounded-full bg-zinc-900 text-zinc-400">
-                              <Layers3 className="size-4" />
-                            </span>
-                            <span>
-                              <span className="block text-xs font-semibold text-zinc-100">
-                                Compra parcelada
-                              </span>
-                              <span className="block text-[10px] text-zinc-500">
-                                Dividir entre faturas
-                              </span>
-                            </span>
-                          </span>
-                          <Switch
-                            id="installment-toggle"
-                            aria-label="Ativar parcelamento"
-                            checked={isInstallmentPurchase}
-                            onCheckedChange={(checked) => {
-                              setIsInstallmentPurchase(checked);
-                              if (checked) setIsRecurring(false);
-                            }}
+                            ) : null}
+                          </label>
+                          <Input
+                            id="installments"
+                            value={installmentCount}
+                            onChange={(event) => setInstallmentCount(event.target.value)}
+                            type="number"
+                            inputMode="numeric"
+                            min={2}
+                            step={1}
+                            className={cn(inputClassName, "w-24 text-center")}
                           />
                         </div>
                       ) : null}
-                    </div>
+                    </OptionRow>
                   ) : null}
+                </OptionGroup>
+              ) : null}
+            </div>
+          </fieldset>
+        )}
+      </ModalBody>
 
-                  {transactionType === "card" && isInstallmentPurchase ? (
-                    <div className="flex items-center justify-between gap-4 border-t border-zinc-800 pt-3">
-                      <Label
-                        htmlFor="installments"
-                        className="text-xs text-zinc-300"
-                      >
-                        Número de parcelas
-                      </Label>
-                      <Input
-                        id="installments"
-                        value={installmentCount}
-                        onChange={(event) =>
-                          setInstallmentCount(event.target.value)
-                        }
-                        type="number"
-                        min={2}
-                        step={1}
-                        className="h-9 w-20 rounded-full border-zinc-700 bg-transparent text-center"
-                      />
-                    </div>
-                  ) : null}
-                </div>
-              </fieldset>
-            )}
-          </div>
+      <ModalFooter>
+        {pendingRecurringUpdate ? (
+          <SecondaryButton onClick={() => setPendingRecurringUpdate(null)}>
+            Voltar aos campos
+          </SecondaryButton>
+        ) : (
+          <>
+            <SecondaryButton
+              disabled={isSubmitting}
+              onClick={mobileStep === 2 ? () => setMobileStep(1) : onClose}
+            >
+              <span className="md:hidden">
+                {mobileStep === 2 ? "Voltar" : "Cancelar"}
+              </span>
+              <span className="hidden md:inline">Cancelar</span>
+            </SecondaryButton>
 
-          <footer className="flex shrink-0 items-center justify-end gap-2 border-t border-zinc-900 px-5 py-3 md:border-0 md:px-7 md:pb-6 md:pt-2">
-            {pendingRecurringUpdate ? (
-              <Button
+            {mobileStep === 1 ? (
+              <PrimaryButton
                 type="button"
-                variant="ghost"
-                onClick={() => setPendingRecurringUpdate(null)}
-                className="text-zinc-400"
+                accent="rose"
+                onClick={() => setMobileStep(2)}
+                className="md:hidden"
               >
-                Voltar aos campos
-              </Button>
-            ) : (
-              <>
-                <Button
-                  type="button"
-                  variant="ghost"
-                  disabled={isSubmitting}
-                  onClick={mobileStep === 2 ? () => setMobileStep(1) : onClose}
-                  className="h-10 flex-1 text-zinc-400 hover:text-white md:flex-none"
-                >
-                  <span className="md:hidden">
-                    {mobileStep === 2 ? "Voltar" : "Cancelar"}
-                  </span>
-                  <span className="hidden md:inline">Cancelar</span>
-                </Button>
+                Continuar
+              </PrimaryButton>
+            ) : null}
 
-                {mobileStep === 1 ? (
-                  <Button
-                    type="button"
-                    onClick={() => setMobileStep(2)}
-                    className="h-10 flex-[1.35] rounded-full bg-rose-600 px-6 font-semibold text-white hover:bg-rose-700 md:hidden"
-                  >
-                    Continuar
-                  </Button>
-                ) : null}
-
-                <Button
-                  type="submit"
-                  disabled={isSubmitting}
-                  className={cn(
-                    "h-10 flex-[1.35] rounded-full bg-rose-600 px-6 font-semibold text-white hover:bg-rose-700 md:flex-none",
-                    mobileStep === 1 && "hidden md:inline-flex",
-                  )}
-                >
-                  <Check className="size-4" />
-                  {isSubmitting
-                    ? "Salvando..."
-                    : editingTransaction?.groupId &&
-                        (editingTransaction.is_recurring ||
-                          isEditingInstallment)
-                      ? "Revisar mudanças"
-                      : isFixedMode
-                        ? "Salvar recorrência"
-                        : "Salvar transação"}
-                </Button>
-              </>
-            )}
-          </footer>
-        </section>
-      </form>
-    </DialogContent>
+            <PrimaryButton
+              type="submit"
+              accent="rose"
+              icon={Check}
+              loading={isSubmitting}
+              loadingLabel="Salvando..."
+              disabled={isSubmitting}
+              className={cn(mobileStep === 1 && "hidden md:inline-flex")}
+            >
+              {isReviewingGroup
+                ? "Revisar mudanças"
+                : isFixedMode
+                  ? "Salvar recorrência"
+                  : "Salvar despesa"}
+            </PrimaryButton>
+          </>
+        )}
+      </ModalFooter>
+    </ModalShell>
   );
 }

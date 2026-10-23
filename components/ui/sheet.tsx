@@ -65,7 +65,7 @@ function SheetContent({
             type="button"
             variant="ghost"
             size="icon"
-            className="absolute right-4 top-4 size-10 text-zinc-500 hover:bg-white/[0.06] hover:text-zinc-100"
+            className="absolute right-4 top-4 size-10 text-white/60 hover:bg-white/10 hover:text-white"
           >
             <XIcon className="size-5" />
             <span className="sr-only">Fechar painel</span>

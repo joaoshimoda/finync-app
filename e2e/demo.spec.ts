@@ -186,8 +186,10 @@ test.describe("demo", () => {
 
     await firstResult.click();
     await expect(page).toHaveURL(/\/demo#transactions$/);
-    await expect(page.getByText("Detalhes da movimentação")).toBeVisible();
-    await expect(page.getByRole("heading", { name: "Aluguel" })).toBeVisible();
+    const detailSheet = page.getByRole("dialog");
+    await expect(detailSheet).toBeVisible();
+    await expect(detailSheet.getByRole("heading", { name: "Aluguel" })).toBeVisible();
+    await expect(detailSheet.getByRole("button", { name: "Editar" })).toBeVisible();
   });
 
   test("global search matches typed amounts", async ({ page }) => {

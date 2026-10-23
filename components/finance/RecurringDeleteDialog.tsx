@@ -77,7 +77,7 @@ export function RecurringDeleteDialog({
       ) : null}
       <AlertDialogContent className="sm:max-w-[460px]">
         <AlertDialogHeader className="flex flex-row items-start gap-4 space-y-0">
-          <span className="flex size-10 shrink-0 items-center justify-center rounded-lg border border-rose-500/20 bg-rose-500/10 text-rose-300">
+          <span className="flex size-11 shrink-0 items-center justify-center rounded-xl bg-rose-400/12 text-rose-300 ring-1 ring-inset ring-rose-400/20">
             <AlertTriangle className="size-5" />
           </span>
           <div className="min-w-0 space-y-1.5">
@@ -99,7 +99,7 @@ export function RecurringDeleteDialog({
             variant="destructive"
             disabled={isDeleting || !transaction.groupId}
             onClick={() => void handleConfirmDelete("future")}
-            className="h-auto min-h-12 w-full justify-start bg-rose-600 px-4 py-3 text-left text-white hover:bg-rose-500"
+            className="h-auto min-h-12 w-full justify-start rounded-xl bg-rose-500 px-4 py-3 text-left font-semibold text-white hover:bg-rose-400 dark:bg-rose-500 dark:hover:bg-rose-400"
           >
             {isDeleting ? (
               <Loader2 className="size-4 animate-spin" />
@@ -116,7 +116,7 @@ export function RecurringDeleteDialog({
               variant="outline"
               disabled={isDeleting}
               onClick={() => void handleConfirmDelete("single")}
-              className="h-auto min-h-12 w-full justify-start px-4 py-3 text-left"
+              className="h-auto min-h-12 w-full justify-start rounded-xl border-0 bg-white/[0.03] px-4 py-3 text-left ring-1 ring-inset ring-white/[0.08] hover:bg-white/[0.06]"
             >
               <CalendarX2 className="size-4" />
               Somente este mês
@@ -125,7 +125,7 @@ export function RecurringDeleteDialog({
           {hasError ? (
             <p
               role="alert"
-              className="rounded-lg border border-rose-500/20 bg-rose-500/10 px-4 py-3 text-sm text-rose-200"
+              className="rounded-xl bg-rose-500/10 px-4 py-3 text-sm text-rose-200 ring-1 ring-inset ring-rose-500/20"
             >
               Não foi possível concluir a exclusão. Tente novamente.
             </p>
@@ -133,7 +133,12 @@ export function RecurringDeleteDialog({
         </div>
         <AlertDialogFooter>
           <AlertDialogCancel asChild>
-            <Button type="button" variant="ghost" disabled={isDeleting}>
+            <Button
+              type="button"
+              variant="ghost"
+              disabled={isDeleting}
+              className="h-11 rounded-xl px-4 text-zinc-400 hover:bg-white/[0.06] hover:text-zinc-50"
+            >
               Voltar
             </Button>
           </AlertDialogCancel>

@@ -35,7 +35,7 @@ const AlertDialogContent = forwardRef<
       ref={ref}
       className={[
         "fixed left-1/2 top-1/2 z-50 w-[calc(100%-2rem)] max-w-md -translate-x-1/2 -translate-y-1/2",
-        "overflow-hidden rounded-xl border border-zinc-800 bg-zinc-950 text-white shadow-xl shadow-black/40 outline-none",
+        "overflow-hidden rounded-[22px] bg-zinc-950 text-white shadow-[0_40px_120px_rgba(0,0,0,0.6)] ring-1 ring-white/[0.08] outline-none",
         "data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=open]:fade-in-0 data-[state=closed]:fade-out-0 data-[state=open]:zoom-in-95 data-[state=closed]:zoom-out-95",
         className,
       ].join(" ")}
@@ -58,7 +58,7 @@ const AlertDialogFooter = ({
 }: ComponentPropsWithoutRef<"div">) => (
   <div
     className={[
-      "flex flex-col-reverse gap-2 border-t border-zinc-800 bg-zinc-900/45 p-4 sm:flex-row sm:justify-end",
+      "flex flex-col-reverse gap-2 border-t border-white/[0.06] px-6 py-4 sm:flex-row sm:justify-end",
       className,
     ].join(" ")}
     {...props}

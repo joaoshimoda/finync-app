@@ -1,22 +1,27 @@
 "use client";
 
-import { ArrowDownLeft, ArrowUpRight, CalendarDays } from "lucide-react";
+import { CalendarDays, Repeat2, UserRound } from "lucide-react";
 
+import { CategoryGlyph } from "@/components/finance/categoryIcons";
 import { formatDateOnlyBR } from "@/lib/dateUtils";
 import { useCurrencyFormatter } from "@/hooks/useCurrencyFormatter";
+import { cn } from "@/lib/utils";
 
 interface TransactionLivePreviewProps {
   type: "expense" | "income";
   amount: string;
   description: string;
   category: string;
+  categoryIcon?: string;
   origin: string;
   owner: string;
   date: string;
   recurring: boolean;
+  /* e.g. "3x de R$ 40,00" for an installment purchase. */
+  detail?: string;
 }
 
-function parsePreviewAmount(value: string) {
+export function parsePreviewAmount(value: string) {
   const sanitizedValue = value.trim().replace(/\s/g, "");
   const normalizedValue = sanitizedValue.includes(",")
     ? sanitizedValue.replace(/\./g, "").replace(",", ".")
@@ -26,77 +31,80 @@ function parsePreviewAmount(value: string) {
   return Number.isFinite(parsedAmount) ? parsedAmount : 0;
 }
 
+/* The entry as it will look in the statement, updated while the user types. */
 export function TransactionLivePreview({
   type,
   amount,
   description,
   category,
+  categoryIcon,
   origin,
   owner,
   date,
   recurring,
+  detail,
 }: TransactionLivePreviewProps) {
   const { formatCurrency } = useCurrencyFormatter();
   const isExpense = type === "expense";
   const previewAmount = formatCurrency(parsePreviewAmount(amount));
-  const Icon = isExpense ? ArrowDownLeft : ArrowUpRight;
 
   return (
-    <section className="relative z-10 my-auto hidden py-4 md:block">
-      <p className="text-[10px] font-bold uppercase text-white/70">
-        Prévia no extrato
-      </p>
+    <section aria-label="Prévia no extrato">
+      <p className="mb-3 text-[13px] text-white/55">Como vai aparecer no extrato</p>
 
-      <div className="-mx-3 mt-3 border-y border-white/20 bg-black/[0.07] px-3 py-4">
-        <div className="flex items-start justify-between gap-4">
-          <span className="flex size-10 shrink-0 items-center justify-center rounded-lg bg-white/15 text-white">
-            <Icon className="size-5" />
+      <div className="rounded-2xl bg-black/30 p-4 shadow-[inset_0_1px_0_rgba(255,255,255,0.06)] ring-1 ring-inset ring-white/10 backdrop-blur-sm">
+        <div className="flex items-center gap-3">
+          <span
+            className={cn(
+              "flex size-11 shrink-0 items-center justify-center rounded-xl",
+              isExpense
+                ? "bg-rose-400/15 text-rose-200"
+                : "bg-emerald-400/15 text-emerald-200",
+            )}
+          >
+            <CategoryGlyph name={categoryIcon} className="size-5" />
           </span>
-          <div className="min-w-0 text-right">
-            <p className="text-[9px] font-semibold uppercase text-white/65">
-              {isExpense ? "Saída" : "Entrada"}
+          <div className="min-w-0 flex-1">
+            <p className="truncate text-[15px] font-medium text-white">
+              {description.trim() ||
+                (isExpense ? "Nova despesa" : "Nova receita")}
             </p>
-            <strong className="mt-1 block text-xl font-semibold text-white">
+            <p className="mt-0.5 truncate text-[13px] text-white/55">
+              {category || "Outros"}, {origin}
+            </p>
+          </div>
+          <div className="shrink-0 text-right">
+            <p
+              className={cn(
+                "text-[17px] font-semibold tabular-nums tracking-tight",
+                isExpense ? "text-rose-200" : "text-emerald-200",
+              )}
+            >
               {isExpense ? "−" : "+"} {previewAmount}
-            </strong>
+            </p>
+            {detail ? (
+              <p className="mt-0.5 text-xs tabular-nums text-white/50">{detail}</p>
+            ) : null}
           </div>
         </div>
-
-        <p className="mt-4 truncate text-sm font-semibold text-white">
-          {description.trim() ||
-            (isExpense ? "Nova despesa" : "Nova receita")}
-        </p>
-
-        <dl className="mt-3 grid grid-cols-2 gap-4">
-          <div className="min-w-0">
-            <dt className="text-[9px] font-semibold uppercase text-white/65">
-              Categoria
-            </dt>
-            <dd className="mt-1 truncate text-xs font-medium text-white/85">
-              {category || "Outros"}
-            </dd>
-          </div>
-          <div className="min-w-0">
-            <dt className="text-[9px] font-semibold uppercase text-white/65">
-              Origem
-            </dt>
-            <dd className="mt-1 truncate text-xs font-medium text-white/85">
-              {origin}
-            </dd>
-          </div>
-        </dl>
       </div>
 
-      <div className="mt-3 flex items-center justify-between gap-3 text-[10px] font-medium text-white/75">
-        <span className="flex min-w-0 items-center gap-1.5">
-          <CalendarDays className="size-3.5 shrink-0" />
-          <span>{formatDateOnlyBR(date)}</span>
-        </span>
-        <span className="truncate">{owner}</span>
-        <span className="shrink-0 rounded-full bg-white/12 px-2 py-1 text-white/80">
-          {recurring ? "Recorrente" : "Avulso"}
-        </span>
-      </div>
+      <ul className="mt-4 flex flex-wrap gap-x-4 gap-y-2 text-[13px] text-white/60">
+        <li className="flex items-center gap-1.5">
+          <CalendarDays className="size-3.5" />
+          {formatDateOnlyBR(date)}
+        </li>
+        <li className="flex min-w-0 items-center gap-1.5">
+          <UserRound className="size-3.5 shrink-0" />
+          <span className="truncate">{owner}</span>
+        </li>
+        {recurring ? (
+          <li className="flex items-center gap-1.5">
+            <Repeat2 className="size-3.5" />
+            Todo mês
+          </li>
+        ) : null}
+      </ul>
     </section>
   );
 }

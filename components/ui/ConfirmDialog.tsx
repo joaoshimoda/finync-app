@@ -75,7 +75,7 @@ export function ConfirmDialog({
       ) : null}
       <AlertDialogContent className="sm:max-w-[430px]">
         <AlertDialogHeader className="flex flex-row items-start gap-4 space-y-0">
-          <span className="flex size-10 shrink-0 items-center justify-center rounded-lg border border-rose-500/20 bg-rose-500/10 text-rose-300">
+          <span className="flex size-11 shrink-0 items-center justify-center rounded-xl bg-rose-400/12 text-rose-300 ring-1 ring-inset ring-rose-400/20">
             <AlertTriangle className="size-5" />
           </span>
           <div className="min-w-0 space-y-1.5">
@@ -84,21 +84,26 @@ export function ConfirmDialog({
           </div>
         </AlertDialogHeader>
         {details ? (
-          <div className="mx-6 mb-5 rounded-lg border border-zinc-800 bg-zinc-900/60 px-4 py-3 text-sm text-zinc-300">
+          <div className="mx-6 mb-5 rounded-xl bg-white/[0.03] px-4 py-3 text-sm font-medium text-zinc-200 ring-1 ring-inset ring-white/[0.08]">
             {details}
           </div>
         ) : null}
         {hasError ? (
           <p
             role="alert"
-            className="mx-6 mb-5 rounded-lg border border-rose-500/20 bg-rose-500/10 px-4 py-3 text-sm text-rose-200"
+            className="mx-6 mb-5 rounded-xl bg-rose-500/10 px-4 py-3 text-sm text-rose-200 ring-1 ring-inset ring-rose-500/20"
           >
             {errorMessage}
           </p>
         ) : null}
         <AlertDialogFooter>
           <AlertDialogCancel asChild>
-            <Button type="button" variant="outline" disabled={isConfirming}>
+            <Button
+              type="button"
+              variant="ghost"
+              disabled={isConfirming}
+              className="h-11 rounded-xl px-4 text-zinc-400 hover:bg-white/[0.06] hover:text-zinc-50"
+            >
               {cancelLabel}
             </Button>
           </AlertDialogCancel>
@@ -107,7 +112,7 @@ export function ConfirmDialog({
             variant="destructive"
             disabled={isConfirming}
             onClick={() => void handleConfirm()}
-            className="bg-rose-600 text-white hover:bg-rose-500"
+            className="h-11 rounded-xl bg-rose-500 px-5 font-semibold text-white hover:bg-rose-400 dark:bg-rose-500 dark:hover:bg-rose-400"
           >
             {isConfirming ? <Loader2 className="size-4 animate-spin" /> : null}
             {isConfirming ? loadingLabel : confirmLabel}

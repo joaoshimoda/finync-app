@@ -2,24 +2,42 @@
 
 import { FormEvent, useEffect, useMemo, useState } from "react";
 import {
+  ArrowDownLeft,
   ArrowUpRight,
   CalendarDays,
   Check,
   ReceiptText,
-  X,
+  Repeat2,
+  SlidersHorizontal,
 } from "lucide-react";
 import { toast } from "sonner";
 
-import { Button } from "@/components/ui/button";
-import { TransactionLivePreview } from "@/components/modals/TransactionLivePreview";
+import { CategoryGlyph } from "@/components/finance/categoryIcons";
 import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogTitle,
-} from "@/components/ui/dialog";
+  AmountInput,
+  Field,
+  GroupScopeChooser,
+  ModalBody,
+  ModalFooter,
+  ModalShell,
+  ModalStage,
+  MobileSteps,
+  OptionGroup,
+  OptionRow,
+  PrimaryButton,
+  SecondaryButton,
+  Segmented,
+  StageAmount,
+  accentSwitchClassName,
+  fieldClassName,
+  selectTriggerClassName,
+} from "@/components/modals/ModalKit";
+import {
+  TransactionLivePreview,
+  parsePreviewAmount,
+} from "@/components/modals/TransactionLivePreview";
+import { Dialog } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
 import {
   Select,
   SelectContent,
@@ -81,7 +99,7 @@ function IncomeModalContent({
   onClose: () => void;
   onSelectExpense?: () => void;
 }) {
-  const { currencySymbol } = useCurrencyFormatter();
+  const { currencySymbol, formatCurrency } = useCurrencyFormatter();
   const authUser = useFinanceStore((state) => state.authUser);
   const categories = useFinanceStore((state) => state.categories);
   const fetchCategories = useFinanceStore((state) => state.fetchCategories);
@@ -251,336 +269,248 @@ function IncomeModalContent({
     }
   }
 
-  const lineInputClassName =
-    "h-9 rounded-none border-0 border-b border-zinc-700 bg-transparent px-0 text-zinc-100 shadow-none placeholder:text-zinc-600 focus-visible:border-emerald-500 focus-visible:ring-0 dark:bg-transparent";
-  const pillFieldClassName =
-    "h-10 rounded-full border-zinc-700 bg-transparent px-3 text-zinc-100 shadow-none focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500/30 dark:bg-transparent [@media_(max-height:_700px)_and_(max-width:_767px)]:h-9";
+  const inputClassName = fieldClassName("emerald");
+  const triggerClassName = selectTriggerClassName("emerald");
+  const switchClassName = accentSwitchClassName("emerald");
+  const categoryIcon = incomeCategories.find(
+    (item) => item.label === category,
+  )?.icon;
 
   return (
-    <DialogContent
-      data-tour="income-modal"
-      showCloseButton={false}
-      onOpenAutoFocus={(event) => {
-        event.preventDefault();
-        window.requestAnimationFrame(() => {
-          document.getElementById("income-amount")?.focus();
-        });
-      }}
-      className="inset-x-0 bottom-0 left-0 top-auto flex max-h-[94dvh] w-full max-w-none translate-x-0 translate-y-0 overflow-hidden rounded-b-none rounded-t-xl border border-b-0 border-zinc-800 bg-zinc-950 p-0 text-zinc-50 shadow-2xl md:left-1/2 md:top-1/2 md:h-[560px] md:max-h-[90dvh] md:max-w-[920px] md:-translate-x-1/2 md:-translate-y-1/2 md:rounded-xl md:border-b"
-    >
-      <form
-        className="grid min-h-0 w-full md:grid-cols-[44%_56%]"
-        onSubmit={handleSubmit}
-      >
-        <aside className="relative flex min-h-44 flex-col overflow-hidden bg-emerald-600 p-5 text-white md:min-h-0 md:p-8 [@media_(max-height:_700px)_and_(max-width:_767px)]:min-h-32 [@media_(max-height:_700px)_and_(max-width:_767px)]:p-4">
-          <div className="pointer-events-none absolute inset-y-0 right-0 w-24 border-l border-white/10 bg-black/5 [transform:skewX(-10deg)_translateX(45%)]" />
-          <div className="pointer-events-none absolute bottom-0 left-0 h-px w-full bg-white/10" />
-
-          <button
-            type="button"
-            aria-label="Fechar"
-            onClick={onClose}
-            className="absolute right-5 top-5 z-10 flex size-10 items-center justify-center rounded-full text-white/75 transition-colors hover:bg-black/10 hover:text-white md:right-7 md:top-7"
-          >
-            <X className="size-5" />
-          </button>
-
-          <div className="relative z-10">
-            <p className="text-[10px] font-bold uppercase text-white/65">
-              Lançamento
-            </p>
-            <div className="mt-5 hidden size-10 items-center justify-center rounded-lg bg-white/15 md:flex">
-              <ArrowUpRight className="size-5" />
-            </div>
-            <DialogTitle className="mt-3 max-w-xs text-2xl font-semibold leading-tight text-white md:mt-5 md:text-4xl [@media_(max-height:_700px)_and_(max-width:_767px)]:mt-1 [@media_(max-height:_700px)_and_(max-width:_767px)]:text-xl">
-              {editingTransaction ? "Editar receita." : "Nova receita."}
-            </DialogTitle>
-            <DialogDescription className="mt-2 max-w-[250px] text-xs leading-5 text-white/80 md:mt-3 [@media_(max-height:_700px)_and_(max-width:_767px)]:hidden">
-              Registre uma entrada e acompanhe a evolução do seu dinheiro.
-            </DialogDescription>
-          </div>
-
+    <ModalShell
+      tour="income-modal"
+      focusId="income-amount"
+      onSubmit={handleSubmit}
+      stage={
+        <ModalStage
+          accent="emerald"
+          context="Lançamento"
+          title={editingTransaction ? "Editar receita" : "Nova receita"}
+          description="Salário, freelas, reembolsos: tudo o que entra na sua conta."
+          onClose={onClose}
+          compact={
+            <StageAmount
+              label="Valor"
+              value={formatCurrency(parsePreviewAmount(amount))}
+            />
+          }
+          footer={
+            <Segmented
+              label="Tipo de lançamento"
+              className="bg-black/25"
+              value="income"
+              onChange={(value) => {
+                if (value === "expense") onSelectExpense?.();
+              }}
+              options={[
+                {
+                  value: "expense",
+                  label: "Despesa",
+                  icon: ArrowDownLeft,
+                  disabled: !onSelectExpense || Boolean(editingTransaction),
+                },
+                { value: "income", label: "Receita", icon: ArrowUpRight },
+              ]}
+            />
+          }
+        >
           <TransactionLivePreview
             type="income"
             amount={amount}
             description={description}
             category={category}
+            categoryIcon={categoryIcon}
             origin={
               repeatMonthly
                 ? isVariableValue
-                  ? "Receita variável"
-                  : "Receita recorrente"
-                : "Receita avulsa"
+                  ? "valor variável"
+                  : "todo mês"
+                : "entrada única"
             }
             owner="Entrada pessoal"
             date={date}
             recurring={repeatMonthly}
           />
+        </ModalStage>
+      }
+    >
+      <ModalBody>
+        {pendingRecurringUpdate ? (
+          <GroupScopeChooser
+            title="Onde aplicar as mudanças?"
+            description="Esta receita se repete todo mês. Escolha até onde a alteração vale."
+            disabled={isSubmitting}
+            onSelect={(scope: GroupEditScope) => void saveGroupedUpdate(scope)}
+            options={[
+              {
+                value: "single",
+                label: "Somente esta",
+                description: "As outras receitas ficam como estão.",
+              },
+              {
+                value: "future",
+                label: "Esta e as próximas",
+                description: "Os meses anteriores não mudam.",
+                primary: true,
+              },
+              {
+                value: "all",
+                label: "Todas",
+                description: "Inclui os meses que já passaram.",
+              },
+            ]}
+          />
+        ) : (
+          <fieldset disabled={isSubmitting} className="min-w-0">
+            <MobileSteps
+              step={mobileStep}
+              labels={["O que entrou", "Detalhes"]}
+              accent="emerald"
+            />
 
-          <div className="relative z-10 mt-auto flex items-end justify-between gap-3 pt-4 md:block [@media_(max-height:_700px)_and_(max-width:_767px)]:pt-2">
-            <p className="mb-2 text-[10px] font-bold uppercase text-white/60">
-              Tipo de lançamento
-            </p>
-            <div className="flex gap-2">
-              <button
-                type="button"
-                disabled={!onSelectExpense || Boolean(editingTransaction)}
-                onClick={onSelectExpense}
-                className="h-8 rounded-full bg-white/10 px-4 text-xs font-semibold text-white transition-colors hover:bg-white/15 disabled:cursor-not-allowed disabled:opacity-50"
-              >
-                Despesa
-              </button>
-              <button
-                type="button"
-                className="h-8 rounded-full bg-white px-4 text-xs font-semibold text-emerald-700"
-              >
-                Receita
-              </button>
+            <div className={cn("space-y-6 md:block", mobileStep !== 1 && "hidden")}>
+              <AmountInput
+                id="income-amount"
+                label="Valor"
+                accent="emerald"
+                currencySymbol={currencySymbol}
+                value={amount}
+                onChange={(event) => setAmount(event.target.value)}
+                inputMode="decimal"
+                placeholder="0,00"
+                required
+              />
+
+              <Field label="Descrição" htmlFor="income-description">
+                <Input
+                  id="income-description"
+                  value={description}
+                  onChange={(event) => setDescription(event.target.value)}
+                  placeholder="Ex.: Salário, projeto, reembolso"
+                  autoComplete="off"
+                  className={inputClassName}
+                  required
+                />
+              </Field>
             </div>
-          </div>
-        </aside>
 
-        <section className="flex min-h-0 flex-col bg-zinc-950">
-          <div className="min-h-0 flex-1 overflow-y-auto px-5 py-4 [scrollbar-width:thin] md:px-7 md:py-6 [@media_(max-height:_700px)_and_(max-width:_767px)]:py-3">
-            {pendingRecurringUpdate ? (
-              <div className="flex h-full items-center">
-                <section className="w-full border-y border-zinc-800 py-5">
-                  <p className="text-base font-semibold text-zinc-50">
-                    Onde aplicar as mudanças?
-                  </p>
-                  <p className="mt-1 text-sm text-zinc-400">
-                    Escolha quais receitas deste grupo devem ser atualizadas.
-                  </p>
-                  <div className="mt-5 grid gap-2 sm:grid-cols-3">
-                    <Button
-                      type="button"
-                      variant="secondary"
-                      disabled={isSubmitting}
-                      onClick={() => void saveGroupedUpdate("single")}
-                    >
-                      Somente esta
-                    </Button>
-                    <Button
-                      type="button"
-                      disabled={isSubmitting}
-                      onClick={() => void saveGroupedUpdate("future")}
-                      className="bg-emerald-600 text-white hover:bg-emerald-700"
-                    >
-                      Esta e as próximas
-                    </Button>
-                    <Button
-                      type="button"
-                      variant="outline"
-                      disabled={isSubmitting}
-                      onClick={() => void saveGroupedUpdate("all")}
-                      className="border-zinc-700"
-                    >
-                      Todas
-                    </Button>
-                  </div>
-                </section>
+            <div
+              className={cn(
+                "space-y-5 md:mt-7 md:block md:border-t md:border-white/[0.06] md:pt-6",
+                mobileStep !== 2 && "hidden",
+              )}
+            >
+              <div className="grid gap-4 sm:grid-cols-2">
+                <Field label="Data" htmlFor="income-date" icon={CalendarDays}>
+                  <Input
+                    id="income-date"
+                    value={date}
+                    onChange={(event) => setDate(event.target.value)}
+                    type="date"
+                    className={inputClassName}
+                    required
+                  />
+                </Field>
+                <Field label="Categoria" htmlFor="income-category" icon={ReceiptText}>
+                  <Select value={category} onValueChange={setCategory}>
+                    <SelectTrigger id="income-category" className={triggerClassName}>
+                      <SelectValue placeholder="Selecione" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {incomeCategories.map((incomeCategory) => (
+                        <SelectItem key={incomeCategory.id} value={incomeCategory.label}>
+                          <CategoryGlyph
+                            name={incomeCategory.icon}
+                            className="size-4 text-zinc-400"
+                          />
+                          {incomeCategory.label}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </Field>
               </div>
-            ) : (
-              <fieldset disabled={isSubmitting} className="h-full">
-                <div
-                  className={cn(
-                    "space-y-4 md:block",
-                    mobileStep !== 1 && "hidden",
-                  )}
-                >
-                  <div className="flex items-center justify-between md:hidden">
-                    <p className="text-[10px] font-bold uppercase text-zinc-500">
-                      Dados principais
-                    </p>
-                    <span className="text-xs text-zinc-600">1 / 2</span>
-                  </div>
-                  <div className="space-y-1">
-                    <Label
-                      htmlFor="income-amount"
-                      className="text-[10px] font-bold uppercase text-zinc-500"
-                    >
-                      Valor da receita
-                    </Label>
-                    <div className="flex items-center border-b border-zinc-700">
-                      <span className="shrink-0 text-xs font-semibold text-emerald-400">
-                        {currencySymbol}
-                      </span>
-                      <Input
-                        id="income-amount"
-                        value={amount}
-                        onChange={(event) => setAmount(event.target.value)}
-                        inputMode="decimal"
-                        placeholder="0,00"
-                        className="h-10 rounded-none border-0 bg-transparent px-2 text-base font-medium shadow-none focus-visible:ring-0 dark:bg-transparent"
-                        required
-                      />
-                    </div>
-                  </div>
-                  <div className="space-y-1">
-                    <Label
-                      htmlFor="income-description"
-                      className="text-sm font-medium text-zinc-300"
-                    >
-                      De onde veio?
-                    </Label>
-                    <Input
-                      id="income-description"
-                      value={description}
-                      onChange={(event) => setDescription(event.target.value)}
-                      placeholder="Ex.: Salário, projeto..."
-                      className={lineInputClassName}
-                      required
+
+              <OptionGroup>
+                <OptionRow
+                  id="income-repeat-monthly"
+                  icon={Repeat2}
+                  title="Repetir todo mês"
+                  description="Lança a mesma receita nos próximos 12 meses."
+                  control={
+                    <Switch
+                      id="income-repeat-monthly"
+                      className={switchClassName}
+                      checked={repeatMonthly}
+                      onCheckedChange={setRepeatMonthly}
                     />
-                  </div>
-                </div>
+                  }
+                />
+                <OptionRow
+                  id="income-variable-value"
+                  icon={SlidersHorizontal}
+                  title="Valor muda todo mês"
+                  description="Fica pendente até você confirmar o valor recebido."
+                  control={
+                    <Switch
+                      id="income-variable-value"
+                      className={switchClassName}
+                      checked={isVariableValue}
+                      onCheckedChange={(checked) => {
+                        setIsVariableValue(checked);
+                        if (checked) setRepeatMonthly(true);
+                      }}
+                    />
+                  }
+                />
+              </OptionGroup>
+            </div>
+          </fieldset>
+        )}
+      </ModalBody>
 
-                <div
-                  className={cn(
-                    "space-y-5 md:mt-5 md:block md:border-t md:border-zinc-800 md:pt-5",
-                    mobileStep !== 2 && "hidden",
-                  )}
-                >
-                  <div className="flex items-center justify-between md:hidden">
-                    <p className="text-[10px] font-bold uppercase text-zinc-500">
-                      Organização
-                    </p>
-                    <span className="text-xs text-zinc-600">2 / 2</span>
-                  </div>
-                  <div className="grid gap-4 sm:grid-cols-2">
-                    <div className="space-y-2">
-                      <Label
-                        htmlFor="income-date"
-                        className="flex items-center gap-2 text-[10px] font-bold uppercase text-zinc-500"
-                      >
-                        <CalendarDays className="size-3.5" />
-                        Data
-                      </Label>
-                      <Input
-                        id="income-date"
-                        value={date}
-                        onChange={(event) => setDate(event.target.value)}
-                        type="date"
-                        className={cn(pillFieldClassName, "[color-scheme:dark]")}
-                        required
-                      />
-                    </div>
-                    <div className="space-y-2">
-                      <Label className="flex items-center gap-2 text-[10px] font-bold uppercase text-zinc-500">
-                        <ReceiptText className="size-3.5" />
-                        Categoria
-                      </Label>
-                      <Select value={category} onValueChange={setCategory}>
-                        <SelectTrigger className={pillFieldClassName}>
-                          <SelectValue placeholder="Selecione" />
-                        </SelectTrigger>
-                        <SelectContent>
-                          {incomeCategories.map((incomeCategory) => (
-                            <SelectItem
-                              key={incomeCategory.id}
-                              value={incomeCategory.label}
-                            >
-                              {incomeCategory.label}
-                            </SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
-                    </div>
-                  </div>
-
-                  <div className="grid gap-2 border-t border-zinc-800 pt-4 sm:grid-cols-2">
-                    <div className="flex min-h-14 items-center justify-between gap-3">
-                      <span>
-                        <span className="block text-xs font-semibold text-zinc-100">
-                          Repetir mensalmente
-                        </span>
-                        <span className="block text-[10px] text-zinc-500">
-                          Projetar por 12 meses
-                        </span>
-                      </span>
-                      <Switch
-                        id="income-repeat-monthly"
-                        checked={repeatMonthly}
-                        onCheckedChange={setRepeatMonthly}
-                      />
-                    </div>
-                    <div className="flex min-h-14 items-center justify-between gap-3">
-                      <span>
-                        <span className="block text-xs font-semibold text-zinc-100">
-                          Valor variável
-                        </span>
-                        <span className="block text-[10px] text-zinc-500">
-                          Confirmar a cada mês
-                        </span>
-                      </span>
-                      <Switch
-                        id="income-variable-value"
-                        checked={isVariableValue}
-                        onCheckedChange={(checked) => {
-                          setIsVariableValue(checked);
-                          if (checked) setRepeatMonthly(true);
-                        }}
-                      />
-                    </div>
-                  </div>
-                </div>
-              </fieldset>
-            )}
-          </div>
-
-          <footer className="flex shrink-0 items-center justify-end gap-2 border-t border-zinc-900 px-5 py-3 md:border-0 md:px-7 md:pb-6 md:pt-2">
-            {pendingRecurringUpdate ? (
-              <Button
+      <ModalFooter>
+        {pendingRecurringUpdate ? (
+          <SecondaryButton onClick={() => setPendingRecurringUpdate(null)}>
+            Voltar aos campos
+          </SecondaryButton>
+        ) : (
+          <>
+            <SecondaryButton
+              disabled={isSubmitting}
+              onClick={mobileStep === 2 ? () => setMobileStep(1) : onClose}
+            >
+              <span className="md:hidden">
+                {mobileStep === 2 ? "Voltar" : "Cancelar"}
+              </span>
+              <span className="hidden md:inline">Cancelar</span>
+            </SecondaryButton>
+            {mobileStep === 1 ? (
+              <PrimaryButton
                 type="button"
-                variant="ghost"
-                onClick={() => setPendingRecurringUpdate(null)}
-                className="text-zinc-400"
+                accent="emerald"
+                onClick={() => setMobileStep(2)}
+                className="md:hidden"
               >
-                Voltar aos campos
-              </Button>
-            ) : (
-              <>
-                <Button
-                  type="button"
-                  variant="ghost"
-                  disabled={isSubmitting}
-                  onClick={mobileStep === 2 ? () => setMobileStep(1) : onClose}
-                  className="h-10 flex-1 text-zinc-400 hover:text-white md:flex-none"
-                >
-                  <span className="md:hidden">
-                    {mobileStep === 2 ? "Voltar" : "Cancelar"}
-                  </span>
-                  <span className="hidden md:inline">Cancelar</span>
-                </Button>
-                {mobileStep === 1 ? (
-                  <Button
-                    type="button"
-                    onClick={() => setMobileStep(2)}
-                    className="h-10 flex-[1.35] rounded-full bg-emerald-600 px-6 font-semibold text-white hover:bg-emerald-700 md:hidden"
-                  >
-                    Continuar
-                  </Button>
-                ) : null}
-                <Button
-                  type="submit"
-                  disabled={isSubmitting}
-                  className={cn(
-                    "h-10 flex-[1.35] rounded-full bg-emerald-600 px-6 font-semibold text-white hover:bg-emerald-700 md:flex-none",
-                    mobileStep === 1 && "hidden md:inline-flex",
-                  )}
-                >
-                  <Check className="size-4" />
-                  {isSubmitting
-                    ? "Salvando..."
-                    : editingTransaction?.groupId &&
-                        editingTransaction.is_recurring
-                      ? "Revisar mudanças"
-                      : "Salvar receita"}
-                </Button>
-              </>
-            )}
-          </footer>
-        </section>
-      </form>
-    </DialogContent>
+                Continuar
+              </PrimaryButton>
+            ) : null}
+            <PrimaryButton
+              type="submit"
+              accent="emerald"
+              icon={Check}
+              loading={isSubmitting}
+              loadingLabel="Salvando..."
+              disabled={isSubmitting}
+              className={cn(mobileStep === 1 && "hidden md:inline-flex")}
+            >
+              {editingTransaction?.groupId && editingTransaction.is_recurring
+                ? "Revisar mudanças"
+                : "Salvar receita"}
+            </PrimaryButton>
+          </>
+        )}
+      </ModalFooter>
+    </ModalShell>
   );
 }
