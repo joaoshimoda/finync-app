@@ -59,7 +59,9 @@ export function parseFinyncBackup(value: Json): FinyncBackup | null {
   return value as unknown as FinyncBackup;
 }
 
-function escapeCsvCell(value: string | number | boolean | null | undefined) {
+export type CsvCell = string | number | boolean | null | undefined;
+
+export function escapeCsvCell(value: CsvCell) {
   if (value === null || value === undefined) return "";
 
   if (typeof value === "number") {
@@ -80,7 +82,23 @@ function escapeCsvCell(value: string | number | boolean | null | undefined) {
   return protectedValue;
 }
 
-export function buildTransactionsCsv(backup: FinyncBackup) {
+/* Semicolon separated with a BOM, so Excel in pt-BR opens it as columns. */
+export function toCsv(headers: string[], rows: CsvCell[][]) {
+  return `\uFEFF${[headers, ...rows]
+    .map((row) => row.map((value) => escapeCsvCell(value)).join(";"))
+    .join("\r\n")}`;
+}
+
+export const transactionStatusLabels: Record<string, string> = {
+  PAGO: "Pago",
+  PENDENTE: "Pendente",
+  CONFIRMADO: "Confirmado",
+};
+
+export function buildTransactionsCsv(
+  backup: FinyncBackup,
+  transactions: Tables<"transactions">[] = backup.data.transactions,
+) {
   const cardsById = new Map(backup.data.cards.map((card) => [card.id, card.name]));
   const dependentsById = new Map(
     backup.data.dependents.map((dependent) => [dependent.id, dependent.name]),
@@ -104,14 +122,14 @@ export function buildTransactionsCsv(backup: FinyncBackup) {
     "Dependente",
     "Observações",
   ];
-  const rows = backup.data.transactions.map((transaction) => [
+  const rows = transactions.map((transaction) => [
     transaction.transaction_date,
     transaction.month_start,
     transaction.description,
     transaction.amount,
     typeLabels[transaction.type],
     transaction.category,
-    transaction.status,
+    transactionStatusLabels[transaction.status] ?? transaction.status,
     transaction.recurring,
     transaction.installments_total > 1
       ? `${transaction.installment_number}/${transaction.installments_total}`
@@ -123,9 +141,7 @@ export function buildTransactionsCsv(backup: FinyncBackup) {
     transaction.notes,
   ]);
 
-  return `\uFEFF${[headers, ...rows]
-    .map((row) => row.map((value) => escapeCsvCell(value)).join(";"))
-    .join("\r\n")}`;
+  return toCsv(headers, rows);
 }
 
 export function getBackupCounts(backup: FinyncBackup) {
@@ -148,12 +164,16 @@ export function getBackupCounts(backup: FinyncBackup) {
   );
 }
 
-export function getBackupFilename(extension: "json" | "csv", date: Date) {
+export function getBackupFilename(
+  extension: "json" | "csv",
+  date: Date,
+  name = "backup",
+) {
   const datePart = [
     date.getFullYear(),
     String(date.getMonth() + 1).padStart(2, "0"),
     String(date.getDate()).padStart(2, "0"),
   ].join("-");
 
-  return `finync-backup-${datePart}.${extension}`;
+  return `finync-${name}-${datePart}.${extension}`;
 }
