@@ -111,7 +111,7 @@ export function CategoryManager() {
           <Button
             type="button"
             onClick={openCreateModal}
-            className="h-11 shrink-0 bg-emerald-600 px-4 font-semibold text-white hover:bg-emerald-700"
+            className="h-11 shrink-0 bg-emerald-600 px-4 font-semibold text-on-color hover:bg-emerald-700"
           >
             <PlusCircle className="size-4" />
             <span className="max-sm:hidden">Nova categoria</span>

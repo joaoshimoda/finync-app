@@ -1,5 +1,6 @@
 "use client";
 
+import { useChartTones } from "@/hooks/useChartTones";
 import { useId } from "react";
 import {
   Area,
@@ -34,6 +35,7 @@ export function BalanceTimelineChart({
   monthShortLabel,
   formatValue,
 }: BalanceTimelineChartProps) {
+  const tones = useChartTones();
   const gradientId = useId().replace(/:/g, "");
   const lastDay = points.length;
   const ticks = [1, 8, 15, 22, lastDay].filter(
@@ -86,7 +88,7 @@ export function BalanceTimelineChart({
         </defs>
         <CartesianGrid
           vertical={false}
-          stroke="rgba(255,255,255,0.05)"
+          stroke={tones.grid}
           strokeDasharray="0"
         />
         <XAxis
@@ -95,7 +97,7 @@ export function BalanceTimelineChart({
           domain={[1, lastDay]}
           ticks={ticks}
           tickFormatter={(day: number) => `${day} ${monthShortLabel}`}
-          tick={{ fill: "#71717a", fontSize: 11 }}
+          tick={{ fill: tones.tick, fontSize: 11 }}
           tickLine={false}
           axisLine={false}
           tickMargin={10}
@@ -111,18 +113,18 @@ export function BalanceTimelineChart({
         {todayDay && (
           <ReferenceLine
             x={todayDay}
-            stroke="rgba(255,255,255,0.16)"
+            stroke={tones.referenceStrong}
             strokeDasharray="3 4"
             label={{
               value: "Hoje",
               position: "top",
-              fill: "#a1a1aa",
+              fill: tones.tickStrong,
               fontSize: 11,
             }}
           />
         )}
         <Tooltip
-          cursor={{ stroke: "rgba(255,255,255,0.18)", strokeWidth: 1 }}
+          cursor={{ stroke: tones.cursor, strokeWidth: 1 }}
           content={({ active, payload }) => {
             const point = payload?.[0]?.payload as
               BalanceTimelinePoint | undefined;
@@ -164,7 +166,7 @@ export function BalanceTimelineChart({
           activeDot={{
             r: 4,
             fill: lineColor,
-            stroke: "#18181b",
+            stroke: tones.panel,
             strokeWidth: 2,
           }}
           animationDuration={900}
@@ -180,7 +182,7 @@ export function BalanceTimelineChart({
           activeDot={{
             r: 4,
             fill: lineColor,
-            stroke: "#18181b",
+            stroke: tones.panel,
             strokeWidth: 2,
           }}
           animationDuration={900}
@@ -191,7 +193,7 @@ export function BalanceTimelineChart({
             y={todayValue}
             r={5}
             fill={lineColor}
-            stroke="#18181b"
+            stroke={tones.panel}
             strokeWidth={3}
           />
         )}

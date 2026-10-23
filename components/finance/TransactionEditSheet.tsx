@@ -261,9 +261,11 @@ export function TransactionEditSheet({
 
   return (
     <Sheet open={open} onOpenChange={onOpenChange}>
-      <SheetContent className="max-w-none sm:w-[540px] sm:max-w-[540px]">
+      <SheetContent
+        closeClassName="theme-fixed text-white/60 hover:bg-white/10 hover:text-white"
+        className="max-w-none sm:w-[540px] sm:max-w-[540px]">
         <header
-          className="relative shrink-0 border-b border-white/[0.06] px-5 pb-5 pt-6 sm:px-7"
+          className="theme-fixed relative shrink-0 border-b border-white/[0.06] px-5 pb-5 pt-6 sm:px-7"
           style={{ background: getStageBackground(accent) }}
         >
           <div className="flex flex-wrap items-center gap-2 pr-12">

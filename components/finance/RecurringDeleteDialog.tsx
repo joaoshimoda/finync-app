@@ -99,7 +99,7 @@ export function RecurringDeleteDialog({
             variant="destructive"
             disabled={isDeleting || !transaction.groupId}
             onClick={() => void handleConfirmDelete("future")}
-            className="h-auto min-h-12 w-full justify-start rounded-xl bg-rose-500 px-4 py-3 text-left font-semibold text-white hover:bg-rose-400 dark:bg-rose-500 dark:hover:bg-rose-400"
+            className="h-auto min-h-12 w-full justify-start rounded-xl bg-rose-500 px-4 py-3 text-left font-semibold text-on-color hover:bg-rose-400 dark:bg-rose-500 dark:hover:bg-rose-400"
           >
             {isDeleting ? (
               <Loader2 className="size-4 animate-spin" />

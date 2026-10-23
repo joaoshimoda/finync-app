@@ -1,5 +1,6 @@
 "use client";
 
+import { useChartTones } from "@/hooks/useChartTones";
 import {
   Bar,
   BarChart,
@@ -62,6 +63,7 @@ export function CashFlowChart({
   formatValue: Formatter;
   formatCompact: Formatter;
 }) {
+  const tones = useChartTones();
   return (
     <Frame height={chartHeights.cashFlow}>
       <ComposedChart
@@ -69,7 +71,7 @@ export function CashFlowChart({
         margin={{ top: 8, right: 4, bottom: 0, left: 0 }}
         barGap={2}
       >
-        <CartesianGrid vertical={false} stroke={analyticsColors.grid} />
+        <CartesianGrid vertical={false} stroke={tones.grid} />
         <XAxis
           dataKey="label"
           tick={axisTick}
@@ -84,9 +86,9 @@ export function CashFlowChart({
           width={64}
           tickFormatter={(value: number) => formatCompact(value)}
         />
-        <ReferenceLine y={0} stroke="rgba(255,255,255,0.12)" />
+        <ReferenceLine y={0} stroke={tones.reference} />
         <Tooltip
-          cursor={{ fill: "rgba(255,255,255,0.03)" }}
+          cursor={{ fill: tones.cursorFill }}
           content={({ active, payload }) => {
             const month = payload?.[0]?.payload as MonthSummary | undefined;
             if (!active || !month) return null;
@@ -140,10 +142,10 @@ export function CashFlowChart({
           dot={{
             r: 3,
             fill: analyticsColors.primary,
-            stroke: "#18181b",
+            stroke: tones.panel,
             strokeWidth: 2,
           }}
-          activeDot={{ r: 5, stroke: "#18181b", strokeWidth: 2 }}
+          activeDot={{ r: 5, stroke: tones.panel, strokeWidth: 2 }}
           animationDuration={1000}
         />
       </ComposedChart>
@@ -162,6 +164,7 @@ export function SpendingPaceChart({
   formatValue: Formatter;
   formatCompact: Formatter;
 }) {
+  const tones = useChartTones();
   const lastDay = points.length;
   const ticks = [1, 8, 15, 22, lastDay].filter(
     (tick, index, list) => tick <= lastDay && list.indexOf(tick) === index,
@@ -173,7 +176,7 @@ export function SpendingPaceChart({
         data={points}
         margin={{ top: 16, right: 8, bottom: 0, left: 0 }}
       >
-        <CartesianGrid vertical={false} stroke={analyticsColors.grid} />
+        <CartesianGrid vertical={false} stroke={tones.grid} />
         <XAxis
           dataKey="day"
           type="number"
@@ -195,18 +198,18 @@ export function SpendingPaceChart({
         {currentDay !== null && currentDay < lastDay && (
           <ReferenceLine
             x={currentDay}
-            stroke="rgba(255,255,255,0.16)"
+            stroke={tones.referenceStrong}
             strokeDasharray="3 4"
             label={{
               value: "Hoje",
               position: "top",
-              fill: "#a1a1aa",
+              fill: tones.tickStrong,
               fontSize: 11,
             }}
           />
         )}
         <Tooltip
-          cursor={{ stroke: "rgba(255,255,255,0.18)" }}
+          cursor={{ stroke: tones.cursor }}
           content={({ active, payload }) => {
             const point = payload?.[0]?.payload as PacePoint | undefined;
             if (!active || !point) return null;
@@ -238,11 +241,11 @@ export function SpendingPaceChart({
         <Line
           type="monotone"
           dataKey="previous"
-          stroke="#71717a"
+          stroke={tones.tick}
           strokeWidth={2}
           strokeDasharray="5 5"
           dot={false}
-          activeDot={{ r: 4, stroke: "#18181b", strokeWidth: 2 }}
+          activeDot={{ r: 4, stroke: tones.panel, strokeWidth: 2 }}
           animationDuration={900}
         />
         <Line
@@ -252,7 +255,7 @@ export function SpendingPaceChart({
           strokeWidth={2.5}
           dot={false}
           connectNulls={false}
-          activeDot={{ r: 5, stroke: "#18181b", strokeWidth: 2 }}
+          activeDot={{ r: 5, stroke: tones.panel, strokeWidth: 2 }}
           animationDuration={1100}
         />
       </LineChart>
@@ -269,10 +272,11 @@ export function CompositionChart({
   formatValue: Formatter;
   formatCompact: Formatter;
 }) {
+  const tones = useChartTones();
   return (
     <Frame height={chartHeights.composition}>
       <BarChart data={months} margin={{ top: 8, right: 4, bottom: 0, left: 0 }}>
-        <CartesianGrid vertical={false} stroke={analyticsColors.grid} />
+        <CartesianGrid vertical={false} stroke={tones.grid} />
         <XAxis
           dataKey="label"
           tick={axisTick}
@@ -288,7 +292,7 @@ export function CompositionChart({
           tickFormatter={(value: number) => formatCompact(value)}
         />
         <Tooltip
-          cursor={{ fill: "rgba(255,255,255,0.03)" }}
+          cursor={{ fill: tones.cursorFill }}
           content={({ active, payload }) => {
             const month = payload?.[0]?.payload as MonthSummary | undefined;
             if (!active || !month) return null;
@@ -317,7 +321,7 @@ export function CompositionChart({
           stackId="composition"
           fill={analyticsColors.primary}
           maxBarSize={30}
-          stroke="#18181b"
+          stroke={tones.panel}
           strokeWidth={2}
           animationDuration={800}
         />
@@ -327,7 +331,7 @@ export function CompositionChart({
           fill={analyticsColors.expense}
           radius={[4, 4, 0, 0]}
           maxBarSize={30}
-          stroke="#18181b"
+          stroke={tones.panel}
           strokeWidth={2}
           animationDuration={800}
         />
@@ -343,6 +347,7 @@ export function WeekdayChart({
   points: WeekdayPoint[];
   formatValue: Formatter;
 }) {
+  const tones = useChartTones();
   const maxAmount = Math.max(...points.map((point) => point.amount), 0);
 
   return (
@@ -357,7 +362,7 @@ export function WeekdayChart({
         />
         <YAxis hide />
         <Tooltip
-          cursor={{ fill: "rgba(255,255,255,0.03)" }}
+          cursor={{ fill: tones.cursorFill }}
           content={({ active, payload }) => {
             const point = payload?.[0]?.payload as WeekdayPoint | undefined;
             if (!active || !point) return null;

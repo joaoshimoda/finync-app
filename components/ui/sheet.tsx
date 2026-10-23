@@ -45,16 +45,20 @@ function SheetOverlay({
 
 function SheetContent({
   className,
+  closeClassName,
   children,
   ...props
-}: React.ComponentProps<typeof SheetPrimitive.Content>) {
+}: React.ComponentProps<typeof SheetPrimitive.Content> & {
+  /* For sheets whose header sits on a dark, theme-fixed surface. */
+  closeClassName?: string;
+}) {
   return (
     <SheetPortal>
       <SheetOverlay />
       <SheetPrimitive.Content
         data-slot="sheet-content"
         className={cn(
-          "fixed inset-y-0 right-0 z-50 flex h-dvh w-full max-w-md flex-col border-l border-white/[0.08] bg-zinc-950 text-zinc-50 shadow-2xl outline-none duration-300 data-open:animate-in data-open:slide-in-from-right data-closed:animate-out data-closed:slide-out-to-right sm:w-[420px]",
+          "fixed inset-y-0 right-0 z-50 flex h-dvh w-full max-w-md flex-col border-l border-white/[0.08] bg-zinc-950 text-zinc-50 light:bg-zinc-900 shadow-2xl outline-none duration-300 data-open:animate-in data-open:slide-in-from-right data-closed:animate-out data-closed:slide-out-to-right sm:w-[420px]",
           className,
         )}
         {...props}
@@ -65,7 +69,10 @@ function SheetContent({
             type="button"
             variant="ghost"
             size="icon"
-            className="absolute right-4 top-4 size-10 text-white/60 hover:bg-white/10 hover:text-white"
+            className={cn(
+              "absolute right-4 top-4 size-10 text-zinc-500 hover:bg-white/[0.06] hover:text-zinc-100",
+              closeClassName,
+            )}
           >
             <XIcon className="size-5" />
             <span className="sr-only">Fechar painel</span>

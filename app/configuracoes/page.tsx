@@ -14,6 +14,7 @@ import { Monitor, Trash2 } from "lucide-react";
 import { toast } from "sonner";
 
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
+import { AppearanceCard } from "@/components/settings/AppearanceCard";
 import { CategoryManager } from "@/components/settings/CategoryManager";
 import { Button } from "@/components/ui/button";
 import {
@@ -705,6 +706,8 @@ export default function ConfiguracoesPage() {
           value="preferencias"
           className="mt-6 grid w-full grid-cols-1 gap-6 lg:grid-cols-12"
         >
+          <AppearanceCard className="lg:col-span-12" />
+
           <Card className="border-zinc-800/80 bg-zinc-900/50 shadow-none lg:col-span-5">
             <CardHeader className="border-b border-zinc-800/80 px-6 py-6">
               <CardTitle>Preferências regionais</CardTitle>
@@ -896,7 +899,7 @@ export default function ConfiguracoesPage() {
               <CardFooter className="justify-end border-t border-zinc-800/80 px-6 py-5">
                 <Button
                   type="submit"
-                  className="bg-emerald-600 text-white hover:bg-emerald-700"
+                  className="bg-emerald-600 text-on-color hover:bg-emerald-700"
                   disabled={isUpdatingPassword}
                 >
                   {isUpdatingPassword ? "Atualizando..." : "Atualizar Senha"}
@@ -1001,7 +1004,7 @@ export default function ConfiguracoesPage() {
             </Button>
             <Button
               type="button"
-              className="bg-emerald-600 text-white hover:bg-emerald-700"
+              className="bg-emerald-600 text-on-color hover:bg-emerald-700"
               onClick={() => void handleSaveCroppedAvatar()}
               disabled={isUploadingAvatar}
             >

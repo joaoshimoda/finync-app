@@ -285,7 +285,7 @@ function IncomePreview() {
           <Briefcase className="size-2.5" />
           Salário
         </Pill>
-        <span className="rounded-md bg-emerald-500 px-2.5 py-1 text-[10px] font-semibold text-white">
+        <span className="rounded-md bg-emerald-500 px-2.5 py-1 text-[10px] font-semibold text-on-color">
           Salvar receita
         </span>
       </div>
@@ -339,7 +339,7 @@ function CardsPreview() {
     <div className="space-y-2.5">
       <motion.div
         {...list(0)}
-        className="relative overflow-hidden rounded-xl bg-gradient-to-br from-violet-600 via-violet-700 to-indigo-900 p-3.5 text-white shadow-lg shadow-violet-950/40"
+        className="theme-fixed relative overflow-hidden rounded-xl bg-gradient-to-br from-violet-600 via-violet-700 to-indigo-900 p-3.5 text-white shadow-lg shadow-violet-950/40"
       >
         <div className="absolute -right-6 -top-8 size-24 rounded-full bg-white/10" />
         <p className="text-[10px] uppercase tracking-wide text-white/60">

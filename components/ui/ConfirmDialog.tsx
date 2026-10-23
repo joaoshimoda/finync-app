@@ -112,7 +112,7 @@ export function ConfirmDialog({
             variant="destructive"
             disabled={isConfirming}
             onClick={() => void handleConfirm()}
-            className="h-11 rounded-xl bg-rose-500 px-5 font-semibold text-white hover:bg-rose-400 dark:bg-rose-500 dark:hover:bg-rose-400"
+            className="h-11 rounded-xl bg-rose-500 px-5 font-semibold text-on-color hover:bg-rose-400 dark:bg-rose-500 dark:hover:bg-rose-400"
           >
             {isConfirming ? <Loader2 className="size-4 animate-spin" /> : null}
             {isConfirming ? loadingLabel : confirmLabel}

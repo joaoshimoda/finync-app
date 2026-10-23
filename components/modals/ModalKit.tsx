@@ -153,7 +153,7 @@ export function ModalShell({
         });
       }}
       className={cn(
-        "inset-x-0 bottom-0 left-0 top-auto flex max-h-[96dvh] w-full max-w-none sm:max-w-none translate-x-0 translate-y-0 gap-0 overflow-hidden rounded-b-none rounded-t-[22px] border-0 bg-zinc-950 p-0 text-zinc-50 shadow-[0_-24px_60px_rgba(0,0,0,0.5)] ring-1 ring-white/[0.08] data-open:slide-in-from-bottom-6 md:left-1/2 md:top-1/2 md:max-h-[92dvh] md:-translate-x-1/2 md:-translate-y-1/2 md:rounded-[22px] md:shadow-[0_40px_120px_rgba(0,0,0,0.6)] md:data-open:slide-in-from-bottom-0",
+        "inset-x-0 bottom-0 left-0 top-auto flex max-h-[96dvh] w-full max-w-none sm:max-w-none translate-x-0 translate-y-0 gap-0 overflow-hidden rounded-b-none rounded-t-[22px] border-0 bg-zinc-950 p-0 light:bg-zinc-900 text-zinc-50 shadow-[0_-24px_60px_rgba(0,0,0,0.5)] ring-1 ring-white/[0.08] data-open:slide-in-from-bottom-6 md:left-1/2 md:top-1/2 md:max-h-[92dvh] md:-translate-x-1/2 md:-translate-y-1/2 md:rounded-[22px] md:shadow-[0_40px_120px_rgba(0,0,0,0.6)] md:data-open:slide-in-from-bottom-0",
         sizeClassNames[size].content,
       )}
     >
@@ -166,7 +166,7 @@ export function ModalShell({
           )}
         >
           {stage}
-          <section className="flex min-h-0 flex-col bg-zinc-950">
+          <section className="flex min-h-0 flex-col bg-zinc-950 light:bg-zinc-900">
             {children}
           </section>
         </form>
@@ -207,7 +207,7 @@ export function ModalStage({
 }) {
   return (
     <aside
-      className="relative flex flex-col overflow-hidden border-b border-white/[0.06] px-5 pb-4 pt-3 text-white md:border-b-0 md:px-8 md:py-8"
+      className="theme-fixed relative flex flex-col overflow-hidden border-b border-white/[0.06] px-5 pb-4 pt-3 text-white md:border-b-0 md:px-8 md:py-8"
       style={{ background: background ?? getStageBackground(accent) }}
     >
       <span
@@ -439,7 +439,7 @@ export function Field({
 
 export function fieldClassName(accent: ModalAccent) {
   return cn(
-    "h-11 w-full rounded-xl border-0 bg-white/[0.04] px-3.5 text-[15px] [appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none text-zinc-50 shadow-none ring-1 ring-inset ring-white/[0.08] transition-[background-color,box-shadow] placeholder:text-zinc-600 hover:bg-white/[0.06] focus-visible:bg-white/[0.06] focus-visible:ring-2 dark:bg-white/[0.04] [color-scheme:dark] disabled:opacity-60",
+    "h-11 w-full rounded-xl border-0 bg-white/[0.04] px-3.5 text-[15px] [appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none text-zinc-50 shadow-none ring-1 ring-inset ring-white/[0.08] transition-[background-color,box-shadow] placeholder:text-zinc-600 hover:bg-white/[0.06] focus-visible:bg-white/[0.06] focus-visible:ring-2 dark:bg-white/[0.04] disabled:opacity-60",
     accentStyles[accent].focus,
   );
 }
@@ -791,7 +791,7 @@ export function ModalFooter({
   start?: ReactNode;
 }) {
   return (
-    <footer className="flex shrink-0 items-center justify-end gap-2 border-t border-white/[0.06] bg-zinc-950 px-5 py-3 pb-[max(0.75rem,env(safe-area-inset-bottom))] md:border-0 md:px-8 md:pb-7 md:pt-3">
+    <footer className="flex shrink-0 items-center justify-end gap-2 border-t border-white/[0.06] bg-zinc-950 px-5 light:bg-zinc-900 py-3 pb-[max(0.75rem,env(safe-area-inset-bottom))] md:border-0 md:px-8 md:pb-7 md:pt-3">
       {start ? <div className="mr-auto">{start}</div> : null}
       <div className="flex flex-1 items-center justify-end gap-2 md:flex-none">
         {children}

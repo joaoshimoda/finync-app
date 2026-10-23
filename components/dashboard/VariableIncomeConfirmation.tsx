@@ -64,7 +64,7 @@ export function VariableIncomeConfirmation({
             />
             <Button
               type="button"
-              className="bg-emerald-600 font-semibold text-white hover:bg-emerald-700"
+              className="bg-emerald-600 font-semibold text-on-color hover:bg-emerald-700"
               onClick={() => onConfirm(income)}
             >
               Confirmar

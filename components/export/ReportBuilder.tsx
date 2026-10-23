@@ -305,7 +305,7 @@ export function ReportBuilder({ data }: { data: ExportData }) {
                   aria-label="Mês inicial"
                   value={custom.from}
                   onChange={(event) => setCustom((current) => ({ ...current, from: event.target.value }))}
-                  className="h-9 rounded-lg border border-white/[0.08] bg-zinc-900 px-3 text-sm text-zinc-100 [color-scheme:dark]"
+                  className="h-9 rounded-lg border border-white/[0.08] bg-zinc-900 px-3 text-sm text-zinc-100"
                 />
                 até
                 <input
@@ -313,7 +313,7 @@ export function ReportBuilder({ data }: { data: ExportData }) {
                   aria-label="Mês final"
                   value={custom.to}
                   onChange={(event) => setCustom((current) => ({ ...current, to: event.target.value }))}
-                  className="h-9 rounded-lg border border-white/[0.08] bg-zinc-900 px-3 text-sm text-zinc-100 [color-scheme:dark]"
+                  className="h-9 rounded-lg border border-white/[0.08] bg-zinc-900 px-3 text-sm text-zinc-100"
                 />
               </div>
             )}

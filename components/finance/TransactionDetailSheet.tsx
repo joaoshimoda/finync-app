@@ -126,9 +126,11 @@ export function TransactionDetailSheet({
 
   return (
     <Sheet open={open} onOpenChange={onOpenChange}>
-      <SheetContent className="sm:w-[460px] sm:max-w-[460px]">
+      <SheetContent
+        closeClassName="theme-fixed text-white/60 hover:bg-white/10 hover:text-white"
+        className="sm:w-[460px] sm:max-w-[460px]">
         <header
-          className="relative shrink-0 border-b border-white/[0.06] px-5 pb-6 pt-6 sm:px-7"
+          className="theme-fixed relative shrink-0 border-b border-white/[0.06] px-5 pb-6 pt-6 sm:px-7"
           style={{ background: getStageBackground(isPositive ? "emerald" : "rose") }}
         >
           <div className="flex items-center gap-3 pr-12">

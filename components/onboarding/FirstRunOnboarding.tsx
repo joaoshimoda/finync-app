@@ -338,7 +338,7 @@ export function FirstRunOnboarding() {
                   type="button"
                   disabled={isSaving}
                   onClick={handleNext}
-                  className="h-10 bg-emerald-600 px-4 text-white hover:bg-emerald-700"
+                  className="h-10 bg-emerald-600 px-4 text-on-color hover:bg-emerald-700"
                 >
                   {isSaving ? (
                     <>

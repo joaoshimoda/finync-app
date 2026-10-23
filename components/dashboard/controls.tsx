@@ -167,7 +167,7 @@ export function ProgressRing({
   return (
     <div className={cn("relative shrink-0", className)}>
       <svg viewBox="0 0 128 128" className="size-full -rotate-90">
-        <circle cx="64" cy="64" r={RING_RADIUS} fill="none" stroke="rgb(39 39 42)" strokeWidth="10" />
+        <circle cx="64" cy="64" r={RING_RADIUS} fill="none" className="stroke-zinc-800" strokeWidth="10" />
         <motion.circle
           cx="64"
           cy="64"
