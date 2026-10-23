@@ -5,18 +5,16 @@ import { MotionConfig, motion } from "framer-motion";
 import { CircleCheck, HandCoins, PlusCircle, UsersRound } from "lucide-react";
 import { toast } from "sonner";
 
+import { StatHint, StatTile } from "@/components/dashboard/controls";
 import {
-  dashboardEase,
   dashboardPanelClassName,
   dashboardReveal,
   dashboardStagger,
-  usePrivateCurrency,
 } from "@/components/dashboard/shared";
 import { DependentDetail } from "@/components/dependents/DependentDetail";
 import { PeopleList } from "@/components/dependents/PeopleList";
 import { useDependentsData } from "@/components/dependents/useDependentsData";
 import { AnimatedMonthSelector } from "@/components/finance/AnimatedMonthSelector";
-import { AnimatedNumber } from "@/components/finance/AnimatedNumber";
 import { ManageDependentModal } from "@/components/modals/ManageDependentModal";
 import { SettleDependentModal } from "@/components/modals/SettleDependentModal";
 import { Button } from "@/components/ui/button";
@@ -35,7 +33,6 @@ export default function DependentesPage() {
   const fetchTransactions = useFinanceStore((state) => state.fetchTransactions);
   const fetchDependents = useFinanceStore((state) => state.fetchDependents);
   const deleteDependent = useFinanceStore((state) => state.deleteDependent);
-  const formatValue = usePrivateCurrency();
 
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [settleTargetId, setSettleTargetId] = useState<string | null>(null);
@@ -175,39 +172,18 @@ export default function DependentesPage() {
                 isFetching && "opacity-70",
               )}
             >
-              {tiles.map((tile) => {
-                const Icon = tile.icon;
-
-                return (
-                  <div key={tile.label} className="flex min-w-0 items-start gap-3 p-4 sm:p-5">
-                    <span className="flex size-10 shrink-0 items-center justify-center rounded-xl bg-white/[0.04] text-zinc-400 ring-1 ring-inset ring-white/[0.06]">
-                      <Icon className="size-4" />
-                    </span>
-                    <div className="min-w-0 flex-1">
-                      <p className="truncate text-xs text-zinc-500">{tile.label}</p>
-                      <AnimatedNumber
-                        value={tile.value}
-                        format={formatValue}
-                        className={cn(
-                          "mt-0.5 block truncate text-xl font-semibold tabular-nums",
-                          tile.tone,
-                        )}
-                      />
-                      {"progress" in tile && tile.progress !== null && (
-                        <div className="mt-2 h-1 overflow-hidden rounded-full bg-zinc-800">
-                          <motion.div
-                            className="h-full rounded-full bg-emerald-400"
-                            initial={{ width: 0 }}
-                            animate={{ width: `${tile.progress}%` }}
-                            transition={{ duration: 0.8, ease: dashboardEase }}
-                          />
-                        </div>
-                      )}
-                      <p className="mt-1.5 truncate text-xs text-zinc-500">{tile.hint}</p>
-                    </div>
-                  </div>
-                );
-              })}
+              {tiles.map((tile) => (
+                <StatTile
+                  key={tile.label}
+                  icon={tile.icon}
+                  label={tile.label}
+                  value={tile.value}
+                  valueClassName={tile.tone}
+                  progress={"progress" in tile ? tile.progress : undefined}
+                >
+                  <StatHint>{tile.hint}</StatHint>
+                </StatTile>
+              ))}
             </motion.section>
 
             <div

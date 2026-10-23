@@ -54,7 +54,7 @@ export const navigationItems: NavigationItem[] = [
     tourId: "nav-transactions",
   },
   {
-    label: "Analytics",
+    label: "Análises",
     shortLabel: "Dados",
     href: "/dashboard/analytics",
     icon: BarChart3,

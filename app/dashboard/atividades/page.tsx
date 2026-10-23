@@ -1,8 +1,8 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState, type ReactNode } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { MotionConfig, motion } from "framer-motion";
-import { FileClock, History, RefreshCw, Search, Undo2, X } from "lucide-react";
+import { FileClock, History, RefreshCw, Undo2, X } from "lucide-react";
 import { toast } from "sonner";
 
 import { ActivityChart } from "@/components/activity/ActivityChart";
@@ -18,6 +18,7 @@ import {
   type AuditLog,
   type EntityType,
 } from "@/components/activity/activityPresentation";
+import { FilterChip, SearchField, SegmentedControl } from "@/components/dashboard/controls";
 import {
   dashboardPanelClassName,
   dashboardReveal,
@@ -58,32 +59,6 @@ const actionOptions: Array<{ id: AuditAction | "all"; label: string }> = [
   { id: "UPDATE", label: "Edições" },
   { id: "DELETE", label: "Exclusões" },
 ];
-
-function Chip({
-  active,
-  onClick,
-  children,
-}: {
-  active: boolean;
-  onClick: () => void;
-  children: ReactNode;
-}) {
-  return (
-    <button
-      type="button"
-      onClick={onClick}
-      aria-pressed={active}
-      className={cn(
-        "shrink-0 rounded-full border px-3 py-1 text-xs transition-colors",
-        active
-          ? "border-emerald-400/40 bg-emerald-400/10 text-emerald-200"
-          : "border-white/[0.08] text-zinc-400 hover:text-zinc-100",
-      )}
-    >
-      {children}
-    </button>
-  );
-}
 
 export default function AtividadesPage() {
   const fetchCards = useFinanceStore((state) => state.fetchCards);
@@ -293,25 +268,19 @@ export default function AtividadesPage() {
             </p>
           </div>
           <div className="flex items-center gap-2">
-            <div className="flex rounded-lg border border-white/[0.07] bg-zinc-900/50 p-0.5">
-              {(["USER", "SYSTEM"] as const).map((value) => (
-                <button
-                  key={value}
-                  type="button"
-                  onClick={() => {
-                    setOrigin(value);
-                    setSelectedDay(null);
-                  }}
-                  aria-pressed={origin === value}
-                  className={cn(
-                    "rounded-md px-3 py-1.5 text-sm transition-colors",
-                    origin === value ? "bg-white/[0.08] text-zinc-50" : "text-zinc-500 hover:text-zinc-200",
-                  )}
-                >
-                  {value === "USER" ? "Minhas ações" : "Automáticas"}
-                </button>
-              ))}
-            </div>
+            <SegmentedControl
+              ariaLabel="Origem das alterações"
+              size="md"
+              options={[
+                { id: "USER", label: "Minhas ações" },
+                { id: "SYSTEM", label: "Automáticas" },
+              ]}
+              value={origin}
+              onChange={(value: ActivityOrigin) => {
+                setOrigin(value);
+                setSelectedDay(null);
+              }}
+            />
             <Button
               type="button"
               variant="outline"
@@ -372,20 +341,17 @@ export default function AtividadesPage() {
 
         <motion.section variants={dashboardReveal} aria-label="Filtros" className="flex flex-col gap-3">
           <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
-            <label className="relative flex flex-1 items-center">
-              <Search className="pointer-events-none absolute left-3 size-4 text-zinc-500" />
-              <input
-                type="search"
-                value={query}
-                onChange={(event) => setQuery(event.target.value)}
-                placeholder="Buscar por nome ou categoria"
-                aria-label="Buscar no histórico"
-                className="h-10 w-full rounded-lg border border-white/[0.07] bg-zinc-900/50 pr-3 pl-9 text-sm text-zinc-100 outline-none placeholder:text-zinc-500 focus:border-emerald-400/40 [&::-webkit-search-cancel-button]:hidden"
-              />
-            </label>
+            <SearchField
+              value={query}
+              onChange={setQuery}
+              placeholder="Buscar por nome ou categoria"
+              ariaLabel="Buscar no histórico"
+              className="flex-1"
+              inputClassName="h-10"
+            />
             <div className="flex flex-wrap gap-1.5" role="group" aria-label="Período">
               {periodOptions.map((option) => (
-                <Chip
+                <FilterChip
                   key={option.id}
                   active={!selectedDay && period === option.id}
                   onClick={() => {
@@ -394,31 +360,31 @@ export default function AtividadesPage() {
                   }}
                 >
                   {option.label}
-                </Chip>
+                </FilterChip>
               ))}
             </div>
           </div>
           <div className="flex flex-wrap items-center gap-1.5">
             {actionOptions.map((option) => (
-              <Chip
+              <FilterChip
                 key={option.id}
                 active={actionFilter === option.id}
                 onClick={() => setActionFilter(option.id)}
               >
                 {option.label}
-              </Chip>
+              </FilterChip>
             ))}
             {entityCounts.length > 1 && <span className="mx-1 h-4 w-px bg-white/[0.08]" aria-hidden />}
             {entityCounts.length > 1 &&
               entityCounts.map(([entity, count]) => (
-                <Chip
+                <FilterChip
                   key={entity}
                   active={entityFilter === entity}
                   onClick={() => setEntityFilter(entityFilter === entity ? "all" : entity)}
+                  count={count}
                 >
                   {entityPresentation[entity].plural}
-                  <span className="ml-1.5 tabular-nums text-zinc-500">{count}</span>
-                </Chip>
+                </FilterChip>
               ))}
             {hasFilters && (
               <button

@@ -264,7 +264,7 @@ export const productTourSteps: ProductTourStep[] = [
     id: "analytics",
     section: "Visão",
     icon: BarChart3,
-    title: "Analytics",
+    title: "Análises",
     summary:
       "Seu centro de análise: um índice de saúde financeira, KPIs com tendência e uma leitura automática do mês.",
     features: [

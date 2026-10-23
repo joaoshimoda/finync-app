@@ -3,8 +3,8 @@
 import { motion } from "framer-motion";
 import { CalendarDays, Gauge, TrendingUp, Wallet } from "lucide-react";
 
+import { ProgressRing } from "@/components/dashboard/controls";
 import {
-  dashboardEase,
   dashboardPanelClassName,
   dashboardReveal,
   usePrivateCurrency,
@@ -37,61 +37,6 @@ export const budgetStatusTone = {
     pill: "bg-rose-500/10 text-rose-300",
   },
 } as const;
-
-const RADIUS = 52;
-const CIRCUMFERENCE = 2 * Math.PI * RADIUS;
-
-function Ring({
-  progress,
-  pace,
-  stroke,
-  percentage,
-}: {
-  progress: number;
-  pace: number | null;
-  stroke: string;
-  percentage: number;
-}) {
-  const paceAngle = pace === null ? null : pace * 2 * Math.PI - Math.PI / 2;
-
-  return (
-    <div className="relative size-36 shrink-0">
-      <svg viewBox="0 0 128 128" className="size-full -rotate-90">
-        <circle cx="64" cy="64" r={RADIUS} fill="none" stroke="rgb(39 39 42)" strokeWidth="10" />
-        <motion.circle
-          cx="64"
-          cy="64"
-          r={RADIUS}
-          fill="none"
-          stroke={stroke}
-          strokeWidth="10"
-          strokeLinecap="round"
-          strokeDasharray={CIRCUMFERENCE}
-          initial={{ strokeDashoffset: CIRCUMFERENCE }}
-          animate={{ strokeDashoffset: CIRCUMFERENCE * (1 - progress / 100) }}
-          transition={{ duration: 1, ease: dashboardEase }}
-        />
-      </svg>
-      {paceAngle !== null && (
-        <span
-          aria-hidden
-          className="absolute h-3.5 w-0.5 rounded-full bg-zinc-100"
-          style={{
-            left: `calc(50% + ${Math.cos(paceAngle) * 40.6}% - 1px)`,
-            top: `calc(50% + ${Math.sin(paceAngle) * 40.6}% - 7px)`,
-            transform: `rotate(${paceAngle + Math.PI / 2}rad)`,
-          }}
-        />
-      )}
-      <div className="absolute inset-0 flex flex-col items-center justify-center">
-        <span className="text-3xl font-semibold tracking-[-0.03em] tabular-nums text-zinc-50">
-          {Math.round(percentage)}%
-        </span>
-        <span className="text-[11px] text-zinc-500">usado</span>
-      </div>
-    </div>
-  );
-}
 
 export function BudgetOverview({
   data,
@@ -176,12 +121,17 @@ export function BudgetOverview({
       />
       <div className="relative grid gap-6 p-5 sm:p-6 lg:grid-cols-[auto_1fr] lg:items-center lg:gap-10">
         <div className="flex items-center gap-5">
-          <Ring
+          <ProgressRing
             progress={totals.progress}
-            pace={phase === "current" ? monthProgress : null}
             stroke={tone.stroke}
-            percentage={totals.percentage}
-          />
+            marker={phase === "current" ? monthProgress : null}
+            className="size-36"
+          >
+            <span className="text-3xl font-semibold tracking-[-0.03em] tabular-nums text-zinc-50">
+              {Math.round(totals.percentage)}%
+            </span>
+            <span className="text-[11px] text-zinc-500">usado</span>
+          </ProgressRing>
           <div className="min-w-0 lg:hidden">
             <span className={cn("rounded-full px-2.5 py-1 text-xs font-medium", tone.pill)}>
               {tone.label}

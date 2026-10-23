@@ -195,7 +195,7 @@ export const guideSections: GuideSection[] = [
       "Cadastre o nome da pessoa na área Dependentes.",
       "Ao criar ou editar uma despesa, selecione opcionalmente quem é o responsável pelo gasto.",
       "O valor continua compondo a fatura do cartão, mas é isolado nos resumos por dependente.",
-      "O Analytics considera somente seu fluxo pessoal e exclui essas despesas dos indicadores de saúde financeira.",
+      "As Análises consideram somente seu fluxo pessoal e excluem essas despesas dos indicadores de saúde financeira.",
     ],
     tip: "Use a página de Dependentes para conferir quanto cada pessoa deve no período selecionado.",
   },
@@ -240,13 +240,13 @@ export const guideSections: GuideSection[] = [
   {
     id: "analytics",
     group: "tools",
-    title: "Interprete o Analytics",
-    shortTitle: "Analytics",
+    title: "Interprete as Análises",
+    shortTitle: "Análises",
     description:
       "O Centro de Comando transforma seu histórico pessoal em tendências, composição e concentração de gastos.",
     icon: BarChart3,
     href: "/dashboard/analytics",
-    actionLabel: "Abrir Analytics",
+    actionLabel: "Abrir Análises",
     accent: "text-lime-400 bg-lime-500/10",
     steps: [
       "A Saúde financeira vai de 0 a 100 e soma três partes: poupança (até 50), peso das contas fixas (até 30) e tendência dos gastos (até 20).",
@@ -254,7 +254,7 @@ export const guideSections: GuideSection[] = [
       "Escolha 3, 6 ou 12 meses para o Fluxo de caixa, a Composição e os Dias da semana; a Leitura do analista resume o que mais mudou.",
       "Ritmo de gastos compara o acumulado de hoje com o mesmo dia do mês anterior e projeta o fechamento; Categorias mostra participação e variação.",
     ],
-    tip: "O Analytics é pessoal: gastos vinculados a dependentes não entram nos KPIs nem nos gráficos.",
+    tip: "As Análises são pessoais: gastos vinculados a dependentes não entram nos indicadores nem nos gráficos.",
   },
   {
     id: "integridade",
@@ -423,7 +423,7 @@ export const frequentlyAskedQuestions: FrequentlyAskedQuestion[] = [
     topic: "Dependentes",
     question: "Gasto de dependente altera meus gráficos?",
     answer:
-      "Não. Ele continua na fatura bruta do cartão, mas é excluído do saldo pessoal, dos orçamentos e do Analytics.",
+      "Não. Ele continua na fatura bruta do cartão, mas é excluído do saldo pessoal, dos orçamentos e das Análises.",
   },
   {
     topic: "Dependentes",

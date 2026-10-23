@@ -16,6 +16,7 @@ import {
 import { toast } from "sonner";
 
 import { AnalyticsPanel } from "@/components/analytics/AnalyticsPrimitives";
+import { SegmentedControl } from "@/components/dashboard/controls";
 import {
   dashboardEase,
   dashboardPanelClassName,
@@ -355,28 +356,12 @@ export function DependentDetail({
       >
         <header className="flex flex-wrap items-center justify-between gap-3 border-b border-white/[0.06] px-4 py-3 sm:px-5">
           <h3 className="text-sm font-semibold text-zinc-100">Lançamentos</h3>
-          <div
-            role="group"
-            aria-label="Filtrar por forma de pagamento"
-            className="flex rounded-lg border border-white/[0.07] bg-zinc-900/50 p-0.5"
-          >
-            {kindFilters.map((filter) => (
-              <button
-                key={filter.id}
-                type="button"
-                onClick={() => setKindFilter(filter.id)}
-                aria-pressed={kindFilter === filter.id}
-                className={cn(
-                  "rounded-md px-2.5 py-1 text-xs transition-colors",
-                  kindFilter === filter.id
-                    ? "bg-white/[0.08] text-zinc-100"
-                    : "text-zinc-500 hover:text-zinc-200",
-                )}
-              >
-                {filter.label}
-              </button>
-            ))}
-          </div>
+          <SegmentedControl
+            ariaLabel="Filtrar por forma de pagamento"
+            options={kindFilters}
+            value={kindFilter}
+            onChange={setKindFilter}
+          />
         </header>
 
         {visibleTransactions.length ? (

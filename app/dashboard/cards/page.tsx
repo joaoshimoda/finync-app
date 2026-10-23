@@ -21,6 +21,7 @@ import {
 import { CardsWallet } from "@/components/cards/CardsWallet";
 import { InvoiceTransactions } from "@/components/cards/InvoiceTransactions";
 import { useCardsData } from "@/components/cards/useCardsData";
+import { StatHint, StatTile } from "@/components/dashboard/controls";
 import {
   dashboardEase,
   dashboardPanelClassName,
@@ -29,7 +30,6 @@ import {
   usePrivateCurrency,
 } from "@/components/dashboard/shared";
 import { AnimatedMonthSelector } from "@/components/finance/AnimatedMonthSelector";
-import { AnimatedNumber } from "@/components/finance/AnimatedNumber";
 import { AddCardModal } from "@/components/modals/AddCardModal";
 import { PayInvoiceModal } from "@/components/modals/PayInvoiceModal";
 import { Button } from "@/components/ui/button";
@@ -206,48 +206,17 @@ export default function CardsPage() {
                 isFetching && "opacity-70",
               )}
             >
-              {summaryTiles.map((tile) => {
-                const Icon = tile.icon;
-
-                return (
-                  <div
-                    key={tile.label}
-                    className="flex min-w-0 items-start gap-3 p-4 sm:p-5"
-                  >
-                    <span className="flex size-10 shrink-0 items-center justify-center rounded-xl bg-white/[0.04] text-zinc-400 ring-1 ring-inset ring-white/[0.06]">
-                      <Icon className="size-4" />
-                    </span>
-                    <div className="min-w-0 flex-1">
-                      <p className="truncate text-xs text-zinc-500">
-                        {tile.label}
-                      </p>
-                      <AnimatedNumber
-                        value={tile.value}
-                        format={formatValue}
-                        className="mt-0.5 block truncate text-xl font-semibold tabular-nums text-zinc-50"
-                      />
-                      {"progress" in tile &&
-                        tile.progress !== null &&
-                        tile.progress !== undefined && (
-                          <div className="mt-2 h-1 overflow-hidden rounded-full bg-zinc-800">
-                            <motion.div
-                              className="h-full rounded-full bg-emerald-400"
-                              initial={{ width: 0 }}
-                              animate={{ width: `${tile.progress}%` }}
-                              transition={{
-                                duration: 0.8,
-                                ease: dashboardEase,
-                              }}
-                            />
-                          </div>
-                        )}
-                      <p className="mt-1.5 truncate text-xs text-zinc-500">
-                        {tile.hint}
-                      </p>
-                    </div>
-                  </div>
-                );
-              })}
+              {summaryTiles.map((tile) => (
+                <StatTile
+                  key={tile.label}
+                  icon={tile.icon}
+                  label={tile.label}
+                  value={tile.value}
+                  progress={"progress" in tile ? tile.progress : undefined}
+                >
+                  <StatHint>{tile.hint}</StatHint>
+                </StatTile>
+              ))}
             </motion.section>
 
             <CardsWallet

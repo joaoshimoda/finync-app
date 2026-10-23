@@ -3,8 +3,8 @@
 import { motion } from "framer-motion";
 import { RefreshCw, Wrench } from "lucide-react";
 
+import { ProgressRing } from "@/components/dashboard/controls";
 import {
-  dashboardEase,
   dashboardPanelClassName,
   dashboardReveal,
 } from "@/components/dashboard/shared";
@@ -13,9 +13,6 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { cn } from "@/lib/utils";
 
 import type { HealthData } from "./useHealthData";
-
-const RADIUS = 52;
-const CIRCUMFERENCE = 2 * Math.PI * RADIUS;
 
 export function HealthOverview({ health }: { health: HealthData }) {
   const { summary, isLoading, lastCheckedAt, runChecks, checks } = health;
@@ -61,30 +58,16 @@ export function HealthOverview({ health }: { health: HealthData }) {
         style={{ background: `radial-gradient(closest-side, ${tone.glow}, transparent)` }}
       />
       <div className="relative flex flex-col gap-6 p-5 sm:flex-row sm:items-center sm:p-6">
-        <div className="relative size-32 shrink-0 self-center sm:self-auto">
-          <svg viewBox="0 0 128 128" className="size-full -rotate-90">
-            <circle cx="64" cy="64" r={RADIUS} fill="none" stroke="rgb(39 39 42)" strokeWidth="10" />
-            <motion.circle
-              cx="64"
-              cy="64"
-              r={RADIUS}
-              fill="none"
-              stroke={tone.stroke}
-              strokeWidth="10"
-              strokeLinecap="round"
-              strokeDasharray={CIRCUMFERENCE}
-              initial={{ strokeDashoffset: CIRCUMFERENCE }}
-              animate={{ strokeDashoffset: CIRCUMFERENCE * (1 - summary.score / 100) }}
-              transition={{ duration: 1, ease: dashboardEase }}
-            />
-          </svg>
-          <div className="absolute inset-0 flex flex-col items-center justify-center">
-            <span className="text-3xl font-semibold tracking-[-0.03em] tabular-nums text-zinc-50">
-              {summary.score}
-            </span>
-            <span className="text-[11px] text-zinc-500">de 100</span>
-          </div>
-        </div>
+        <ProgressRing
+          progress={summary.score}
+          stroke={tone.stroke}
+          className="size-32 self-center sm:self-auto"
+        >
+          <span className="text-3xl font-semibold tracking-[-0.03em] tabular-nums text-zinc-50">
+            {summary.score}
+          </span>
+          <span className="text-[11px] text-zinc-500">de 100</span>
+        </ProgressRing>
 
         <div className="min-w-0 flex-1">
           <h2 className={cn("text-xl font-semibold tracking-[-0.02em]", tone.text)}>{headline}</h2>

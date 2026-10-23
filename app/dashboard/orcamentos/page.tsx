@@ -9,6 +9,7 @@ import { BudgetCards } from "@/components/budgets/BudgetCards";
 import { BudgetOverview } from "@/components/budgets/BudgetOverview";
 import { UnbudgetedSpending } from "@/components/budgets/UnbudgetedSpending";
 import { useBudgetsData, type BudgetRow } from "@/components/budgets/useBudgetsData";
+import { FilterChip, SegmentedControl } from "@/components/dashboard/controls";
 import {
   dashboardPanelClassName,
   dashboardReveal,
@@ -215,48 +216,24 @@ export default function OrcamentosPage() {
                   className="flex flex-wrap gap-1.5"
                 >
                   {filters.map((filter) => (
-                    <button
+                    <FilterChip
                       key={filter.id}
-                      type="button"
+                      active={statusFilter === filter.id}
                       onClick={() => setStatusFilter(filter.id)}
-                      aria-pressed={statusFilter === filter.id}
                       disabled={filter.id !== "all" && filter.count === 0}
-                      className={cn(
-                        "rounded-full border px-3 py-1.5 text-xs transition-colors disabled:opacity-40",
-                        statusFilter === filter.id
-                          ? "border-emerald-400/40 bg-emerald-400/10 text-emerald-200"
-                          : "border-white/[0.08] text-zinc-400 hover:text-zinc-100 disabled:hover:text-zinc-400",
-                      )}
+                      count={filter.count}
                     >
                       {filter.label}
-                      <span className="ml-1.5 tabular-nums text-zinc-500">
-                        {filter.count}
-                      </span>
-                    </button>
+                    </FilterChip>
                   ))}
                 </div>
-                <div
-                  role="group"
-                  aria-label="Ordenar"
-                  className="flex self-start rounded-lg border border-white/[0.07] bg-zinc-900/50 p-0.5 sm:self-auto"
-                >
-                  {sortOptions.map((option) => (
-                    <button
-                      key={option.id}
-                      type="button"
-                      onClick={() => setSortKey(option.id)}
-                      aria-pressed={sortKey === option.id}
-                      className={cn(
-                        "rounded-md px-2.5 py-1 text-xs transition-colors",
-                        sortKey === option.id
-                          ? "bg-white/[0.08] text-zinc-100"
-                          : "text-zinc-500 hover:text-zinc-200",
-                      )}
-                    >
-                      {option.label}
-                    </button>
-                  ))}
-                </div>
+                <SegmentedControl
+                  ariaLabel="Ordenar"
+                  options={sortOptions}
+                  value={sortKey}
+                  onChange={setSortKey}
+                  className="self-start sm:self-auto"
+                />
               </div>
 
               <BudgetCards

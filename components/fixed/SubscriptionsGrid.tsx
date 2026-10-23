@@ -10,6 +10,7 @@ import {
   Sparkles,
 } from "lucide-react";
 
+import { FilterChip, SegmentedControl } from "@/components/dashboard/controls";
 import {
   dashboardEase,
   dashboardPanelClassName,
@@ -301,37 +302,23 @@ export function SubscriptionsGrid({
           </div>
           {cardTotals.length > 1 && (
             <div className="flex flex-wrap gap-1.5" role="group" aria-label="Filtrar por cartão">
-              <button
-                type="button"
+              <FilterChip
+                tone="violet"
+                active={cardFilter === null}
                 onClick={() => setCardFilter(null)}
-                aria-pressed={cardFilter === null}
-                className={cn(
-                  "rounded-full border px-3 py-1 text-xs transition-colors",
-                  cardFilter === null
-                    ? "border-violet-400/40 bg-violet-400/10 text-violet-200"
-                    : "border-white/[0.08] text-zinc-400 hover:text-zinc-100",
-                )}
               >
                 Todos
-              </button>
+              </FilterChip>
               {cardTotals.map(([cardName, cardTotal]) => (
-                <button
+                <FilterChip
                   key={cardName}
-                  type="button"
+                  tone="violet"
+                  active={cardFilter === cardName}
                   onClick={() => setCardFilter(cardFilter === cardName ? null : cardName)}
-                  aria-pressed={cardFilter === cardName}
-                  className={cn(
-                    "rounded-full border px-3 py-1 text-xs transition-colors",
-                    cardFilter === cardName
-                      ? "border-violet-400/40 bg-violet-400/10 text-violet-200"
-                      : "border-white/[0.08] text-zinc-400 hover:text-zinc-100",
-                  )}
+                  count={formatValue(cardTotal)}
                 >
                   {cardName}
-                  <span className="ml-1.5 tabular-nums text-zinc-500">
-                    {formatValue(cardTotal)}
-                  </span>
-                </button>
+                </FilterChip>
               ))}
             </div>
           )}
@@ -343,24 +330,12 @@ export function SubscriptionsGrid({
           {visible.length} de {subscriptions.length}{" "}
           {subscriptions.length === 1 ? "assinatura" : "assinaturas"}
         </p>
-        <div className="flex rounded-lg border border-white/[0.07] bg-zinc-900/50 p-0.5" role="group" aria-label="Ordenar">
-          {sortOptions.map((option) => (
-            <button
-              key={option.id}
-              type="button"
-              onClick={() => setSortKey(option.id)}
-              aria-pressed={sortKey === option.id}
-              className={cn(
-                "rounded-md px-2.5 py-1 text-xs transition-colors",
-                sortKey === option.id
-                  ? "bg-white/[0.08] text-zinc-100"
-                  : "text-zinc-500 hover:text-zinc-200",
-              )}
-            >
-              {option.label}
-            </button>
-          ))}
-        </div>
+        <SegmentedControl
+          ariaLabel="Ordenar"
+          options={sortOptions}
+          value={sortKey}
+          onChange={setSortKey}
+        />
       </div>
 
       {visible.length ? (

@@ -27,7 +27,7 @@ test.describe("authenticated read-only smoke", () => {
       ["/dashboard/fixed", "Contas fixas e assinaturas"],
       ["/dashboard/orcamentos", "Orçamentos"],
       ["/dashboard/dependentes", "Dependentes"],
-      ["/dashboard/analytics", "Analytics"],
+      ["/dashboard/analytics", "Análises"],
       ["/dashboard/importar", "Importar fatura"],
       ["/dashboard/exportar", "Exportar e backup"],
       ["/dashboard/integridade", "Integridade dos dados"],

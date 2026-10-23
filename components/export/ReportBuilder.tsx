@@ -14,6 +14,7 @@ import {
 } from "lucide-react";
 import { toast } from "sonner";
 
+import { FilterChip } from "@/components/dashboard/controls";
 import {
   dashboardPanelClassName,
   dashboardReveal,
@@ -133,32 +134,6 @@ function getPeriodRange(period: PeriodId, custom: { from: string; to: string }) 
     default:
       return { fromMonth: null, toMonth: null };
   }
-}
-
-function Chip({
-  active,
-  onClick,
-  children,
-}: {
-  active: boolean;
-  onClick: () => void;
-  children: ReactNode;
-}) {
-  return (
-    <button
-      type="button"
-      onClick={onClick}
-      aria-pressed={active}
-      className={cn(
-        "rounded-full border px-3 py-1.5 text-xs transition-colors",
-        active
-          ? "border-emerald-400/40 bg-emerald-400/10 text-emerald-200"
-          : "border-white/[0.08] text-zinc-400 hover:text-zinc-100",
-      )}
-    >
-      {children}
-    </button>
-  );
 }
 
 function FieldLabel({ children }: { children: ReactNode }) {
@@ -314,13 +289,13 @@ export function ReportBuilder({ data }: { data: ExportData }) {
             <FieldLabel>Período</FieldLabel>
             <div className="flex flex-wrap gap-1.5">
               {periodOptions.map((option) => (
-                <Chip
+                <FilterChip
                   key={option.id}
                   active={period === option.id}
                   onClick={() => setPeriod(option.id)}
                 >
                   {option.label}
-                </Chip>
+                </FilterChip>
               ))}
             </div>
             {period === "custom" && (
@@ -351,7 +326,7 @@ export function ReportBuilder({ data }: { data: ExportData }) {
                 {kindOptions.map((option) => {
                   const isActive = kinds.includes(option.id);
                   return (
-                    <Chip
+                    <FilterChip
                       key={option.id}
                       active={isActive}
                       onClick={() =>
@@ -365,7 +340,7 @@ export function ReportBuilder({ data }: { data: ExportData }) {
                       }
                     >
                       {option.label}
-                    </Chip>
+                    </FilterChip>
                   );
                 })}
               </div>

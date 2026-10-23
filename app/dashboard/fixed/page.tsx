@@ -9,11 +9,11 @@ import {
   PlusCircle,
   ReceiptText,
   Repeat2,
-  Search,
   X,
 } from "lucide-react";
 import { toast } from "sonner";
 
+import { SearchField, SegmentedControl } from "@/components/dashboard/controls";
 import {
   dashboardEase,
   dashboardReveal,
@@ -372,52 +372,21 @@ export default function FixedExpensesPage() {
 
             <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
               {activeTab === "fixed" && (
-                <div
-                  role="group"
-                  aria-label="Filtrar por situação"
-                  className="flex rounded-lg border border-white/[0.07] bg-zinc-900/50 p-0.5"
-                >
-                  {statusFilters.map((filter) => (
-                    <button
-                      key={filter.id}
-                      type="button"
-                      onClick={() => setStatusFilter(filter.id)}
-                      aria-pressed={statusFilter === filter.id}
-                      className={cn(
-                        "flex-1 rounded-md px-3 py-1.5 text-xs transition-colors sm:flex-none",
-                        statusFilter === filter.id
-                          ? "bg-white/[0.08] text-zinc-100"
-                          : "text-zinc-500 hover:text-zinc-200",
-                      )}
-                    >
-                      {filter.label}
-                    </button>
-                  ))}
-                </div>
-              )}
-              <label className="relative flex items-center">
-                <Search className="pointer-events-none absolute left-3 size-4 text-zinc-500" />
-                <input
-                  type="search"
-                  value={query}
-                  onChange={(event) => setQuery(event.target.value)}
-                  placeholder={
-                    activeTab === "fixed" ? "Buscar conta" : "Buscar assinatura"
-                  }
-                  aria-label="Buscar"
-                  className="h-9 w-full rounded-lg border border-white/[0.07] bg-zinc-900/50 pr-8 pl-9 text-sm text-zinc-100 outline-none transition-colors placeholder:text-zinc-500 focus:border-emerald-400/40 sm:w-56 [&::-webkit-search-cancel-button]:hidden"
+                <SegmentedControl
+                  ariaLabel="Filtrar por situação"
+                  options={statusFilters}
+                  value={statusFilter}
+                  onChange={setStatusFilter}
+                  itemClassName="flex-1 py-1.5 sm:flex-none"
                 />
-                {query && (
-                  <button
-                    type="button"
-                    onClick={() => setQuery("")}
-                    aria-label="Limpar busca"
-                    className="absolute right-2 rounded p-0.5 text-zinc-500 hover:text-zinc-200"
-                  >
-                    <X className="size-3.5" />
-                  </button>
-                )}
-              </label>
+              )}
+              <SearchField
+                value={query}
+                onChange={setQuery}
+                placeholder={activeTab === "fixed" ? "Buscar conta" : "Buscar assinatura"}
+                ariaLabel="Buscar"
+                inputClassName="sm:w-56"
+              />
             </div>
           </div>
 

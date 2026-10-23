@@ -12,7 +12,7 @@ const views = [
   { hash: "fixed", heading: "Contas fixas e assinaturas" },
   { hash: "budgets", heading: "Orçamentos" },
   { hash: "dependents", heading: "Dependentes" },
-  { hash: "analytics", heading: "Analytics" },
+  { hash: "analytics", heading: "Análises" },
 ] as const;
 
 /* Any call to the Supabase API from the demo is a leak of fake data or a

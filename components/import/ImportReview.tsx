@@ -8,13 +8,13 @@ import {
   FileWarning,
   Loader2,
   RotateCcw,
-  Search,
   Split,
   X,
 } from "lucide-react";
 import { toast } from "sonner";
 
 import { AnalyticsPanel } from "@/components/analytics/AnalyticsPrimitives";
+import { FilterChip, SearchField } from "@/components/dashboard/controls";
 import {
   dashboardEase,
   dashboardPanelClassName,
@@ -438,23 +438,15 @@ export function ImportReview({
               {filters
                 .filter((item) => item.id === "all" || item.count > 0)
                 .map((item) => (
-                  <button
+                  <FilterChip
                     key={item.id}
-                    type="button"
+                    active={filter === item.id}
                     onClick={() => setFilter(item.id)}
-                    aria-pressed={filter === item.id}
-                    className={cn(
-                      "rounded-full border px-3 py-1 text-xs transition-colors",
-                      filter === item.id
-                        ? "border-emerald-400/40 bg-emerald-400/10 text-emerald-200"
-                        : item.id === "review"
-                          ? "border-amber-400/30 text-amber-200 hover:bg-amber-400/10"
-                          : "border-white/[0.08] text-zinc-400 hover:text-zinc-100",
-                    )}
+                    attention={item.id === "review"}
+                    count={item.count}
                   >
                     {item.label}
-                    <span className="ml-1.5 tabular-nums text-zinc-500">{item.count}</span>
-                  </button>
+                  </FilterChip>
                 ))}
             </div>
             <div className="flex items-center gap-3">
@@ -471,17 +463,12 @@ export function ImportReview({
                 }
                 className="border-zinc-600"
               />
-              <label className="relative flex flex-1 items-center">
-                <Search className="pointer-events-none absolute left-3 size-4 text-zinc-500" />
-                <input
-                  type="search"
-                  value={query}
-                  onChange={(event) => setQuery(event.target.value)}
-                  placeholder="Buscar compra"
-                  aria-label="Buscar compra"
-                  className="h-9 w-full rounded-lg border border-white/[0.07] bg-zinc-900/50 pr-3 pl-9 text-sm text-zinc-100 outline-none placeholder:text-zinc-500 focus:border-emerald-400/40 [&::-webkit-search-cancel-button]:hidden"
-                />
-              </label>
+              <SearchField
+                value={query}
+                onChange={setQuery}
+                placeholder="Buscar compra"
+                className="flex-1"
+              />
               <span className="hidden shrink-0 text-xs text-zinc-500 sm:block">
                 {visibleRows.length} de {rows.length}
               </span>
