@@ -54,6 +54,8 @@ const viewOptions: Array<{ value: ViewFilter; label: string }> = [
   { value: "credit", label: "Créditos" },
 ];
 
+const MOBILE_VISIBLE_COUNT = 8;
+
 export function InvoiceTransactions({
   transactions,
   dependentNames,
@@ -67,6 +69,7 @@ export function InvoiceTransactions({
   const [search, setSearch] = useState("");
   const [category, setCategory] = useState("all");
   const [view, setView] = useState<ViewFilter>("all");
+  const [showAll, setShowAll] = useState(false);
   const today = getLocalTodayDateOnly();
 
   const categoryOptions = useMemo(
@@ -203,94 +206,111 @@ export function InvoiceTransactions({
       </div>
 
       {filtered.length ? (
-        <ul className="-mx-2 mt-3 divide-y divide-white/[0.04]">
-          {filtered.map((transaction, index) => {
-            const isCredit = Boolean(isCardCreditAdjustment(transaction));
-            const isScheduled = !shouldCountCardCharge(transaction, today);
-            const { current, total } = getInstallmentProgress(transaction);
-            const isInstallment = total > 1;
-            const isLast = isInstallment && current === total;
-            const dependentName = transaction.dependentId
-              ? dependentNames.get(transaction.dependentId)
-              : null;
-            const Icon = isCredit
-              ? ArrowUpRight
-              : transaction.is_recurring
-                ? Repeat2
-                : isScheduled
-                  ? CalendarClock
-                  : ShoppingBag;
+        <>
+          {/* Desktop: the list scrolls inside the panel so the page stays short.
+            Phones: no nested scroll; the list is cut after a few items. */}
+          <ul className="-mx-2 mt-3 divide-y divide-white/[0.04] [scrollbar-color:#3f3f46_transparent] [scrollbar-width:thin] lg:max-h-[min(620px,68vh)] lg:overflow-y-auto lg:overscroll-contain lg:pb-6 lg:pr-1 lg:[mask-image:linear-gradient(to_bottom,black_calc(100%-28px),transparent)]">
+            {filtered.map((transaction, index) => {
+              const isCredit = Boolean(isCardCreditAdjustment(transaction));
+              const isScheduled = !shouldCountCardCharge(transaction, today);
+              const { current, total } = getInstallmentProgress(transaction);
+              const isInstallment = total > 1;
+              const isLast = isInstallment && current === total;
+              const dependentName = transaction.dependentId
+                ? dependentNames.get(transaction.dependentId)
+                : null;
+              const Icon = isCredit
+                ? ArrowUpRight
+                : transaction.is_recurring
+                  ? Repeat2
+                  : isScheduled
+                    ? CalendarClock
+                    : ShoppingBag;
 
-            return (
-              <motion.li
-                key={transaction.id}
-                initial={{ opacity: 0, y: 6 }}
-                animate={{ opacity: 1, y: 0 }}
-                transition={{
-                  duration: 0.25,
-                  delay: Math.min(index * 0.025, 0.25),
-                }}
-                className={cn(
-                  "flex items-center gap-3 px-2 py-2.5",
-                  isScheduled && "opacity-70",
-                )}
-              >
-                <span
+              return (
+                <motion.li
+                  key={transaction.id}
+                  initial={{ opacity: 0, y: 6 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  transition={{
+                    duration: 0.25,
+                    delay: Math.min(index * 0.025, 0.25),
+                  }}
                   className={cn(
-                    "flex size-9 shrink-0 items-center justify-center rounded-xl",
-                    isCredit
-                      ? "bg-emerald-500/10 text-emerald-300"
-                      : transaction.is_recurring
-                        ? "bg-violet-500/10 text-violet-300"
-                        : "bg-zinc-800/80 text-zinc-400",
+                    "flex items-center gap-3 px-2 py-2.5",
+                    isScheduled && "opacity-70",
+                    !showAll &&
+                      index >= MOBILE_VISIBLE_COUNT &&
+                      "max-lg:hidden",
                   )}
                 >
-                  <Icon className="size-4" />
-                </span>
-                <span className="min-w-0 flex-1">
-                  <span className="flex min-w-0 items-center gap-1.5">
-                    <span className="truncate text-sm font-medium text-zinc-100">
-                      <TransactionDescription transaction={transaction} />
-                    </span>
-                    {isLast && (
-                      <span className="shrink-0 rounded-full bg-emerald-500/10 px-1.5 py-px text-[10px] font-medium text-emerald-300">
-                        Última
-                      </span>
+                  <span
+                    className={cn(
+                      "flex size-9 shrink-0 items-center justify-center rounded-xl",
+                      isCredit
+                        ? "bg-emerald-500/10 text-emerald-300"
+                        : transaction.is_recurring
+                          ? "bg-violet-500/10 text-violet-300"
+                          : "bg-zinc-800/80 text-zinc-400",
                     )}
+                  >
+                    <Icon className="size-4" />
                   </span>
-                  <span className="mt-0.5 flex min-w-0 flex-wrap items-center gap-x-1.5 text-xs text-zinc-500">
-                    <span>{formatDateOnlyBR(transaction.date)}</span>
-                    <span>·</span>
-                    <span className="truncate">
-                      {transaction.category?.trim() || "Sem categoria"}
-                    </span>
-                    {isScheduled && (
-                      <>
-                        <span>·</span>
-                        <span className="text-amber-300">Agendada</span>
-                      </>
-                    )}
-                    {dependentName && (
-                      <span className="flex items-center gap-1 rounded-full bg-cyan-500/10 px-1.5 py-px text-[11px] text-cyan-300">
-                        <UserRound className="size-3" />
-                        {dependentName}
+                  <span className="min-w-0 flex-1">
+                    <span className="flex min-w-0 items-center gap-1.5">
+                      <span className="truncate text-sm font-medium text-zinc-100">
+                        <TransactionDescription transaction={transaction} />
                       </span>
-                    )}
+                      {isLast && (
+                        <span className="shrink-0 rounded-full bg-emerald-500/10 px-1.5 py-px text-[10px] font-medium text-emerald-300">
+                          Última
+                        </span>
+                      )}
+                    </span>
+                    <span className="mt-0.5 flex min-w-0 flex-wrap items-center gap-x-1.5 text-xs text-zinc-500">
+                      <span>{formatDateOnlyBR(transaction.date)}</span>
+                      <span>·</span>
+                      <span className="truncate">
+                        {transaction.category?.trim() || "Sem categoria"}
+                      </span>
+                      {isScheduled && (
+                        <>
+                          <span>·</span>
+                          <span className="text-amber-300">Agendada</span>
+                        </>
+                      )}
+                      {dependentName && (
+                        <span className="flex items-center gap-1 rounded-full bg-cyan-500/10 px-1.5 py-px text-[11px] text-cyan-300">
+                          <UserRound className="size-3" />
+                          {dependentName}
+                        </span>
+                      )}
+                    </span>
                   </span>
-                </span>
-                <span
-                  className={cn(
-                    "shrink-0 text-sm font-semibold tabular-nums",
-                    isCredit ? "text-emerald-300" : "text-zinc-100",
-                  )}
-                >
-                  {isCredit ? "+" : "-"}
-                  {formatValue(transaction.amount)}
-                </span>
-              </motion.li>
-            );
-          })}
-        </ul>
+                  <span
+                    className={cn(
+                      "shrink-0 text-sm font-semibold tabular-nums",
+                      isCredit ? "text-emerald-300" : "text-zinc-100",
+                    )}
+                  >
+                    {isCredit ? "+" : "-"}
+                    {formatValue(transaction.amount)}
+                  </span>
+                </motion.li>
+              );
+            })}
+          </ul>
+          {filtered.length > MOBILE_VISIBLE_COUNT ? (
+            <button
+              type="button"
+              onClick={() => setShowAll((current) => !current)}
+              aria-expanded={showAll}
+              className="mt-2 flex h-10 w-full items-center justify-center rounded-xl text-sm font-medium text-zinc-300 ring-1 ring-inset ring-white/[0.08] transition-colors hover:bg-white/[0.04] hover:text-zinc-50 lg:hidden"
+            >
+              {showAll ? "Mostrar menos" : `Mostrar todos (${filtered.length})`}
+            </button>
+          ) : null}
+        </>
       ) : (
         <div className="mt-6 flex min-h-40 flex-col items-center justify-center gap-2 text-center">
           <Receipt className="size-7 text-zinc-600" />
