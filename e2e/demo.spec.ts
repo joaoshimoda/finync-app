@@ -144,4 +144,40 @@ test.describe("demo", () => {
     await expect(page.getByText("Demonstração reiniciada.")).toBeVisible();
     await expect(payButtons).toHaveCount(openBefore);
   });
+
+  test("global search finds people and opens them", async ({ page }) => {
+    await openView(page, "overview");
+    await page.getByRole("button", { name: "Buscar na demonstração" }).click();
+    const input = page.getByRole("combobox", { name: "Buscar no Finync" });
+
+    await input.fill("ana");
+    await page.getByRole("option", { name: /Ana Souza.*Dependente/ }).click();
+
+    await expect(page).toHaveURL(/\/demo#dependents$/);
+    await expect(page.getByRole("heading", { level: 2, name: "Ana Souza" })).toBeVisible();
+  });
+
+  test("global search opens the most recent past transaction", async ({ page }) => {
+    await openView(page, "overview");
+    await page.getByRole("button", { name: "Buscar na demonstração" }).click();
+    await page.getByRole("combobox", { name: "Buscar no Finync" }).fill("Aluguel");
+
+    const firstResult = page.getByRole("option").filter({ hasText: "Aluguel" }).first();
+    const detail = await firstResult.textContent();
+    const [day, month, year] = detail!.match(/(\d{2})\/(\d{2})\/(\d{4})/)!.slice(1);
+    expect(new Date(`${year}-${month}-${day}T00:00:00`).getTime()).toBeLessThanOrEqual(Date.now());
+
+    await firstResult.click();
+    await expect(page).toHaveURL(/\/demo#transactions$/);
+    await expect(page.getByText("Detalhes da movimentação")).toBeVisible();
+    await expect(page.getByRole("heading", { name: "Aluguel" })).toBeVisible();
+  });
+
+  test("global search matches typed amounts", async ({ page }) => {
+    await openView(page, "overview");
+    await page.keyboard.press("Control+k");
+    await page.getByRole("combobox", { name: "Buscar no Finync" }).fill("44,90");
+
+    await expect(page.getByRole("option").filter({ hasText: "Netflix" }).first()).toBeVisible();
+  });
 });

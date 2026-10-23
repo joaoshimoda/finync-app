@@ -24,6 +24,7 @@ import { AnimatedNumber } from "@/components/finance/AnimatedNumber";
 import { RecurringDeleteDialog } from "@/components/finance/RecurringDeleteDialog";
 import { TransactionDetailSheet } from "@/components/finance/TransactionDetailSheet";
 import { TransactionEditSheet } from "@/components/finance/TransactionEditSheet";
+import { useFocusRequest } from "@/components/layout/DashboardActionsProvider";
 import { AddIncomeModal } from "@/components/modals/AddIncomeModal";
 import { AddTransactionModal } from "@/components/modals/AddTransactionModal";
 import { BulkActionBar } from "@/components/transactions/BulkActionBar";
@@ -52,6 +53,7 @@ import { getCardSignedAmount, isCardCreditAdjustment } from "@/lib/cardCredits";
 import { reportAppError } from "@/lib/errorMonitoring";
 import { supabase } from "@/lib/supabaseClient";
 import { isTransactionInSelectedCompetence } from "@/lib/transactionPeriod";
+import { getDateOnlyParts } from "@/lib/dateUtils";
 import { cn } from "@/lib/utils";
 import { useFinanceStore, type Transaction } from "@/store/useFinanceStore";
 
@@ -143,6 +145,36 @@ function TransactionsPageContent() {
   const currentYear = useFinanceStore((state) => state.currentYear);
   const nextMonth = useFinanceStore((state) => state.nextMonth);
   const prevMonth = useFinanceStore((state) => state.prevMonth);
+  const goToMonth = useFinanceStore((state) => state.goToMonth);
+  const [pendingOpenId, setPendingOpenId] = useState<string | null>(null);
+
+  /* From the global search: jump to the month, filter and open the item. */
+  useFocusRequest("transaction", (target) => {
+    const { month, year } = getDateOnlyParts(target.monthStart);
+    goToMonth(month, year);
+    setCategoryFilter("all");
+    setTypeFilter("all");
+    setSearchTerm(target.query);
+    setPendingOpenId(target.id);
+  });
+  useFocusRequest("search", (target) => {
+    setCategoryFilter("all");
+    setSearchTerm(target.query);
+  });
+  useFocusRequest("category", (target) => {
+    setSearchTerm("");
+    setCategoryFilter(target.label);
+  });
+
+  useEffect(() => {
+    if (!pendingOpenId || isFetching) return;
+    const target = transactions.find((transaction) => transaction.id === pendingOpenId);
+    if (!target) return;
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- open the searched item once its month has loaded
+    setDetailTransaction(target);
+    setPendingOpenId(null);
+  }, [isFetching, pendingOpenId, transactions]);
+
   const refreshDisplayedTransactions = useCallback(
     () => fetchTransactions({ includeAllMonths: Boolean(integrityReview) }),
     [fetchTransactions, integrityReview],

@@ -15,6 +15,7 @@ import { DependentDetail } from "@/components/dependents/DependentDetail";
 import { PeopleList } from "@/components/dependents/PeopleList";
 import { useDependentsData } from "@/components/dependents/useDependentsData";
 import { AnimatedMonthSelector } from "@/components/finance/AnimatedMonthSelector";
+import { useFocusRequest } from "@/components/layout/DashboardActionsProvider";
 import { ManageDependentModal } from "@/components/modals/ManageDependentModal";
 import { SettleDependentModal } from "@/components/modals/SettleDependentModal";
 import { Button } from "@/components/ui/button";
@@ -43,6 +44,8 @@ export default function DependentesPage() {
   const detailRef = useRef<HTMLDivElement>(null);
 
   /* Below lg the detail sits under the list, so bring it into view. */
+  useFocusRequest("dependent", (target) => selectPerson(target.id));
+
   function selectPerson(id: string) {
     setSelectedId(id);
     if (window.matchMedia("(max-width: 1023px)").matches) {

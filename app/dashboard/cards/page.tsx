@@ -30,6 +30,7 @@ import {
   usePrivateCurrency,
 } from "@/components/dashboard/shared";
 import { AnimatedMonthSelector } from "@/components/finance/AnimatedMonthSelector";
+import { useFocusRequest } from "@/components/layout/DashboardActionsProvider";
 import { AddCardModal } from "@/components/modals/AddCardModal";
 import { PayInvoiceModal } from "@/components/modals/PayInvoiceModal";
 import { Button } from "@/components/ui/button";
@@ -59,6 +60,7 @@ export default function CardsPage() {
   );
   const [isDeletingCard, setIsDeletingCard] = useState(false);
   const [selectedCardId, setSelectedCardId] = useState<string | null>(null);
+  useFocusRequest("card", (target) => setSelectedCardId(target.id));
   const [paymentTarget, setPaymentTarget] = useState<{
     invoice: CardInvoice;
     cardName: string;

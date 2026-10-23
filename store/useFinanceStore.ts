@@ -248,6 +248,7 @@ interface FinanceState {
   initializeAuth: () => () => void;
   nextMonth: () => void;
   prevMonth: () => void;
+  goToMonth: (month: number, year: number) => void;
   fetchCards: () => Promise<void>;
   fetchCardInvoices: () => Promise<void>;
   fetchInvoicePayments: (invoiceIds?: string[]) => Promise<void>;
@@ -977,6 +978,14 @@ export const useFinanceStore = create<FinanceState>()((set, get) => ({
 
       return { currentMonth: state.currentMonth + 1, isFetching: true };
     });
+  },
+
+  goToMonth: (month, year) => {
+    set((state) =>
+      state.currentMonth === month && state.currentYear === year
+        ? {}
+        : { currentMonth: month, currentYear: year, isFetching: true },
+    );
   },
 
   prevMonth: () => {
