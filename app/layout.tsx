@@ -13,7 +13,11 @@ const geistMono = Geist_Mono({
   subsets: ["latin"],
 });
 
+/* Absolute base for the Open Graph image URL. */
+const siteUrl = process.env.NEXT_PUBLIC_SITE_URL ?? "https://finync.com.br";
+
 export const metadata: Metadata = {
+  metadataBase: new URL(siteUrl),
   title: "Finync",
   description: "Controle financeiro pessoal com cartões, faturas e despesas em um só lugar.",
   applicationName: "Finync",
