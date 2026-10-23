@@ -265,6 +265,7 @@ interface FinanceState {
     budget: UpsertCategoryBudgetInput,
   ) => Promise<CategoryBudget>;
   deleteCategoryBudget: (budgetId: string) => Promise<void>;
+  copyPreviousMonthBudgets: (competenceMonth: string) => Promise<number>;
   addDependent: (dependent: CreateDependentInput) => Promise<void>;
   editDependent: (
     dependentId: string,
@@ -1333,6 +1334,53 @@ export const useFinanceStore = create<FinanceState>()((set, get) => ({
       return savedBudget;
     } catch (error) {
       reportFinanceError("Salvar orçamento por categoria", error);
+      throw error;
+    }
+  },
+
+  copyPreviousMonthBudgets: async (competenceMonth) => {
+    try {
+      const user = await getCurrentUser();
+      if (!user) throw new Error("Usuário não autenticado.");
+
+      const { month, year } = getDateOnlyParts(competenceMonth);
+      const previousMonth = toDateOnly(
+        month === 1 ? year - 1 : year,
+        month === 1 ? 12 : month - 1,
+        1,
+      );
+      const { data, error } = await supabase
+        .from("category_budgets")
+        .select("*")
+        .eq("user_id", user.id)
+        .eq("competence_month", previousMonth);
+
+      if (error) throw error;
+
+      /* Never overwrite a limit already set for the target month. */
+      const budgetedCategoryIds = new Set(
+        get()
+          .categoryBudgets.filter(
+            (budget) => budget.competenceMonth === competenceMonth,
+          )
+          .map((budget) => budget.categoryId),
+      );
+      const toCopy = (data as CategoryBudgetRow[])
+        .map(mapCategoryBudget)
+        .filter((budget) => !budgetedCategoryIds.has(budget.categoryId));
+
+      for (const budget of toCopy) {
+        await get().upsertCategoryBudget({
+          categoryId: budget.categoryId,
+          competenceMonth,
+          amount: budget.amount,
+          alertThresholdPercent: budget.alertThresholdPercent,
+        });
+      }
+
+      return toCopy.length;
+    } catch (error) {
+      reportFinanceError("Copiar orçamentos do mês anterior", error);
       throw error;
     }
   },

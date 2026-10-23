@@ -13,7 +13,7 @@ type BudgetTransaction = {
 
 export type CategoryBudgetStatus = "on_track" | "attention" | "exceeded";
 
-function normalizeCategory(value: string | null | undefined) {
+export function normalizeCategory(value: string | null | undefined) {
   return (value?.trim() || "Outros")
     .normalize("NFD")
     .replace(/[\u0300-\u036f]/g, "")
@@ -24,29 +24,55 @@ function toMoney(value: number) {
   return Math.round((value + Number.EPSILON) * 100) / 100;
 }
 
+/* Personal spending of the month: no income, no dependents' purchases. */
+export function isPersonalSpendingInMonth(
+  transaction: BudgetTransaction,
+  month: number,
+  year: number,
+) {
+  return (
+    transaction.type !== "income" &&
+    !transaction.dependentId &&
+    isTransactionInSelectedCompetence(transaction, month, year)
+  );
+}
+
+export function getBudgetTransactionAmount(transaction: BudgetTransaction) {
+  return transaction.type === "card"
+    ? getCardSignedAmount(transaction)
+    : transaction.amount;
+}
+
+export function getCategoryBudgetTransactions<T extends BudgetTransaction>(
+  transactions: T[],
+  categoryLabel: string,
+  month: number,
+  year: number,
+) {
+  const normalizedCategory = normalizeCategory(categoryLabel);
+
+  return transactions.filter(
+    (transaction) =>
+      isPersonalSpendingInMonth(transaction, month, year) &&
+      normalizeCategory(transaction.category) === normalizedCategory,
+  );
+}
+
 export function getCategoryBudgetSpent(
   transactions: BudgetTransaction[],
   categoryLabel: string,
   month: number,
   year: number,
 ) {
-  const normalizedCategory = normalizeCategory(categoryLabel);
-  const spent = transactions
-    .filter(
-      (transaction) =>
-        transaction.type !== "income" &&
-        !transaction.dependentId &&
-        normalizeCategory(transaction.category) === normalizedCategory &&
-        isTransactionInSelectedCompetence(transaction, month, year),
-    )
-    .reduce(
-      (total, transaction) =>
-        total +
-        (transaction.type === "card"
-          ? getCardSignedAmount(transaction)
-          : transaction.amount),
-      0,
-    );
+  const spent = getCategoryBudgetTransactions(
+    transactions,
+    categoryLabel,
+    month,
+    year,
+  ).reduce(
+    (total, transaction) => total + getBudgetTransactionAmount(transaction),
+    0,
+  );
 
   return Math.max(toMoney(spent), 0);
 }

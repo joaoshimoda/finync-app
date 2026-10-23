@@ -65,6 +65,9 @@ const statusPresentation = {
 type CategoryBudgetModalProps = {
   budget: CategoryBudget | null;
   competenceMonth: string;
+  /* Prefill for a new budget, e.g. from "spending without a budget". */
+  initialCategoryId?: string;
+  initialAmount?: number;
   open: boolean;
   onOpenChange: (open: boolean) => void;
 };
@@ -81,6 +84,8 @@ function parseCompetenceMonth(value: string) {
 export function CategoryBudgetModal({
   budget,
   competenceMonth,
+  initialCategoryId,
+  initialAmount,
   open,
   onOpenChange,
 }: CategoryBudgetModalProps) {
@@ -88,9 +93,11 @@ export function CategoryBudgetModal({
     <Dialog open={open} onOpenChange={onOpenChange}>
       {open ? (
         <CategoryBudgetForm
-          key={budget?.id ?? `new:${competenceMonth}`}
+          key={budget?.id ?? `new:${competenceMonth}:${initialCategoryId ?? ""}`}
           budget={budget}
           competenceMonth={competenceMonth}
+          initialCategoryId={initialCategoryId}
+          initialAmount={initialAmount}
           onClose={() => onOpenChange(false)}
         />
       ) : null}
@@ -101,10 +108,14 @@ export function CategoryBudgetModal({
 function CategoryBudgetForm({
   budget,
   competenceMonth,
+  initialCategoryId,
+  initialAmount,
   onClose,
 }: {
   budget: CategoryBudget | null;
   competenceMonth: string;
+  initialCategoryId?: string;
+  initialAmount?: number;
   onClose: () => void;
 }) {
   const { formatCurrency, currencySymbol } = useCurrencyFormatter();
@@ -114,8 +125,12 @@ function CategoryBudgetForm({
   const upsertCategoryBudget = useFinanceStore(
     (state) => state.upsertCategoryBudget,
   );
-  const [categoryId, setCategoryId] = useState(budget?.categoryId ?? "");
-  const [amount, setAmount] = useState(budget?.amount.toFixed(2) ?? "");
+  const [categoryId, setCategoryId] = useState(
+    budget?.categoryId ?? initialCategoryId ?? "",
+  );
+  const [amount, setAmount] = useState(
+    (budget?.amount ?? initialAmount)?.toFixed(2) ?? "",
+  );
   const [alertThreshold, setAlertThreshold] = useState(
     String(budget?.alertThresholdPercent ?? 80),
   );
