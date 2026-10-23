@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { createContext, useContext, useEffect, useMemo, useState } from "react";
 
 import {
   buildCategoryInsights,
@@ -15,6 +15,9 @@ import {
 } from "@/components/analytics/analyticsData";
 import { reportAppError } from "@/lib/errorMonitoring";
 import { supabase } from "@/lib/supabaseClient";
+
+/* Lets the public demo supply its own history instead of querying Supabase. */
+export const AnalyticsRowsContext = createContext<AnalyticsTransactionRow[] | null>(null);
 
 export function useAnalyticsData({
   month,
@@ -34,11 +37,25 @@ export function useAnalyticsData({
     rows: AnalyticsTransactionRow[];
   } | null>(null);
   const requestKey = `${year}-${month}`;
+  const providedRows = useContext(AnalyticsRowsContext);
 
   useEffect(() => {
     let isCancelled = false;
 
     async function fetchHistory() {
+      if (providedRows) {
+        const { startDate, endDate } = getHistoryRange(month, year);
+        setLoaded({
+          key: requestKey,
+          month,
+          year,
+          rows: providedRows.filter(
+            (row) => row.month_start >= startDate && row.month_start < endDate,
+          ),
+        });
+        return;
+      }
+
       try {
         const {
           data: { user },
@@ -89,7 +106,7 @@ export function useAnalyticsData({
     return () => {
       isCancelled = true;
     };
-  }, [month, requestKey, year]);
+  }, [month, providedRows, requestKey, year]);
 
   // Until the new month arrives, keep showing the month that is loaded so
   // the numbers never mix old rows with the newly selected period.
