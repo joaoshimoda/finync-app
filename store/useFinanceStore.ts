@@ -278,7 +278,11 @@ interface FinanceState {
   addCard: (card: CreateCardInput) => Promise<void>;
   editCard: (cardId: string, card: UpdateCardInput) => Promise<void>;
   deleteCard: (cardId: string) => Promise<void>;
-  fetchTransactions: (options?: { includeAllMonths?: boolean }) => Promise<void>;
+  fetchTransactions: (options?: {
+    includeAllMonths?: boolean;
+    /* Refresh without the loading state, e.g. right after a save. */
+    quiet?: boolean;
+  }) => Promise<void>;
   addTransaction: (transaction: CreateTransactionInput) => Promise<void>;
   addTransactions: (transactions: CreateTransactionInput[]) => Promise<void>;
   updateTransaction: (
@@ -1783,7 +1787,7 @@ export const useFinanceStore = create<FinanceState>()((set, get) => ({
   },
   fetchTransactions: async (options) => {
     try {
-      set({ isFetching: true });
+      if (!options?.quiet) set({ isFetching: true });
 
       const user = await getCurrentUser();
       if (!user) {
@@ -1828,7 +1832,7 @@ export const useFinanceStore = create<FinanceState>()((set, get) => ({
     } catch (error) {
       reportFinanceError("Buscar transações", error);
     } finally {
-      set({ isFetching: false });
+      if (!options?.quiet) set({ isFetching: false });
     }
   },
 

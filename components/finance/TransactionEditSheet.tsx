@@ -223,10 +223,12 @@ export function TransactionEditSheet({
         await updateTransaction(activeTransaction.id, payload);
       }
 
+      /* The store already holds the saved values; refresh in the
+         background so the sheet closes as soon as the save is confirmed. */
       if (onSaved) {
-        await onSaved();
+        void Promise.resolve(onSaved()).catch(() => undefined);
       } else {
-        await fetchTransactions();
+        void fetchTransactions({ quiet: true });
       }
       toast.success(
         scope === "all"

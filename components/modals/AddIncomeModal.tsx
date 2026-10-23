@@ -168,7 +168,9 @@ function IncomeModalContent({
         await updateTransaction(editingTransaction.id, pendingRecurringUpdate);
       }
 
-      await fetchTransactions();
+      /* The store already holds the saved rows; refresh the rest in the
+         background so the modal closes as soon as the save is confirmed. */
+      void fetchTransactions({ quiet: true });
       toast.success(
         scope === "all"
           ? "Todas as receitas da recorrência foram atualizadas."
@@ -262,7 +264,9 @@ function IncomeModalContent({
         await addTransaction(incomePayload);
       }
 
-      await fetchTransactions();
+      /* The store already holds the saved rows; refresh the rest in the
+         background so the modal closes as soon as the save is confirmed. */
+      void fetchTransactions({ quiet: true });
       toast.success(
         editingTransaction
           ? "Receita atualizada com sucesso!"

@@ -176,7 +176,8 @@ function TransactionsPageContent() {
   }, [isFetching, pendingOpenId, transactions]);
 
   const refreshDisplayedTransactions = useCallback(
-    () => fetchTransactions({ includeAllMonths: Boolean(integrityReview) }),
+    (options?: { quiet?: boolean }) =>
+      fetchTransactions({ includeAllMonths: Boolean(integrityReview), ...options }),
     [fetchTransactions, integrityReview],
   );
 
@@ -919,7 +920,7 @@ function TransactionsPageContent() {
         key={sheetEditingTransaction?.id ?? "closed-transaction-editor"}
         transaction={sheetEditingTransaction}
         open={Boolean(sheetEditingTransaction)}
-        onSaved={refreshDisplayedTransactions}
+        onSaved={() => refreshDisplayedTransactions({ quiet: true })}
         onOpenChange={(open) => {
           if (!open) setSheetEditingTransaction(null);
         }}

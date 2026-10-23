@@ -253,7 +253,9 @@ function TransactionModalContent({
         await updateTransaction(editingTransaction.id, pendingRecurringUpdate);
       }
 
-      await fetchTransactions();
+      /* The store already holds the saved rows; refresh the rest in the
+         background so the modal closes as soon as the save is confirmed. */
+      void fetchTransactions({ quiet: true });
       toast.success(
         scope === "all"
           ? "Grupo inteiro atualizado."
@@ -558,7 +560,9 @@ function TransactionModalContent({
         }
       }
 
-      await fetchTransactions();
+      /* The store already holds the saved rows; refresh the rest in the
+         background so the modal closes as soon as the save is confirmed. */
+      void fetchTransactions({ quiet: true });
 
       toast.success(
         editingTransaction
