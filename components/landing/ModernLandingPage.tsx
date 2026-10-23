@@ -30,6 +30,7 @@ import { BudgetBars, InstallmentBars, brl, ease } from "./charts";
 import { archivo } from "./fonts";
 import { HeroDashboard } from "./HeroDashboard";
 import { InvoiceSplitDemo } from "./InvoiceSplitDemo";
+import { LedgerBackdrop } from "./LedgerBackdrop";
 import { ProductTabs } from "./ProductTabs";
 
 const reveal: Variants = {
@@ -399,7 +400,7 @@ export function ModernLandingPage() {
 
         <section className="relative pt-16 pb-16 sm:pt-24">
           <div aria-hidden className="pointer-events-none absolute inset-0 -z-0 overflow-hidden">
-            <div className="landing-grid absolute inset-0" />
+            <LedgerBackdrop className="inset-x-0 top-0 ledger-fade-hero h-[760px] w-full" />
             <motion.div
               className="absolute -top-40 left-1/2 h-[520px] w-[820px] -translate-x-1/2 rounded-full bg-[radial-gradient(closest-side,rgba(47,125,74,0.22),transparent)] blur-2xl"
               animate={{ scale: [1, 1.08, 1], opacity: [0.8, 1, 0.8] }}
@@ -584,7 +585,10 @@ export function ModernLandingPage() {
 
         <section id="dependentes" className="scroll-mt-16 px-3 sm:px-4">
           <div className="relative overflow-hidden rounded-[32px] bg-ledger-ink py-24 text-[#eef2ec] sm:py-32">
-            <div aria-hidden className="landing-grid-dark pointer-events-none absolute inset-0" />
+            <LedgerBackdrop
+              tone="dark"
+              className="ledger-fade-band inset-0 size-full"
+            />
             <div
               aria-hidden
               className="pointer-events-none absolute -top-32 -left-32 h-[480px] w-[480px] rounded-full bg-[radial-gradient(closest-side,rgba(159,212,173,0.18),transparent)] blur-2xl"
@@ -656,7 +660,7 @@ export function ModernLandingPage() {
 
         <section className="px-3 pb-3 sm:px-4 sm:pb-4">
           <div className="relative overflow-hidden rounded-[32px] border border-border bg-ledger-sheet py-20 sm:py-28">
-            <div aria-hidden className="landing-grid pointer-events-none absolute inset-0" />
+            <LedgerBackdrop className="ledger-fade-cta inset-0 size-full" />
             <motion.div
               aria-hidden
               className="pointer-events-none absolute -bottom-48 left-1/2 h-[420px] w-[760px] -translate-x-1/2 rounded-full bg-[radial-gradient(closest-side,rgba(47,125,74,0.22),transparent)] blur-2xl"
