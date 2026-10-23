@@ -387,11 +387,11 @@ export function ModernLandingPage() {
               <Button
                 asChild
                 variant="ghost"
-                className="hidden text-muted-foreground sm:inline-flex"
+                className="px-3 text-muted-foreground sm:px-4"
               >
                 <Link href="/login">Entrar</Link>
               </Button>
-              <Button asChild className="rounded-full px-5">
+              <Button asChild className="rounded-full px-4 sm:px-5">
                 <Link href="/signup">Criar conta</Link>
               </Button>
             </div>
