@@ -44,7 +44,7 @@ import {
   SheetTitle,
 } from "@/components/ui/sheet";
 import { normalizeDateOnly } from "@/lib/dateUtils";
-import { parseCurrencyValue } from "@/lib/financeUtils";
+import { parseMoneyInput } from "@/lib/moneyInput";
 import { useCurrencyFormatter } from "@/hooks/useCurrencyFormatter";
 import {
   useFinanceStore,
@@ -141,7 +141,7 @@ export function TransactionEditSheet({
 
   function buildPayload(): UpdateTransactionInput | null {
     const normalizedDescription = description.trim();
-    const parsedAmount = parseCurrencyValue(amount);
+    const parsedAmount = parseMoneyInput(amount);
     const normalizedDate = normalizeDateOnly(date);
     const nextType = isIncome ? "income" : origin;
     const nextCardId = !isIncome && origin === "card" ? cardId : null;

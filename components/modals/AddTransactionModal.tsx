@@ -23,7 +23,7 @@ import {
   splitAmountIntoInstallments,
   splitInstallmentsByOwner,
 } from "@/lib/transactionProjection";
-import { parseCurrencyValue } from "@/lib/financeUtils";
+import { parseMoneyInput } from "@/lib/moneyInput";
 import { useCurrencyFormatter } from "@/hooks/useCurrencyFormatter";
 import { CategoryGlyph } from "@/components/finance/categoryIcons";
 import {
@@ -65,6 +65,7 @@ import { cn } from "@/lib/utils";
 import {
   useFinanceStore,
   type CreateTransactionInput,
+  type UpdateTransactionInput,
   type Transaction,
 } from "@/store/useFinanceStore";
 
@@ -77,6 +78,20 @@ interface AddTransactionModalProps {
 }
 
 type ExpenseTransactionType = "fixed" | "card";
+
+const MAX_INSTALLMENTS = 48;
+
+/* Editing keeps the item's place in its installment plan and its notes;
+   the create payload always describes a single new entry. */
+function toEditPayload(payload: CreateTransactionInput): UpdateTransactionInput {
+  const editPayload: UpdateTransactionInput = { ...payload };
+  delete editPayload.installments;
+  delete editPayload.current_installment;
+  delete editPayload.installmentsTotal;
+  delete editPayload.installmentNumber;
+  delete editPayload.notes;
+  return editPayload;
+}
 type GroupEditScope = "single" | "future" | "all";
 
 export function AddTransactionModal({
@@ -165,7 +180,7 @@ function TransactionModalContent({
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [mobileStep, setMobileStep] = useState<1 | 2>(1);
   const [pendingRecurringUpdate, setPendingRecurringUpdate] =
-    useState<CreateTransactionInput | null>(null);
+    useState<UpdateTransactionInput | null>(null);
   const isEditingInstallment =
     Boolean(editingTransaction?.groupId) &&
     !editingTransaction?.is_recurring &&
@@ -200,11 +215,11 @@ function TransactionModalContent({
   }, [dependents, isSplitExpense, selectedDependentId]);
 
   const totalAmountPreview = useMemo(
-    () => parseCurrencyValue(amount),
+    () => parseMoneyInput(amount),
     [amount],
   );
   const dependentShareAmount = useMemo(
-    () => parseCurrencyValue(dependentShare),
+    () => parseMoneyInput(dependentShare),
     [dependentShare],
   );
   const personalShareAmount =
@@ -280,7 +295,7 @@ function TransactionModalContent({
     }
 
     const normalizedDate = normalizeDateOnly(date);
-    const totalAmount = parseCurrencyValue(amount);
+    const totalAmount = parseMoneyInput(amount);
     const parsedInstallmentCount = Math.max(Number(installmentCount) || 2, 2);
     const shouldSplitExpense =
       !editingTransaction && isSplitExpense && Boolean(selectedDependentId);
@@ -297,6 +312,15 @@ function TransactionModalContent({
         dependentShareAmount >= totalAmount)
     ) {
       toast.error("A parte do dependente deve ser menor que o valor total.");
+      return;
+    }
+
+    if (
+      transactionType === "card" &&
+      isInstallmentPurchase &&
+      parsedInstallmentCount > MAX_INSTALLMENTS
+    ) {
+      toast.error(`Parcele em no máximo ${MAX_INSTALLMENTS} vezes.`);
       return;
     }
 
@@ -396,12 +420,15 @@ function TransactionModalContent({
           editingTransaction.groupId &&
           (editingTransaction.is_recurring || isEditingInstallment)
         ) {
-          setPendingRecurringUpdate(transactionPayload);
+          setPendingRecurringUpdate(toEditPayload(transactionPayload));
           setIsSubmitting(false);
           return;
         }
 
-        await updateTransaction(editingTransaction.id, transactionPayload);
+        await updateTransaction(
+          editingTransaction.id,
+          toEditPayload(transactionPayload),
+        );
       } else if (shouldCreateCreditCardSubscription) {
         const ownerStreams = ownershipShares.map((share) => ({
           ...share,
@@ -937,6 +964,7 @@ function TransactionModalContent({
                             type="number"
                             inputMode="numeric"
                             min={2}
+                            max={MAX_INSTALLMENTS}
                             step={1}
                             className={cn(inputClassName, "w-24 text-center")}
                           />

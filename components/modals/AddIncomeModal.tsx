@@ -53,6 +53,7 @@ import {
   VARIABLE_INCOME_NOTE,
   isVariableIncome,
 } from "@/lib/incomeRecurrence";
+import { parseMoneyInput } from "@/lib/moneyInput";
 import { addMonthsToDateOnly } from "@/lib/transactionProjection";
 import { cn } from "@/lib/utils";
 import {
@@ -203,9 +204,16 @@ function IncomeModalContent({
       return;
     }
 
+    const parsedAmount = parseMoneyInput(amount);
+
+    if (!Number.isFinite(parsedAmount) || parsedAmount <= 0) {
+      toast.error("Informe um valor maior que zero.");
+      return;
+    }
+
     const incomePayload: CreateTransactionInput = {
       description: description.trim(),
-      amount: Number(amount.replace(",", ".")) || 0,
+      amount: parsedAmount,
       date: normalizeDateOnly(date),
       category,
       type: "income" as const,

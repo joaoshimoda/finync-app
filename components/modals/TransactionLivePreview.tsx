@@ -4,6 +4,7 @@ import { CalendarDays, Repeat2, UserRound } from "lucide-react";
 
 import { CategoryGlyph } from "@/components/finance/categoryIcons";
 import { formatDateOnlyBR } from "@/lib/dateUtils";
+import { parseMoneyInput } from "@/lib/moneyInput";
 import { useCurrencyFormatter } from "@/hooks/useCurrencyFormatter";
 import { cn } from "@/lib/utils";
 
@@ -22,11 +23,7 @@ interface TransactionLivePreviewProps {
 }
 
 export function parsePreviewAmount(value: string) {
-  const sanitizedValue = value.trim().replace(/\s/g, "");
-  const normalizedValue = sanitizedValue.includes(",")
-    ? sanitizedValue.replace(/\./g, "").replace(",", ".")
-    : sanitizedValue;
-  const parsedAmount = Number(normalizedValue);
+  const parsedAmount = parseMoneyInput(value);
 
   return Number.isFinite(parsedAmount) ? parsedAmount : 0;
 }

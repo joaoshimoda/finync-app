@@ -29,6 +29,7 @@ import {
 } from "@/components/modals/ModalKit";
 import { Dialog } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
+import { parseMoneyInput } from "@/lib/moneyInput";
 import { cn } from "@/lib/utils";
 import { useFinanceStore, type Card } from "@/store/useFinanceStore";
 import { useCurrencyFormatter } from "@/hooks/useCurrencyFormatter";
@@ -190,7 +191,9 @@ function CardModalContent({
   const [mobileStep, setMobileStep] = useState<1 | 2>(1);
 
   const previewName = name.trim() || "Seu cartão";
-  const previewLimit = Number(limit.replace(",", ".")) || 0;
+  const parsedLimit = parseMoneyInput(limit);
+  const previewLimit =
+    Number.isFinite(parsedLimit) && parsedLimit > 0 ? parsedLimit : 0;
   const previewTheme = useMemo(
     () => getCardTheme(selectedColor || undefined, previewName),
     [previewName, selectedColor],

@@ -27,6 +27,7 @@ import {
   type CardInvoice,
   type Transaction,
 } from "@/store/useFinanceStore";
+import { parseMoneyInput } from "@/lib/moneyInput";
 
 const compactBreakpoint = 640;
 const setupDismissedStorageKey = "finync:dashboard-setup-dismissed";
@@ -149,10 +150,8 @@ export default function DashboardPage() {
 
   const handleConfirmVariableIncome = useCallback(
     async (transaction: Transaction) => {
-      const nextAmount = Number(
-        (variableIncomeValues[transaction.id] || "")
-          .replace(/\./g, "")
-          .replace(",", "."),
+      const nextAmount = parseMoneyInput(
+        variableIncomeValues[transaction.id] || "",
       );
 
       if (!Number.isFinite(nextAmount) || nextAmount <= 0) {

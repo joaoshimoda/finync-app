@@ -117,6 +117,24 @@ test.describe("demo", () => {
     expect(supabaseCalls).toEqual([]);
   });
 
+  test("amounts typed with Brazilian thousands separators save in full", async ({ page, isMobile }) => {
+    test.skip(isMobile, "The demo opens the new-item menu from the desktop header.");
+    const supabaseCalls = watchSupabase(page);
+    await openView(page, "overview");
+
+    await page.getByRole("button", { name: "Criar novo item" }).filter({ visible: true }).first().click();
+    await page.getByRole("menuitem", { name: /Nova receita/i }).click();
+    await page.locator("#income-amount").fill("6.500,00");
+    await page.locator("#income-description").fill("Bônus anual");
+    await page.getByRole("button", { name: "Salvar receita" }).click();
+    await expect(page.getByText("Receita adicionada com sucesso!")).toBeVisible();
+
+    await page.goto("/demo#transactions");
+    await page.getByPlaceholder("Buscar transações").fill("Bônus anual");
+    await expect(page.getByRole("button", { name: /Bônus anual/ }).first()).toContainText("6.500,00");
+    expect(supabaseCalls).toEqual([]);
+  });
+
   test("dependents show what is still owed and a ready statement", async ({ page }) => {
     await openView(page, "dependents");
     await page.getByRole("button", { name: /Ana Souza/ }).click();

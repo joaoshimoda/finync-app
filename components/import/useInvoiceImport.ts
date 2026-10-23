@@ -42,6 +42,7 @@ import {
   type PreparedImportTransaction,
 } from "@/lib/invoiceImport";
 import { extractPdfInvoice, type PdfOcrProgress } from "@/lib/invoicePdf";
+import { parseMoneyInput } from "@/lib/moneyInput";
 import { supabase } from "@/lib/supabaseClient";
 import { useFinanceStore } from "@/store/useFinanceStore";
 
@@ -796,7 +797,7 @@ export function useInvoiceImport() {
 
   const addCorrectedPdfLine = useCallback(
     (line: PdfReviewLine) => {
-      const amount = Number(line.amount.replace(",", "."));
+      const amount = parseMoneyInput(line.amount);
 
       if (!line.date || !line.description.trim() || !(amount > 0)) {
         toast.error("Preencha data, descrição e um valor maior que zero.");
