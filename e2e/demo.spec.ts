@@ -100,6 +100,23 @@ test.describe("demo", () => {
     await expect(page.getByRole("button", { name: /Inter/ }).first()).toBeVisible();
   });
 
+  test("a card can be deleted from its edit form", async ({ page }) => {
+    const supabaseCalls = watchSupabase(page);
+    await openView(page, "cards");
+
+    const actions = page.getByRole("button", { name: /^Ações do cartão / });
+    const cardName = (await actions.getAttribute("aria-label"))!.replace("Ações do cartão ", "");
+    await actions.click();
+    await page.getByRole("menuitem", { name: "Editar cartão" }).click();
+
+    await page.getByRole("button", { name: "Excluir cartão" }).click();
+    await page.getByRole("button", { name: "Sim, excluir cartão" }).click();
+
+    await expect(page.getByText("Cartão removido.")).toBeVisible();
+    await expect(page.getByRole("button", { name: `Ações do cartão ${cardName}` })).toHaveCount(0);
+    expect(supabaseCalls).toEqual([]);
+  });
+
   test("dependents show what is still owed and a ready statement", async ({ page }) => {
     await openView(page, "dependents");
     await page.getByRole("button", { name: /Ana Souza/ }).click();

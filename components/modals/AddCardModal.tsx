@@ -7,6 +7,7 @@ import {
   CreditCard,
   Landmark,
   Palette,
+  Trash2,
   WalletCards,
   Wifi,
   X,
@@ -30,6 +31,8 @@ interface AddCardModalProps {
   isOpen: boolean;
   onClose: () => void;
   editingCard?: Card | null;
+  /** Shown only while editing; the parent owns the confirmation dialog. */
+  onDelete?: (card: Card) => void;
 }
 
 interface CardTheme {
@@ -128,6 +131,7 @@ export function AddCardModal({
   isOpen,
   onClose,
   editingCard = null,
+  onDelete,
 }: AddCardModalProps) {
   return (
     <Dialog open={isOpen} onOpenChange={(open) => !open && onClose()}>
@@ -136,6 +140,7 @@ export function AddCardModal({
           key={editingCard?.id ?? "new-card"}
           editingCard={editingCard}
           onClose={onClose}
+          onDelete={onDelete}
         />
       ) : null}
     </Dialog>
@@ -145,9 +150,11 @@ export function AddCardModal({
 function CardModalContent({
   editingCard,
   onClose,
+  onDelete,
 }: {
   editingCard: Card | null;
   onClose: () => void;
+  onDelete?: (card: Card) => void;
 }) {
   const { formatCurrency, currencySymbol } = useCurrencyFormatter();
   const addCard = useFinanceStore((state) => state.addCard);
@@ -490,6 +497,19 @@ function CardModalContent({
           </div>
 
           <footer className="flex shrink-0 items-center justify-end gap-2 border-t border-zinc-900 px-5 py-3 md:border-0 md:px-7 md:pb-6 md:pt-2">
+            {editingCard && onDelete ? (
+              <Button
+                type="button"
+                variant="ghost"
+                disabled={isSubmitting}
+                onClick={() => onDelete(editingCard)}
+                aria-label="Excluir cartão"
+                className="mr-auto h-10 px-3 text-rose-400 hover:bg-rose-500/10 hover:text-rose-300"
+              >
+                <Trash2 className="size-4" />
+                <span className="hidden md:inline">Excluir cartão</span>
+              </Button>
+            ) : null}
             <Button
               type="button"
               variant="ghost"

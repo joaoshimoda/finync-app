@@ -322,6 +322,10 @@ export default function CardsPage() {
         isOpen={isAddCardModalOpen}
         onClose={closeCardModal}
         editingCard={editingCard}
+        onDelete={(card) => {
+          closeCardModal();
+          setDeleteTargetCard(card);
+        }}
       />
 
       <PayInvoiceModal
