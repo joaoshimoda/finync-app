@@ -1,6 +1,7 @@
 "use client";
 
 import { motion } from "framer-motion";
+import dynamic from "next/dynamic";
 
 import {
   dashboardEase,
@@ -11,10 +12,19 @@ import {
 } from "@/components/dashboard/shared";
 import type { useDashboardData } from "@/components/dashboard/useDashboardData";
 import { AnimatedNumber } from "@/components/finance/AnimatedNumber";
-import { BalanceTimelineChart } from "@/components/finance/BalanceTimelineChart";
 import { cn } from "@/lib/utils";
 
 type DashboardData = ReturnType<typeof useDashboardData>;
+
+/* Recharts loads in its own chunk; the parent box already has a fixed
+   height, so the empty placeholder keeps the layout still. */
+const BalanceTimelineChart = dynamic(
+  () =>
+    import("@/components/finance/BalanceTimelineChart").then(
+      (module) => module.BalanceTimelineChart,
+    ),
+  { ssr: false, loading: () => <div aria-hidden className="size-full" /> },
+);
 
 type BalanceOverviewProps = Pick<
   DashboardData,

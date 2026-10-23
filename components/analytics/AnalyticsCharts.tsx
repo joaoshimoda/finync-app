@@ -19,6 +19,7 @@ import {
   ChartTooltipCard,
   analyticsColors,
 } from "@/components/analytics/AnalyticsPrimitives";
+import { chartHeights } from "@/components/analytics/chartHeights";
 import { cn } from "@/lib/utils";
 import type {
   MonthSummary,
@@ -62,7 +63,7 @@ export function CashFlowChart({
   formatCompact: Formatter;
 }) {
   return (
-    <Frame height="h-64 sm:h-72 lg:h-auto lg:min-h-72 lg:flex-1">
+    <Frame height={chartHeights.cashFlow}>
       <ComposedChart
         data={months}
         margin={{ top: 8, right: 4, bottom: 0, left: 0 }}
@@ -167,7 +168,7 @@ export function SpendingPaceChart({
   );
 
   return (
-    <Frame height="h-60 sm:h-72 lg:h-80">
+    <Frame height={chartHeights.spendingPace}>
       <LineChart
         data={points}
         margin={{ top: 16, right: 8, bottom: 0, left: 0 }}
@@ -269,7 +270,7 @@ export function CompositionChart({
   formatCompact: Formatter;
 }) {
   return (
-    <Frame height="h-60">
+    <Frame height={chartHeights.composition}>
       <BarChart data={months} margin={{ top: 8, right: 4, bottom: 0, left: 0 }}>
         <CartesianGrid vertical={false} stroke={analyticsColors.grid} />
         <XAxis
@@ -345,7 +346,7 @@ export function WeekdayChart({
   const maxAmount = Math.max(...points.map((point) => point.amount), 0);
 
   return (
-    <Frame height="h-60">
+    <Frame height={chartHeights.weekday}>
       <BarChart data={points} margin={{ top: 8, right: 4, bottom: 0, left: 4 }}>
         <XAxis
           dataKey="shortLabel"

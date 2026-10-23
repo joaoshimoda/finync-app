@@ -103,3 +103,18 @@ function createConfiguredBrowserClient(isSingleton: boolean) {
 }
 
 export const supabase = createConfiguredBrowserClient(true);
+
+/* The signed-in user from the locally stored session, refreshed by the
+   client when it expires. It avoids a round trip to the auth server on
+   every read; row level security still checks the token on each query.
+   Writes that need a freshly verified user call auth.getUser() instead. */
+export async function getSessionUser() {
+  const {
+    data: { session },
+    error,
+  } = await supabase.auth.getSession();
+
+  if (error || !session) return null;
+
+  return session.user;
+}

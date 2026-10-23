@@ -14,7 +14,8 @@ import {
   type AnalyticsTransactionRow,
 } from "@/components/analytics/analyticsData";
 import { reportAppError } from "@/lib/errorMonitoring";
-import { supabase } from "@/lib/supabaseClient";
+import { getSessionUser, supabase } from "@/lib/supabaseClient";
+import { fetchAllPages } from "@/lib/supabasePaging";
 
 /* Lets the public demo supply its own history instead of querying Supabase. */
 export const AnalyticsRowsContext = createContext<AnalyticsTransactionRow[] | null>(null);
@@ -57,12 +58,7 @@ export function useAnalyticsData({
       }
 
       try {
-        const {
-          data: { user },
-          error: userError,
-        } = await supabase.auth.getUser();
-
-        if (userError) throw userError;
+        const user = await getSessionUser();
 
         if (!user) {
           if (!isCancelled)
@@ -71,25 +67,28 @@ export function useAnalyticsData({
         }
 
         const { startDate, endDate } = getHistoryRange(month, year);
-        const { data, error } = await supabase
-          .from("transactions")
-          .select(
-            "id, card_id, dependent_id, month_start, transaction_date, type, description, category, amount, day, notes",
-          )
-          .eq("user_id", user.id)
-          .is("dependent_id", null)
-          .gte("month_start", startDate)
-          .lt("month_start", endDate)
-          .order("month_start", { ascending: true })
-          .order("day", { ascending: true });
+        const data = await fetchAllPages((from, to) =>
+          supabase
+            .from("transactions")
+            .select(
+              "id, card_id, dependent_id, month_start, transaction_date, type, description, category, amount, day, notes",
+            )
+            .eq("user_id", user.id)
+            .is("dependent_id", null)
+            .gte("month_start", startDate)
+            .lt("month_start", endDate)
+            .order("month_start", { ascending: true })
+            .order("day", { ascending: true })
+            .order("id", { ascending: true })
+            .range(from, to),
+        );
 
-        if (error) throw error;
         if (!isCancelled) {
           setLoaded({
             key: requestKey,
             month,
             year,
-            rows: (data ?? []) as AnalyticsTransactionRow[],
+            rows: data as AnalyticsTransactionRow[],
           });
         }
       } catch (error) {

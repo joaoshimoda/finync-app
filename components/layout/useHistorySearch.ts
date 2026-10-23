@@ -4,7 +4,7 @@ import { useEffect, useState } from "react";
 
 import { escapeLikePattern, normalizeSearchText } from "@/lib/globalSearch";
 import { reportAppError } from "@/lib/errorMonitoring";
-import { supabase } from "@/lib/supabaseClient";
+import { getSessionUser, supabase } from "@/lib/supabaseClient";
 
 export interface SearchTransaction {
   id: string;
@@ -44,9 +44,7 @@ export function useHistorySearch(query: string, enabled: boolean) {
       setState((current) => ({ ...current, isLoading: true }));
 
       try {
-        const {
-          data: { user },
-        } = await supabase.auth.getUser();
+        const user = await getSessionUser();
         if (!user || isCancelled) return;
 
         const { data, error } = await supabase

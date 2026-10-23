@@ -17,7 +17,7 @@ import {
   CompositionChart,
   SpendingPaceChart,
   WeekdayChart,
-} from "@/components/analytics/AnalyticsCharts";
+} from "@/components/analytics/LazyAnalyticsCharts";
 import {
   CategoryRanking,
   InsightsList,

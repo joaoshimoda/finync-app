@@ -43,7 +43,7 @@ import {
 } from "@/lib/invoiceImport";
 import { extractPdfInvoice, type PdfOcrProgress } from "@/lib/invoicePdf";
 import { parseMoneyInput } from "@/lib/moneyInput";
-import { supabase } from "@/lib/supabaseClient";
+import { getSessionUser, supabase } from "@/lib/supabaseClient";
 import { useFinanceStore } from "@/store/useFinanceStore";
 
 export type RowState = {
@@ -107,12 +107,9 @@ export function useInvoiceImport() {
     let isMounted = true;
 
     async function fetchHistoricalCategories() {
-      const {
-        data: { user },
-        error: userError,
-      } = await supabase.auth.getUser();
+      const user = await getSessionUser();
 
-      if (userError || !user) return;
+      if (!user) return;
 
       const { data, error } = await supabase
         .from("transactions")
@@ -383,12 +380,9 @@ export function useInvoiceImport() {
       setIsCheckingDuplicates(true);
 
       try {
-        const {
-          data: { user },
-          error: userError,
-        } = await supabase.auth.getUser();
+        const user = await getSessionUser();
 
-        if (userError || !user) {
+        if (!user) {
           if (isMounted) {
             setExistingImportSignatures(new Set());
             setExistingLooseImportSignatures(new Set());

@@ -1,6 +1,7 @@
 "use client";
 
-import { supabase } from "@/lib/supabaseClient";
+import { getSessionUser, supabase } from "@/lib/supabaseClient";
+import { fetchAllPages } from "@/lib/supabasePaging";
 import {
   getCardInvoiceMonthStart,
   getCurrentFinancialMonthStart,
@@ -612,26 +613,22 @@ function mergeCategories(customCategories: Category[]) {
   ].sort((left, right) => left.label.localeCompare(right.label, "pt-BR"));
 }
 
-async function getCurrentUser(): Promise<User | null> {
-  const {
-    data: { session },
-    error: sessionError,
-  } = await supabase.auth.getSession();
+function getCurrentUser(): Promise<User | null> {
+  return getSessionUser();
+}
 
-  if (sessionError || !session) {
-    return null;
-  }
+/* Due subscription charges only change with the date, so the sync runs on
+   the first load and then at most every few minutes, not on every fetch. */
+const STATUS_SYNC_INTERVAL_MS = 5 * 60 * 1000;
+let lastStatusSyncAt = 0;
 
-  const {
-    data: { user },
-    error,
-  } = await supabase.auth.getUser();
+async function syncDueTransactionStatuses() {
+  if (Date.now() - lastStatusSyncAt < STATUS_SYNC_INTERVAL_MS) return;
 
-  if (error || !user) {
-    return null;
-  }
+  const { error } = await supabase.rpc("finync_sync_due_transaction_statuses");
+  if (error) throw error;
 
-  return user;
+  lastStatusSyncAt = Date.now();
 }
 
 const preferenceStorageKeys = {
@@ -1798,25 +1795,24 @@ export const useFinanceStore = create<FinanceState>()((set, get) => ({
         selectedMonth,
         selectedYear,
       );
-      const { error: statusSyncError } = await supabase.rpc(
-        "finync_sync_due_transaction_statuses",
-      );
+      await syncDueTransactionStatuses();
 
-      if (statusSyncError) throw statusSyncError;
+      const data = await fetchAllPages((from, to) => {
+        const baseQuery = supabase
+          .from("transactions")
+          .select("*")
+          .eq("user_id", user.id);
+        const scopedQuery = options?.includeAllMonths
+          ? baseQuery
+          : baseQuery.gte("month_start", startDate).lt("month_start", endDate);
 
-      const baseQuery = supabase
-        .from("transactions")
-        .select("*")
-        .eq("user_id", user.id);
-      const scopedQuery = options?.includeAllMonths
-        ? baseQuery
-        : baseQuery.gte("month_start", startDate).lt("month_start", endDate);
-      const { data, error } = await scopedQuery
-        .order("month_start", { ascending: false })
-        .order("day", { ascending: false })
-        .order("created_at", { ascending: false });
-
-      if (error) throw error;
+        return scopedQuery
+          .order("month_start", { ascending: false })
+          .order("day", { ascending: false })
+          .order("created_at", { ascending: false })
+          .order("id", { ascending: false })
+          .range(from, to);
+      });
 
       set({
         transactions: (data as TransactionRow[]).map(mapTransaction),
