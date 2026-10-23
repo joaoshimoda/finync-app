@@ -64,7 +64,7 @@ export function AppearanceCard({ className }: { className?: string }) {
   const { preference, setPreference } = useTheme();
 
   return (
-    <Card className={cn("border-zinc-800/80 bg-zinc-900/50 shadow-none", className)}>
+    <Card className={cn("surface-panel", className)}>
       <CardHeader className="border-b border-zinc-800/80 px-6 py-6">
         <CardTitle>Aparência</CardTitle>
         <CardDescription>

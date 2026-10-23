@@ -125,7 +125,7 @@ export default function AjudaPage() {
           initial={{ opacity: 0, y: 10 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.4, ease: "easeOut" }}
-          className="relative overflow-hidden rounded-2xl border border-white/[0.07] bg-zinc-900/40 px-5 py-8 sm:px-8 sm:py-10"
+          className="surface-panel relative overflow-hidden rounded-2xl px-5 py-8 sm:px-8 sm:py-10"
         >
           <div className="pointer-events-none absolute -right-24 -top-24 size-72 rounded-full bg-emerald-500/10 blur-3xl" />
           <div className="relative flex flex-col gap-6 lg:flex-row lg:items-end lg:justify-between">
@@ -342,7 +342,7 @@ export default function AjudaPage() {
                             id={section.id}
                             tabIndex={-1}
                             {...fadeUp}
-                            className="scroll-mt-24 rounded-2xl border border-white/[0.07] bg-zinc-900/30 p-5 outline-none sm:p-6 md:scroll-mt-8"
+                            className="surface-panel scroll-mt-24 rounded-2xl p-5 outline-none sm:p-6 md:scroll-mt-8"
                           >
                             <div className="grid gap-6 xl:grid-cols-[minmax(0,1fr)_300px]">
                               <div className="min-w-0">
@@ -434,7 +434,7 @@ export default function AjudaPage() {
                 <Accordion
                   type="single"
                   collapsible
-                  className="mt-5 rounded-2xl border border-white/[0.07] bg-zinc-900/30 px-5"
+                  className="surface-panel mt-5 rounded-2xl px-5"
                 >
                   {filteredQuestions.map((item) => (
                     <AccordionItem

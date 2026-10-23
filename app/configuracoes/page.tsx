@@ -571,7 +571,7 @@ export default function ConfiguracoesPage() {
         <TabsContent value="perfil">
           <div className="mt-6 grid w-full grid-cols-1 gap-8 lg:grid-cols-12">
             <div className="h-fit lg:col-span-4">
-              <Card className="border-zinc-800/80 bg-zinc-900/50 shadow-none">
+              <Card className="surface-panel">
                 <CardContent className="flex flex-col items-center px-6 py-8 text-center">
                   <input
                     ref={fileInputRef}
@@ -621,7 +621,7 @@ export default function ConfiguracoesPage() {
 
             <div className="space-y-6 lg:col-span-8">
               <form onSubmit={handleSaveProfile}>
-                <Card className="border-zinc-800/80 bg-zinc-900/50 shadow-none">
+                <Card className="surface-panel">
                   <CardHeader className="border-b border-zinc-800/80 px-6 py-6">
                     <CardTitle>Dados do perfil</CardTitle>
                     <CardDescription>
@@ -708,7 +708,7 @@ export default function ConfiguracoesPage() {
         >
           <AppearanceCard className="lg:col-span-12" />
 
-          <Card className="border-zinc-800/80 bg-zinc-900/50 shadow-none lg:col-span-5">
+          <Card className="surface-panel lg:col-span-5">
             <CardHeader className="border-b border-zinc-800/80 px-6 py-6">
               <CardTitle>Preferências regionais</CardTitle>
               <CardDescription>
@@ -761,7 +761,7 @@ export default function ConfiguracoesPage() {
             </CardContent>
           </Card>
 
-          <Card className="border-zinc-800/80 bg-zinc-900/50 shadow-none lg:col-span-3">
+          <Card className="surface-panel lg:col-span-3">
             <CardHeader className="border-b border-zinc-800/80 px-6 py-6">
               <CardTitle>Privacidade</CardTitle>
               <CardDescription>
@@ -792,7 +792,7 @@ export default function ConfiguracoesPage() {
             </CardContent>
           </Card>
 
-          <Card className="border-zinc-800/80 bg-zinc-900/50 shadow-none lg:col-span-4">
+          <Card className="surface-panel lg:col-span-4">
             <CardHeader className="border-b border-zinc-800/80 px-6 py-6">
               <CardTitle>Notificações</CardTitle>
               <CardDescription>
@@ -847,7 +847,7 @@ export default function ConfiguracoesPage() {
           value="seguranca"
           className="mt-6 grid w-full grid-cols-1 gap-6 lg:grid-cols-12"
         >
-          <Card className="border-zinc-800/80 bg-zinc-900/50 shadow-none lg:col-span-7">
+          <Card className="surface-panel lg:col-span-7">
             <CardHeader className="border-b border-zinc-800/80 px-6 py-6">
               <CardTitle>Alterar Senha</CardTitle>
               <CardDescription>
@@ -908,7 +908,7 @@ export default function ConfiguracoesPage() {
             </form>
           </Card>
 
-          <Card className="h-fit border-zinc-800/80 bg-zinc-900/50 shadow-none lg:col-span-5">
+          <Card className="h-fit surface-panel lg:col-span-5">
             <CardHeader className="border-b border-zinc-800/80 px-6 py-6">
               <CardTitle>Sessões Ativas</CardTitle>
               <CardDescription>

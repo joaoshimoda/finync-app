@@ -319,7 +319,7 @@ export function Sidebar() {
         initial={false}
         animate={{ width: collapsed ? collapsedWidth : expandedWidth }}
         transition={{ duration: 0.28, ease: sidebarEase }}
-        className="relative hidden h-screen shrink-0 flex-col border-r border-white/[0.06] bg-zinc-950/70 md:sticky md:top-0 md:flex"
+        className="relative hidden h-screen shrink-0 flex-col border-r border-white/[0.06] bg-zinc-950/70 light:border-black/[0.12] light:bg-zinc-900 md:sticky md:top-0 md:flex"
         aria-label="Navegação principal"
       >
         <RailTooltip

@@ -177,7 +177,7 @@ export function DemoApp() {
   return (
     <DashboardActionsProvider>
       <div className="flex h-dvh w-full overflow-hidden bg-background text-white">
-        <aside className="hidden w-60 shrink-0 flex-col border-r border-white/[0.06] bg-zinc-950/60 p-4 lg:flex">
+        <aside className="hidden w-60 shrink-0 flex-col border-r border-white/[0.06] bg-zinc-950/60 p-4 light:border-black/[0.12] light:bg-zinc-900 lg:flex">
           <Link href="/" className="flex items-center gap-2 px-2 py-1">
             <FinyncLogo className="h-7 w-auto" eager />
           </Link>

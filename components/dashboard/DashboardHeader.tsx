@@ -12,6 +12,7 @@ import {
 
 import { dashboardReveal } from "@/components/dashboard/shared";
 import { AnimatedMonthSelector } from "@/components/finance/AnimatedMonthSelector";
+import { ThemeToggleButton } from "@/components/theme/ThemeToggleButton";
 import { Button } from "@/components/ui/button";
 import {
   DropdownMenu,
@@ -60,7 +61,7 @@ export function DashboardHeader({
         <p className="mt-1 text-sm text-zinc-400">{periodLabel}</p>
       </div>
 
-      <div className="grid w-full grid-cols-[minmax(0,1fr)_2.75rem] items-center gap-2 sm:flex sm:w-auto">
+      <div className="grid w-full grid-cols-[minmax(0,1fr)_2.75rem_2.75rem] items-center gap-2 sm:flex sm:w-auto">
         <div className="min-w-0 sm:shrink-0">
           <AnimatedMonthSelector
             currentMonth={currentMonth}
@@ -85,6 +86,7 @@ export function DashboardHeader({
             <Eye className="size-5" />
           )}
         </button>
+        <ThemeToggleButton />
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
             <Button

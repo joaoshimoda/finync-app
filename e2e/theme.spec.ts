@@ -24,6 +24,21 @@ test.describe("theme", () => {
     await expect(page.locator("html")).not.toHaveClass(/\blight\b/);
   });
 
+  test("the header button switches the theme in one tap", async ({ page }) => {
+    await page.emulateMedia({ colorScheme: "light" });
+    await page.goto("/demo#overview");
+    const html = page.locator("html");
+    await expect(html).toHaveClass(/\blight\b/);
+
+    await page.getByRole("button", { name: "Usar tema escuro" }).click();
+    await expect(html).toHaveClass(/\bdark\b/);
+    await page.reload();
+    await expect(html).toHaveClass(/\bdark\b/);
+
+    await page.getByRole("button", { name: "Usar tema claro" }).click();
+    await expect(html).toHaveClass(/\blight\b/);
+  });
+
   test("wallet cards keep their colours in the light theme", async ({ page }) => {
     await page.emulateMedia({ colorScheme: "light" });
     await page.goto("/demo#cards");

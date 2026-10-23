@@ -25,8 +25,8 @@ export const dashboardReveal: Variants = {
   },
 };
 
-export const dashboardPanelClassName =
-  "rounded-2xl border border-white/[0.07] bg-zinc-900/50";
+/* Glass surface defined in globals.css (.surface-panel). */
+export const dashboardPanelClassName = "surface-panel rounded-2xl";
 
 export const shortMonthFormatter = new Intl.DateTimeFormat("pt-BR", {
   month: "short",

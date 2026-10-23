@@ -52,7 +52,7 @@ export function MobileTransactionItem({
   return (
     <article
       className={cn(
-        "flex min-h-20 items-center gap-3 rounded-2xl border border-zinc-800 bg-zinc-900/55 p-3.5",
+        "surface-panel flex min-h-20 items-center gap-3 rounded-2xl p-3.5",
         className,
       )}
     >

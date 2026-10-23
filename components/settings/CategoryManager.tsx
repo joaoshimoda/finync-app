@@ -100,7 +100,7 @@ export function CategoryManager() {
 
   return (
     <>
-      <Card className="border-zinc-800/80 bg-zinc-900/50 shadow-none lg:col-span-12">
+      <Card className="surface-panel lg:col-span-12">
         <CardHeader className="flex flex-row items-center justify-between gap-4 border-b border-zinc-800/80 px-5 py-5 sm:px-6">
           <div className="min-w-0">
             <CardTitle>Categorias</CardTitle>
