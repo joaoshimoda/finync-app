@@ -21,6 +21,16 @@ export function downloadFile(content: string, filename: string, mimeType: string
   window.setTimeout(() => URL.revokeObjectURL(url), 0);
 }
 
+/* The full read-only snapshot of the user's data, as exported. */
+export async function fetchBackupSnapshot() {
+  const { data, error } = await supabase.rpc("finync_export_backup");
+  if (error) throw error;
+
+  const parsed = data ? parseFinyncBackup(data) : null;
+  if (!parsed) throw new Error("Formato de backup inválido.");
+  return parsed;
+}
+
 /* Reads the full snapshot once per visit (the same read-only RPC the page
    always used) and keeps it in memory, so every report and preview after
    the first one is instant and consistent. */
@@ -44,12 +54,7 @@ export function useExportData() {
     setIsLoading(true);
 
     try {
-      const { data, error } = await supabase.rpc("finync_export_backup");
-      if (error) throw error;
-
-      const parsed = data ? parseFinyncBackup(data) : null;
-      if (!parsed) throw new Error("Formato de backup inválido.");
-
+      const parsed = await fetchBackupSnapshot();
       setBackup(parsed);
       return parsed;
     } catch (error) {
