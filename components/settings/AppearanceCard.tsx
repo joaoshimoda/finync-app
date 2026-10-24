@@ -1,17 +1,12 @@
 "use client";
 
-import { Check, Monitor, Moon, Sun } from "lucide-react";
+import { Check, Monitor, Moon, Palette, Sun } from "lucide-react";
 
-import {
-  Card,
-  CardContent,
-  CardDescription,
-  CardHeader,
-  CardTitle,
-} from "@/components/ui/card";
 import { useTheme } from "@/hooks/useTheme";
 import type { ThemePreference } from "@/lib/theme";
 import { cn } from "@/lib/utils";
+
+import { SettingsPanel } from "./SettingsPanel";
 
 const options: {
   value: ThemePreference;
@@ -64,14 +59,13 @@ export function AppearanceCard({ className }: { className?: string }) {
   const { preference, setPreference } = useTheme();
 
   return (
-    <Card className={cn("surface-panel", className)}>
-      <CardHeader className="border-b border-zinc-800/80 px-6 py-6">
-        <CardTitle>Aparência</CardTitle>
-        <CardDescription>
-          Escolha o tema do Finync. A escolha vale para este aparelho.
-        </CardDescription>
-      </CardHeader>
-      <CardContent className="px-6 py-6">
+    <SettingsPanel
+      id="settings-appearance"
+      icon={Palette}
+      title="Aparência"
+      description="Escolha o tema do Finync. A escolha vale para este aparelho."
+      className={className}
+    >
         <div role="radiogroup" aria-label="Tema" className="grid gap-3 sm:grid-cols-3">
           {options.map((option) => {
             const isSelected = preference === option.value;
@@ -116,7 +110,6 @@ export function AppearanceCard({ className }: { className?: string }) {
             );
           })}
         </div>
-      </CardContent>
-    </Card>
+    </SettingsPanel>
   );
 }

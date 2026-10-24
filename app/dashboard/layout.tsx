@@ -6,6 +6,7 @@ import { MobileTopBar } from "@/components/layout/MobileTopBar";
 import { MobileQuickAction } from "@/components/layout/MobileQuickAction";
 import { DashboardActionsProvider } from "@/components/layout/DashboardActionsProvider";
 import { GlobalCommandPalette } from "@/components/layout/GlobalCommandPalette";
+import { ReminderRunner } from "@/components/notifications/ReminderRunner";
 import { FirstRunOnboarding } from "@/components/onboarding/FirstRunOnboarding";
 import { useFinanceStore } from "@/store/useFinanceStore";
 import { useRouter } from "next/navigation";
@@ -59,6 +60,7 @@ export default function DashboardLayout({
         <MobileQuickAction />
         <BottomNav />
         <FirstRunOnboarding />
+        <ReminderRunner />
       </div>
     </DashboardActionsProvider>
   );

@@ -530,7 +530,16 @@ export function AuthCard({ mode: initialMode }: AuthCardProps) {
               {isSignup ? (
                 <p className="text-center text-[13px] leading-[1.5] text-muted-foreground">
                   Sem cartão de crédito. Você confirma o e-mail com um
-                  código no próximo passo.
+                  código no próximo passo. Ao criar a conta, você concorda
+                  com os{" "}
+                  <Link href="/termos" target="_blank" className="font-medium text-foreground underline-offset-4 hover:underline">
+                    Termos de uso
+                  </Link>{" "}
+                  e a{" "}
+                  <Link href="/privacidade" target="_blank" className="font-medium text-foreground underline-offset-4 hover:underline">
+                    Política de privacidade
+                  </Link>
+                  .
                 </p>
               ) : null}
             </form>

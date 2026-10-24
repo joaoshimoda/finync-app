@@ -793,6 +793,7 @@ export type Database = {
         Args: { month_start: string; requested_day: number }
         Returns: string
       }
+      finync_delete_my_account: { Args: never; Returns: undefined }
       finync_export_backup: { Args: never; Returns: Json }
       finync_get_data_health: {
         Args: never

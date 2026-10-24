@@ -705,9 +705,17 @@ export function ModernLandingPage() {
           <Container className="flex flex-col gap-4 py-8 text-[14px] text-muted-foreground sm:flex-row sm:items-center sm:justify-between">
             <FinyncLogo className="w-[72px]" />
             <p>Controle financeiro pessoal, sem ruído.</p>
-            <Link href="/login" className="hover:text-foreground">
-              Acessar minha conta
-            </Link>
+            <nav aria-label="Links do rodapé" className="flex flex-wrap gap-x-5 gap-y-2">
+              <Link href="/privacidade" className="hover:text-foreground">
+                Privacidade
+              </Link>
+              <Link href="/termos" className="hover:text-foreground">
+                Termos
+              </Link>
+              <Link href="/login" className="hover:text-foreground">
+                Acessar minha conta
+              </Link>
+            </nav>
           </Container>
         </footer>
       </main>

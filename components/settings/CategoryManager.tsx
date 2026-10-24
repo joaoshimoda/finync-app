@@ -6,20 +6,15 @@ import {
   LockKeyhole,
   Pencil,
   PlusCircle,
+  Tags,
   Trash2,
 } from "lucide-react";
 import { toast } from "sonner";
 
 import { CategoryGlyph } from "@/components/finance/categoryIcons";
 import { ManageCategoryModal } from "@/components/modals/ManageCategoryModal";
+import { PrimaryButton } from "@/components/modals/ModalKit";
 import { Button } from "@/components/ui/button";
-import {
-  Card,
-  CardContent,
-  CardDescription,
-  CardHeader,
-  CardTitle,
-} from "@/components/ui/card";
 import { ConfirmDialog } from "@/components/ui/ConfirmDialog";
 import {
   isEssentialCategory,
@@ -30,6 +25,8 @@ import {
   useFinanceStore,
   type Category,
 } from "@/store/useFinanceStore";
+
+import { SettingsPanel } from "./SettingsPanel";
 
 export function CategoryManager() {
   const categories = useFinanceStore((state) => state.categories);
@@ -100,27 +97,20 @@ export function CategoryManager() {
 
   return (
     <>
-      <Card className="surface-panel lg:col-span-12">
-        <CardHeader className="flex flex-row items-center justify-between gap-4 border-b border-zinc-800/80 px-5 py-5 sm:px-6">
-          <div className="min-w-0">
-            <CardTitle>Categorias</CardTitle>
-            <CardDescription className="mt-1">
-              {categories.length} opções disponíveis para seus lançamentos.
-            </CardDescription>
-          </div>
-          <Button
-            type="button"
-            onClick={openCreateModal}
-            className="h-11 shrink-0 bg-emerald-600 px-4 font-semibold text-on-color hover:bg-emerald-700"
-          >
-            <PlusCircle className="size-4" />
+      <SettingsPanel
+        id="settings-categories"
+        icon={Tags}
+        title="Categorias"
+        description={`${categories.length} opções disponíveis para seus lançamentos.`}
+        action={
+          <PrimaryButton accent="emerald" type="button" onClick={openCreateModal} icon={PlusCircle} className="h-10 flex-none">
             <span className="max-sm:hidden">Nova categoria</span>
             <span className="sm:hidden">Adicionar</span>
-          </Button>
-        </CardHeader>
-
-        <CardContent className="p-0">
-          <div className="flex items-center justify-between gap-4 border-b border-zinc-800/80 px-5 py-3 sm:px-6">
+          </PrimaryButton>
+        }
+      >
+        <div className="-mx-5 -mb-5 border-t border-white/[0.06] sm:-mx-6 sm:-mb-6">
+          <div className="flex items-center justify-between gap-4 border-b border-white/[0.06] px-5 py-3 sm:px-6">
             <div className="inline-flex rounded-lg bg-zinc-950 p-1">
               {([
                 ["expense", "Despesas"],
@@ -150,7 +140,7 @@ export function CategoryManager() {
           </div>
 
           {visibleCategories.length ? (
-            <div className="divide-y divide-zinc-800/80">
+            <div className="divide-y divide-white/[0.06]">
               {visibleCategories.map((category) => {
                 const isEssential = isEssentialCategory(category.label);
 
@@ -237,8 +227,8 @@ export function CategoryManager() {
               </p>
             </div>
           )}
-        </CardContent>
-      </Card>
+        </div>
+      </SettingsPanel>
 
       <ManageCategoryModal
         category={editingCategory}
