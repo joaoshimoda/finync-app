@@ -8,8 +8,10 @@ import { cn } from "@/lib/utils";
 
 export const LEGAL_UPDATED_AT = "24 de outubro de 2026";
 
-// Set NEXT_PUBLIC_CONTACT_EMAIL to publish a contact address on the legal pages.
-export const legalContactEmail = process.env.NEXT_PUBLIC_CONTACT_EMAIL?.trim() || null;
+// Public contact for privacy and terms questions. NEXT_PUBLIC_CONTACT_EMAIL
+// overrides it without a code change.
+export const legalContactEmail =
+  process.env.NEXT_PUBLIC_CONTACT_EMAIL?.trim() || "joao.shimoda@finync.com.br";
 
 export function LegalContact() {
   return legalContactEmail ? (
