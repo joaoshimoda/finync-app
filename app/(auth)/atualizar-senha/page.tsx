@@ -1,30 +1,39 @@
 "use client";
 
-import { FormEvent, useEffect, useState } from "react";
+import { AnimatePresence, motion } from "framer-motion";
+import { ArrowRight, Eye, EyeOff, Link2Off, Loader2, Lock, ShieldCheck } from "lucide-react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { Loader2 } from "lucide-react";
-import { FinyncLogo } from "@/components/branding/FinyncLogo";
+import { FormEvent, useEffect, useState } from "react";
 import { toast } from "sonner";
 
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
 import { supabase } from "@/lib/supabaseClient";
+import { cn } from "@/lib/utils";
+
+import {
+  AuthField,
+  AuthFormError,
+  AuthShell,
+  PasswordStrength,
+  authEase as ease,
+  authSubmitClassName,
+  authTitleClassName,
+} from "../_components/AuthLayout";
+
+type LinkStatus = "checking" | "valid" | "invalid";
 
 export default function UpdatePasswordPage() {
   const router = useRouter();
   const [password, setPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
+  const [showPassword, setShowPassword] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
-  const [isVerifyingLink, setIsVerifyingLink] = useState(true);
-  const [linkError, setLinkError] = useState("");
+  const [formError, setFormError] = useState("");
+  const [linkStatus, setLinkStatus] = useState<LinkStatus>("checking");
 
   useEffect(() => {
     async function verifyRecoverySession() {
-      setIsVerifyingLink(true);
-      setLinkError("");
-
       try {
         const {
           data: { session },
@@ -34,13 +43,11 @@ export default function UpdatePasswordPage() {
         if (error || !session) {
           throw error ?? new Error("Sessão de recuperação ausente.");
         }
+
+        setLinkStatus("valid");
       } catch (error) {
         console.error("Erro ao validar link de redefinição:", error);
-        setLinkError(
-          "Link expirado ou inválido. Solicite um novo link de recuperação.",
-        );
-      } finally {
-        setIsVerifyingLink(false);
+        setLinkStatus("invalid");
       }
     }
 
@@ -50,22 +57,23 @@ export default function UpdatePasswordPage() {
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
 
-    if (isVerifyingLink || linkError) return;
+    if (linkStatus !== "valid") return;
 
     const normalizedPassword = password.trim();
     const normalizedConfirmPassword = confirmPassword.trim();
 
     if (normalizedPassword.length < 6) {
-      toast.error("A nova senha precisa ter pelo menos 6 caracteres.");
+      setFormError("A nova senha precisa ter pelo menos 6 caracteres.");
       return;
     }
 
     if (normalizedPassword !== normalizedConfirmPassword) {
-      toast.error("As senhas não coincidem.");
+      setFormError("As senhas não coincidem.");
       return;
     }
 
     setIsSubmitting(true);
+    setFormError("");
 
     try {
       const { error } = await supabase.auth.updateUser({
@@ -79,132 +87,147 @@ export default function UpdatePasswordPage() {
       router.push("/dashboard");
     } catch (error) {
       console.error("Erro ao atualizar senha:", error);
-      toast.error(
-        "Não foi possível atualizar sua senha. Solicite um novo link.",
-      );
+      setFormError("Não foi possível atualizar sua senha. Solicite um novo link.");
     } finally {
       setIsSubmitting(false);
     }
   }
 
-  const isFormDisabled = isVerifyingLink || Boolean(linkError) || isSubmitting;
+  const visibilityToggle = (
+    <Button
+      type="button"
+      variant="ghost"
+      size="icon"
+      onClick={() => setShowPassword((current) => !current)}
+      aria-label={showPassword ? "Ocultar senha" : "Mostrar senha"}
+      className="size-9 rounded-lg text-muted-foreground hover:bg-secondary hover:text-foreground dark:hover:bg-secondary"
+    >
+      {showPassword ? <EyeOff /> : <Eye />}
+    </Button>
+  );
 
   return (
-    <main className="theme-fixed grid min-h-svh bg-zinc-50 text-zinc-950 lg:grid-cols-[minmax(0,1.08fr)_minmax(480px,0.92fr)]">
-      <aside className="relative hidden min-h-svh overflow-hidden bg-zinc-950 p-10 text-white lg:flex lg:flex-col xl:p-14">
-        <div className="pointer-events-none absolute inset-0 bg-[linear-gradient(rgba(255,255,255,0.035)_1px,transparent_1px),linear-gradient(90deg,rgba(255,255,255,0.035)_1px,transparent_1px)] bg-[size:72px_72px] opacity-40" />
-
-        <Link href="/" className="relative flex w-fit items-center gap-3">
-          <FinyncLogo eager className="w-32 brightness-125" />
-        </Link>
-
-        <div className="relative my-auto max-w-2xl py-16">
-          <p className="mb-6 text-sm font-medium uppercase tracking-[0.18em] text-emerald-400">
-            Nova senha
-          </p>
-          <h1 className="max-w-xl text-5xl font-semibold leading-[1.08] tracking-tight xl:text-6xl">
-            Proteja sua conta com uma nova senha.
-          </h1>
-          <p className="mt-7 max-w-lg text-lg leading-8 text-zinc-400">
-            Depois da atualização, você será levado de volta ao painel.
-          </p>
-        </div>
-      </aside>
-
-      <div className="flex min-h-svh flex-col bg-zinc-50 px-5 py-6 sm:px-10 lg:justify-center lg:px-16 xl:px-24">
-        <Link
-          href="/"
-          className="mb-12 flex w-fit items-center gap-2.5 lg:hidden"
-        >
-          <FinyncLogo eager className="w-28" />
-        </Link>
-
-        <section className="mx-auto w-full max-w-md">
-          <div className="mb-9">
-            <p className="mb-3 text-sm font-semibold text-emerald-700">
-              Redefinição de senha
+    <AuthShell>
+      <AnimatePresence mode="wait" initial={false}>
+        {linkStatus === "checking" ? (
+          <motion.p
+            key="checking"
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="flex items-center gap-2 text-[15px] text-muted-foreground"
+          >
+            <Loader2 className="size-4 animate-spin text-primary" />
+            Verificando link de segurança...
+          </motion.p>
+        ) : linkStatus === "invalid" ? (
+          <motion.div
+            key="invalid"
+            initial={{ opacity: 0, x: 24 }}
+            animate={{ opacity: 1, x: 0 }}
+            exit={{ opacity: 0, x: -24 }}
+            transition={{ duration: 0.4, ease }}
+          >
+            <span className="grid size-12 place-items-center rounded-2xl bg-destructive/10 text-destructive">
+              <Link2Off className="size-6" />
+            </span>
+            <h1 className={cn("mt-6", authTitleClassName)}>Link expirado</h1>
+            <p className="mt-3 text-[15px] leading-[1.6] text-muted-foreground">
+              Este link de recuperação é inválido ou já foi usado. Peça um novo para
+              criar sua senha.
             </p>
-            <h2 className="text-3xl font-semibold tracking-tight text-zinc-950 sm:text-4xl">
-              Crie uma nova senha
-            </h2>
-            <p className="mt-3 text-sm leading-6 text-zinc-600">
-              Use uma senha segura para recuperar o acesso à sua conta.
-            </p>
-          </div>
 
-          {isVerifyingLink ? (
-            <div className="mb-5 flex items-center gap-2 rounded-lg border border-zinc-200 bg-white px-4 py-3 text-sm text-zinc-600">
-              <Loader2 className="size-4 animate-spin text-emerald-700" />
-              Verificando link de segurança...
-            </div>
-          ) : null}
-
-          {linkError ? (
-            <div className="mb-5 rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm font-medium text-red-700">
-              {linkError}
-            </div>
-          ) : null}
-
-          <form className="space-y-5" onSubmit={handleSubmit}>
-            <div className="space-y-2">
-              <Label htmlFor="new-password" className="text-zinc-800">
-                Nova senha
-              </Label>
-              <Input
-                id="new-password"
-                value={password}
-                onChange={(event) => setPassword(event.target.value)}
-                type="password"
-                autoComplete="new-password"
-                placeholder="••••••••"
-                className="h-12 border-zinc-300 bg-white text-zinc-950 placeholder:text-zinc-400 focus-visible:ring-emerald-600/20"
-                minLength={6}
-                disabled={isFormDisabled}
-                required
-              />
-            </div>
-
-            <div className="space-y-2">
-              <Label htmlFor="confirm-new-password" className="text-zinc-800">
-                Confirmar nova senha
-              </Label>
-              <Input
-                id="confirm-new-password"
-                value={confirmPassword}
-                onChange={(event) => setConfirmPassword(event.target.value)}
-                type="password"
-                autoComplete="new-password"
-                placeholder="••••••••"
-                className="h-12 border-zinc-300 bg-white text-zinc-950 placeholder:text-zinc-400 focus-visible:ring-emerald-600/20"
-                minLength={6}
-                disabled={isFormDisabled}
-                required
-              />
-            </div>
-
-            <Button
-              type="submit"
-              disabled={isFormDisabled}
-              className="h-12 w-full bg-zinc-950 text-white hover:bg-zinc-800"
-            >
-              {isSubmitting ? (
-                <Loader2 className="size-4 animate-spin" />
-              ) : null}
-              {isSubmitting ? "Atualizando..." : "Atualizar senha"}
+            <Button asChild size="lg" className={cn(authSubmitClassName, "mt-8 w-full")}>
+              <Link href="/recuperar-senha">
+                Solicitar novo link
+                <ArrowRight className="transition-transform group-hover:translate-x-0.5" />
+              </Link>
             </Button>
-          </form>
 
-          <div className="mt-8 border-t border-zinc-200 pt-6 text-center text-sm text-zinc-600">
-            Voltar para{" "}
-            <Link
-              href="/login"
-              className="font-semibold text-zinc-950 underline-offset-4 transition hover:underline"
-            >
-              login
-            </Link>
-          </div>
-        </section>
-      </div>
-    </main>
+            <p className="mt-8 border-t border-border pt-5 text-center text-[14px] text-muted-foreground">
+              Voltar para o{" "}
+              <Link
+                href="/login"
+                className="font-medium text-primary underline-offset-4 hover:underline"
+              >
+                login
+              </Link>
+            </p>
+          </motion.div>
+        ) : (
+          <motion.div
+            key="form"
+            initial={{ opacity: 0, x: -24 }}
+            animate={{ opacity: 1, x: 0 }}
+            exit={{ opacity: 0, x: -24 }}
+            transition={{ duration: 0.4, ease }}
+          >
+            <span className="grid size-12 place-items-center rounded-2xl bg-primary/10 text-primary">
+              <ShieldCheck className="size-6" />
+            </span>
+            <h1 className={cn("mt-6", authTitleClassName)}>Crie uma nova senha</h1>
+            <p className="mt-3 text-[15px] leading-[1.6] text-muted-foreground">
+              Depois de salvar, você volta direto para o seu painel.
+            </p>
+
+            <form className="mt-8 grid gap-5" onSubmit={handleSubmit}>
+              <div className="grid gap-2.5">
+                <AuthField
+                  id="new-password"
+                  label="Nova senha"
+                  icon={Lock}
+                  value={password}
+                  onChange={(event) => {
+                    setPassword(event.target.value);
+                    if (formError) setFormError("");
+                  }}
+                  type={showPassword ? "text" : "password"}
+                  autoComplete="new-password"
+                  placeholder="Mínimo de 6 caracteres"
+                  minLength={6}
+                  disabled={isSubmitting}
+                  autoFocus
+                  required
+                  trailing={visibilityToggle}
+                />
+                <PasswordStrength password={password} />
+              </div>
+
+              <AuthField
+                id="confirm-new-password"
+                label="Confirmar nova senha"
+                icon={Lock}
+                value={confirmPassword}
+                onChange={(event) => {
+                  setConfirmPassword(event.target.value);
+                  if (formError) setFormError("");
+                }}
+                type={showPassword ? "text" : "password"}
+                autoComplete="new-password"
+                placeholder="Repita a nova senha"
+                minLength={6}
+                disabled={isSubmitting}
+                required
+              />
+
+              <AuthFormError message={formError} />
+
+              <Button
+                type="submit"
+                size="lg"
+                disabled={isSubmitting}
+                className={authSubmitClassName}
+              >
+                {isSubmitting ? <Loader2 className="animate-spin" /> : null}
+                {isSubmitting ? "Salvando..." : "Salvar nova senha"}
+                {!isSubmitting ? (
+                  <ArrowRight className="transition-transform group-hover:translate-x-0.5" />
+                ) : null}
+              </Button>
+            </form>
+          </motion.div>
+        )}
+      </AnimatePresence>
+    </AuthShell>
   );
 }

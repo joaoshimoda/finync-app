@@ -1,137 +1,217 @@
 "use client";
 
-import { FormEvent, useState } from "react";
+import { AnimatePresence, motion } from "framer-motion";
+import { ArrowLeft, ArrowRight, KeyRound, Loader2, Mail, MailCheck } from "lucide-react";
 import Link from "next/link";
-import { Loader2 } from "lucide-react";
-import { FinyncLogo } from "@/components/branding/FinyncLogo";
+import { FormEvent, useEffect, useState } from "react";
 import { toast } from "sonner";
 
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
 import { supabase } from "@/lib/supabaseClient";
+import { cn } from "@/lib/utils";
+
+import {
+  AuthField,
+  AuthFormError,
+  AuthShell,
+  RESEND_INTERVALS,
+  authEase as ease,
+  authSubmitClassName,
+  authTitleClassName,
+} from "../_components/AuthLayout";
+
+async function sendRecoveryEmail(email: string) {
+  const { error } = await supabase.auth.resetPasswordForEmail(email, {
+    redirectTo: `${window.location.origin}/auth/callback?next=/atualizar-senha`,
+  });
+  if (error) throw error;
+}
 
 export default function RecoverPasswordPage() {
   const [email, setEmail] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [formError, setFormError] = useState("");
+  const [sentTo, setSentTo] = useState("");
+  const [timeLeft, setTimeLeft] = useState<number>(RESEND_INTERVALS[0]);
+  const [resendCount, setResendCount] = useState(0);
+  const [isResending, setIsResending] = useState(false);
+
+  useEffect(() => {
+    if (!sentTo || timeLeft <= 0) return;
+
+    const intervalId = window.setInterval(() => {
+      setTimeLeft((currentTime) => Math.max(currentTime - 1, 0));
+    }, 1000);
+
+    return () => window.clearInterval(intervalId);
+  }, [sentTo, timeLeft]);
 
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
 
     const normalizedEmail = email.trim();
     if (!normalizedEmail) {
-      toast.error("Informe seu e-mail.");
+      setFormError("Informe seu e-mail.");
       return;
     }
 
     setIsSubmitting(true);
+    setFormError("");
 
     try {
-      const redirectTo =
-        typeof window !== "undefined"
-          ? `${window.location.origin}/auth/callback?next=/atualizar-senha`
-          : undefined;
-
-      const { error } = await supabase.auth.resetPasswordForEmail(
-        normalizedEmail,
-        { redirectTo },
-      );
-
-      if (error) throw error;
-
-      toast.success("Enviamos o link de recuperação para o seu e-mail.");
-      setEmail("");
+      await sendRecoveryEmail(normalizedEmail);
+      setSentTo(normalizedEmail);
+      setResendCount(0);
+      setTimeLeft(RESEND_INTERVALS[0]);
     } catch (error) {
       console.error("Erro ao solicitar recuperação de senha:", error);
-      toast.error("Não foi possível enviar o link de recuperação.");
+      setFormError("Não foi possível enviar o link de recuperação. Tente novamente.");
     } finally {
       setIsSubmitting(false);
     }
   }
 
+  async function handleResend() {
+    if (timeLeft > 0 || isResending) return;
+
+    setIsResending(true);
+
+    try {
+      await sendRecoveryEmail(sentTo);
+
+      const nextResendCount = Math.min(resendCount + 1, RESEND_INTERVALS.length - 1);
+      setResendCount(nextResendCount);
+      setTimeLeft(RESEND_INTERVALS[nextResendCount]);
+      toast.success("Enviamos um novo link.");
+    } catch (error) {
+      console.error("Erro ao reenviar link de recuperação:", error);
+      toast.error("Não foi possível reenviar o link. Tente novamente.");
+    } finally {
+      setIsResending(false);
+    }
+  }
+
   return (
-    <main className="theme-fixed grid min-h-svh bg-zinc-50 text-zinc-950 lg:grid-cols-[minmax(0,1.08fr)_minmax(480px,0.92fr)]">
-      <aside className="relative hidden min-h-svh overflow-hidden bg-zinc-950 p-10 text-white lg:flex lg:flex-col xl:p-14">
-        <div className="pointer-events-none absolute inset-0 bg-[linear-gradient(rgba(255,255,255,0.035)_1px,transparent_1px),linear-gradient(90deg,rgba(255,255,255,0.035)_1px,transparent_1px)] bg-[size:72px_72px] opacity-40" />
-
-        <Link href="/" className="relative flex w-fit items-center gap-3">
-          <FinyncLogo eager className="w-32 brightness-125" />
-        </Link>
-
-        <div className="relative my-auto max-w-2xl py-16">
-          <p className="mb-6 text-sm font-medium uppercase tracking-[0.18em] text-emerald-400">
-            Recuperação segura
-          </p>
-          <h1 className="max-w-xl text-5xl font-semibold leading-[1.08] tracking-tight xl:text-6xl">
-            Volte para sua conta sem perder o controle.
-          </h1>
-          <p className="mt-7 max-w-lg text-lg leading-8 text-zinc-400">
-            Enviaremos um link seguro para você criar uma nova senha.
-          </p>
-        </div>
-      </aside>
-
-      <div className="flex min-h-svh flex-col bg-zinc-50 px-5 py-6 sm:px-10 lg:justify-center lg:px-16 xl:px-24">
-        <Link
-          href="/"
-          className="mb-12 flex w-fit items-center gap-2.5 lg:hidden"
-        >
-          <FinyncLogo eager className="w-28" />
-        </Link>
-
-        <section className="mx-auto w-full max-w-md">
-          <div className="mb-9">
-            <p className="mb-3 text-sm font-semibold text-emerald-700">
-              Esqueci a senha
+    <AuthShell>
+      <AnimatePresence mode="wait" initial={false}>
+        {sentTo ? (
+          <motion.div
+            key="sent"
+            initial={{ opacity: 0, x: 24 }}
+            animate={{ opacity: 1, x: 0 }}
+            exit={{ opacity: 0, x: -24 }}
+            transition={{ duration: 0.4, ease }}
+          >
+            <motion.span
+              initial={{ scale: 0.6, opacity: 0 }}
+              animate={{ scale: 1, opacity: 1 }}
+              transition={{ type: "spring", stiffness: 260, damping: 18, delay: 0.1 }}
+              className="grid size-12 place-items-center rounded-2xl bg-primary/10 text-primary"
+            >
+              <MailCheck className="size-6" />
+            </motion.span>
+            <h1 className={cn("mt-6", authTitleClassName)}>Verifique seu e-mail</h1>
+            <p className="mt-3 text-[15px] leading-[1.6] text-muted-foreground">
+              Se houver uma conta com{" "}
+              <span className="font-medium text-foreground">{sentTo}</span>, você vai
+              receber um link para criar uma nova senha.
             </p>
-            <h2 className="text-3xl font-semibold tracking-tight text-zinc-950 sm:text-4xl">
-              Recupere seu acesso
-            </h2>
-            <p className="mt-3 text-sm leading-6 text-zinc-600">
-              Informe o e-mail cadastrado para receber o link de redefinição.
+            <p className="mt-3 text-[14px] leading-[1.6] text-muted-foreground">
+              Não chegou? Confira a caixa de spam ou promoções.
             </p>
-          </div>
 
-          <form className="space-y-5" onSubmit={handleSubmit}>
-            <div className="space-y-2">
-              <Label htmlFor="recover-email" className="text-zinc-800">
-                E-mail
-              </Label>
-              <Input
+            <Button asChild size="lg" className={cn(authSubmitClassName, "mt-8 w-full")}>
+              <Link href="/login">
+                Voltar para o login
+                <ArrowRight className="transition-transform group-hover:translate-x-0.5" />
+              </Link>
+            </Button>
+
+            <div className="mt-6 flex flex-wrap items-center justify-between gap-3 border-t border-border pt-5 text-[14px]">
+              <button
+                type="button"
+                onClick={() => setSentTo("")}
+                className="inline-flex cursor-pointer items-center gap-1.5 text-muted-foreground transition-colors hover:text-foreground"
+              >
+                <ArrowLeft className="size-3.5" />
+                Usar outro e-mail
+              </button>
+              <button
+                type="button"
+                disabled={timeLeft > 0 || isResending}
+                onClick={() => void handleResend()}
+                className="cursor-pointer font-medium text-primary transition-colors hover:text-primary/80 disabled:cursor-not-allowed disabled:text-muted-foreground"
+              >
+                {isResending
+                  ? "Reenviando..."
+                  : timeLeft > 0
+                    ? `Reenviar em ${timeLeft}s`
+                    : "Reenviar link"}
+              </button>
+            </div>
+          </motion.div>
+        ) : (
+          <motion.div
+            key="form"
+            initial={{ opacity: 0, x: -24 }}
+            animate={{ opacity: 1, x: 0 }}
+            exit={{ opacity: 0, x: -24 }}
+            transition={{ duration: 0.4, ease }}
+          >
+            <span className="grid size-12 place-items-center rounded-2xl bg-primary/10 text-primary">
+              <KeyRound className="size-6" />
+            </span>
+            <h1 className={cn("mt-6", authTitleClassName)}>Esqueceu a senha?</h1>
+            <p className="mt-3 text-[15px] leading-[1.6] text-muted-foreground">
+              Informe o e-mail da sua conta e enviaremos um link para você criar uma
+              nova senha.
+            </p>
+
+            <form className="mt-8 grid gap-5" onSubmit={handleSubmit}>
+              <AuthField
                 id="recover-email"
+                label="E-mail"
+                icon={Mail}
                 value={email}
-                onChange={(event) => setEmail(event.target.value)}
+                onChange={(event) => {
+                  setEmail(event.target.value);
+                  if (formError) setFormError("");
+                }}
                 type="email"
                 autoComplete="email"
                 placeholder="seu@email.com"
-                className="h-12 border-zinc-300 bg-white text-zinc-950 placeholder:text-zinc-400 focus-visible:ring-emerald-600/20"
+                autoFocus
                 required
               />
-            </div>
 
-            <Button
-              type="submit"
-              disabled={isSubmitting}
-              className="h-12 w-full bg-zinc-950 text-white hover:bg-zinc-800"
-            >
-              {isSubmitting ? (
-                <Loader2 className="size-4 animate-spin" />
-              ) : null}
-              {isSubmitting ? "Enviando..." : "Enviar link de recuperação"}
-            </Button>
-          </form>
+              <AuthFormError message={formError} />
 
-          <div className="mt-8 border-t border-zinc-200 pt-6 text-center text-sm text-zinc-600">
-            Lembrou a senha?{" "}
-            <Link
-              href="/login"
-              className="font-semibold text-zinc-950 underline-offset-4 transition hover:underline"
-            >
-              Entrar
-            </Link>
-          </div>
-        </section>
-      </div>
-    </main>
+              <Button
+                type="submit"
+                size="lg"
+                disabled={isSubmitting}
+                className={authSubmitClassName}
+              >
+                {isSubmitting ? <Loader2 className="animate-spin" /> : null}
+                {isSubmitting ? "Enviando..." : "Enviar link de recuperação"}
+                {!isSubmitting ? (
+                  <ArrowRight className="transition-transform group-hover:translate-x-0.5" />
+                ) : null}
+              </Button>
+            </form>
+
+            <p className="mt-8 border-t border-border pt-5 text-center text-[14px] text-muted-foreground">
+              Lembrou a senha?{" "}
+              <Link
+                href="/login"
+                className="font-medium text-primary underline-offset-4 hover:underline"
+              >
+                Entrar
+              </Link>
+            </p>
+          </motion.div>
+        )}
+      </AnimatePresence>
+    </AuthShell>
   );
 }
