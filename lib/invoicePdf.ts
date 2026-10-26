@@ -1,4 +1,32 @@
-export type PdfInvoiceBank = "nubank" | "inter" | "bradesco" | "generic";
+export type PdfInvoiceBank =
+  | "nubank"
+  | "inter"
+  | "bradesco"
+  | "itau"
+  | "santander"
+  | "bb"
+  | "caixa"
+  | "c6"
+  | "xp"
+  | "btg"
+  | "picpay"
+  | "mercadopago"
+  | "generic";
+
+/* Thrown when the PDF needs a password, so the screen can ask for it. */
+export class PdfPasswordError extends Error {
+  readonly incorrect: boolean;
+
+  constructor(incorrect: boolean) {
+    super(
+      incorrect
+        ? "Senha incorreta. Confira e tente de novo."
+        : "Este PDF é protegido por senha.",
+    );
+    this.name = "PdfPasswordError";
+    this.incorrect = incorrect;
+  }
+}
 
 export type PdfOcrProgress = {
   page: number;
@@ -92,17 +120,36 @@ const ignoredLineIndicators = [
   "melhor dia de compra",
   "pagamento recebido",
   "pagamento de fatura",
+  "pagamento efetuado",
+  "pagamento minimo",
   "resumo da fatura",
   "saldo anterior",
+  "saldo devedor",
+  "saldo em aberto",
   "total da fatura",
+  "total a pagar",
+  "total de compras",
+  "total dos lancamentos",
+  "total de pagamentos",
   "valor da fatura",
+  "valor minimo",
   "vencimento",
 ];
 
-const dateAtStartPattern =
-  /^\s*(\d{1,2})(?:[/.\-](\d{1,2})(?:[/.\-](\d{2,4}))?|\s+(jan(?:eiro)?|fev(?:ereiro)?|mar(?:co|ço)?|abr(?:il)?|mai(?:o)?|jun(?:ho)?|jul(?:ho)?|ago(?:sto)?|set(?:embro)?|out(?:ubro)?|nov(?:embro)?|dez(?:embro)?))\b[\s,.-]*/i;
-const amountAtEndPattern =
-  /(?:R\$\s*)?(-?\s*(?:\d{1,3}(?:\.\d{3})*|\d+),\d{2}\s*-?)(?:\s*[DC])?\s*$/i;
+const monthNamePattern =
+  "jan(?:eiro)?|fev(?:ereiro)?|mar(?:co|ço)?|abr(?:il)?|mai(?:o)?|jun(?:ho)?|jul(?:ho)?|ago(?:sto)?|set(?:embro)?|out(?:ubro)?|nov(?:embro)?|dez(?:embro)?";
+/* "05/10", "05/10/2026", "05.10.26", "05 OUT", "05 de outubro". */
+const datePattern = `(\\d{1,2})(?:[/.\\-](\\d{1,2})(?:[/.\\-](\\d{2,4}))?|\\s+(?:de\\s+)?(${monthNamePattern})\\.?)`;
+const dateAtStartPattern = new RegExp(`^\\s*${datePattern}\\b[\\s,.-]*`, "i");
+/* A trailing "C" marks a credit on several invoices; "D" a debit. */
+const amountPattern = String.raw`(?:R\$\s*)?(-?\s*(?:\d{1,3}(?:\.\d{3})*|\d+),\d{2}\s*-?)(?:\s*([DC]))?`;
+const amountAtEndPattern = new RegExp(`${amountPattern}\\s*$`, "i");
+/* One transaction inside a longer line: date, text, amount. Used to split
+   invoices printed in two columns, where a row holds two transactions. */
+const embeddedTransactionPattern = new RegExp(
+  `(?:^|\\s)${datePattern}\\b(?:(?!\\s${datePattern}\\b).)*?${amountPattern}(?=\\s|$)`,
+  "gi",
+);
 
 function normalizeText(value: string) {
   return value
@@ -113,28 +160,29 @@ function normalizeText(value: string) {
     .trim();
 }
 
+const bankSignatures: Array<{ bank: PdfInvoiceBank; terms: string[] }> = [
+  { bank: "nubank", terms: ["nubank", "nu pagamentos"] },
+  { bank: "inter", terms: ["banco inter", "inter pagamentos", "bancointer"] },
+  { bank: "bradesco", terms: ["bradesco", "bradescard"] },
+  { bank: "itau", terms: ["itau unibanco", "itaucard", "banco itau", "itau"] },
+  { bank: "santander", terms: ["santander"] },
+  { bank: "bb", terms: ["banco do brasil", "ourocard"] },
+  { bank: "caixa", terms: ["caixa economica", "caixa econômica"] },
+  { bank: "c6", terms: ["c6 bank", "banco c6", "c6 carbon"] },
+  { bank: "xp", terms: ["xp investimentos", "banco xp", "cartao xp"] },
+  { bank: "btg", terms: ["btg pactual"] },
+  { bank: "picpay", terms: ["picpay"] },
+  { bank: "mercadopago", terms: ["mercado pago", "mercadopago"] },
+];
+
 function detectBank(text: string): PdfInvoiceBank {
   const normalized = normalizeText(text);
 
-  if (
-    normalized.includes("bradesco") ||
-    normalized.includes("banco bradesco")
-  ) {
-    return "bradesco";
-  }
-
-  if (normalized.includes("nubank") || normalized.includes("nu pagamentos")) {
-    return "nubank";
-  }
-
-  if (
-    normalized.includes("banco inter") ||
-    normalized.includes("inter pagamentos")
-  ) {
-    return "inter";
-  }
-
-  return "generic";
+  return (
+    bankSignatures.find((signature) =>
+      signature.terms.some((term) => normalized.includes(normalizeText(term))),
+    )?.bank ?? "generic"
+  );
 }
 
 function parseBrazilianAmount(value: string) {
@@ -222,7 +270,8 @@ function parseTransactionLine(
 
   const isCredit =
     parsedAmount.isNegative ||
-    /\b(estorno|credito|crédito|devolucao|devolução)\b/i.test(description);
+    amountMatch[2]?.toUpperCase() === "C" ||
+    /\b(estorno|credito|crédito|devolucao|devolução|cashback)\b/i.test(description);
 
   return {
     amount: Math.abs(parsedAmount.amount),
@@ -275,7 +324,8 @@ function getRejectedLine(
     description,
     isCredit:
       parsedAmount.isNegative ||
-      /\b(estorno|credito|crédito|devolucao|devolução)\b/i.test(description),
+      amountMatch?.[2]?.toUpperCase() === "C" ||
+      /\b(estorno|credito|crédito|devolucao|devolução|cashback)\b/i.test(description),
     raw: line,
     reason: missing.length
       ? `Não foi possível identificar: ${missing.join(", ")}.`
@@ -287,14 +337,59 @@ export function parsePdfInvoiceLines(lines: string[], referenceMonth: string) {
   return analyzePdfInvoiceLines(lines, referenceMonth).transactions;
 }
 
+/* A row of a two-column invoice holds two transactions side by side:
+   "05/10 LOJA A 10,00 06/10 LOJA B 20,00". Split it into one line each. */
+export function splitSideBySideTransactions(line: string) {
+  const matches = Array.from(line.matchAll(embeddedTransactionPattern));
+  if (matches.length < 2) return [line];
+
+  const covered = matches.reduce((total, match) => total + match[0].trim().length, 0);
+  /* Only when the pieces are the whole line, so text between them is not lost. */
+  if (covered < line.replace(/\s+/g, " ").trim().length - matches.length * 2) {
+    return [line];
+  }
+
+  return matches.map((match) => match[0].trim());
+}
+
+/* Descriptions that wrap: a line with the date and the start of the text,
+   then a line with the rest and the amount. Text PDFs and OCR both do it. */
+export function mergeWrappedLines(lines: string[]) {
+  const merged: string[] = [];
+
+  for (let index = 0; index < lines.length; index += 1) {
+    const line = lines[index];
+    const next = lines[index + 1];
+
+    if (
+      next &&
+      dateAtStartPattern.test(line) &&
+      !amountAtEndPattern.test(line) &&
+      !dateAtStartPattern.test(next) &&
+      amountAtEndPattern.test(next) &&
+      !isIgnoredInvoiceLine(line) &&
+      !isIgnoredInvoiceLine(next)
+    ) {
+      merged.push(`${line} ${next}`);
+      index += 1;
+      continue;
+    }
+
+    merged.push(line);
+  }
+
+  return merged;
+}
+
 export function analyzePdfInvoiceLines(
   lines: string[],
   referenceMonth: string,
 ) {
   const transactions: PdfInvoiceTransaction[] = [];
   const rejectedLines: PdfRejectedInvoiceLine[] = [];
+  const preparedLines = mergeWrappedLines(lines).flatMap(splitSideBySideTransactions);
 
-  for (const line of lines) {
+  for (const line of preparedLines) {
     const transaction = parseTransactionLine(line, referenceMonth);
     if (transaction) {
       transactions.push(transaction);
@@ -425,6 +520,7 @@ async function extractPdfInvoiceWithOcr(
   referenceMonth: string,
   options?: {
     onProgress?: (progress: PdfOcrProgress) => void;
+    password?: string;
     signal?: AbortSignal;
   },
 ): Promise<PdfInvoiceResult> {
@@ -441,6 +537,7 @@ async function extractPdfInvoiceWithOcr(
 
   const loadingTask = pdfjs.getDocument({
     data: data.slice(),
+    password: options?.password || undefined,
     useSystemFonts: true,
   });
   const pdf = await loadingTask.promise;
@@ -527,6 +624,7 @@ export async function extractPdfInvoice(
   referenceMonth: string,
   options?: {
     onProgress?: (progress: PdfOcrProgress) => void;
+    password?: string;
     signal?: AbortSignal;
   },
 ): Promise<PdfInvoiceResult> {
@@ -535,6 +633,7 @@ export async function extractPdfInvoice(
   let pdf: import("pdfjs-dist").PDFDocumentProxy;
   const loadingTask = pdfjs.getDocument({
     data: data.slice(),
+    password: options?.password || undefined,
     useSystemFonts: true,
   });
 
@@ -545,9 +644,9 @@ export async function extractPdfInvoice(
     const name = error instanceof Error ? error.name.toLowerCase() : "";
 
     if (message.includes("password") || name.includes("password")) {
-      throw new Error(
-        "Este PDF é protegido por senha. Remova a senha ao exportar a fatura e tente novamente.",
-      );
+      /* pdf.js codes: 1 = a password is needed, 2 = the one given is wrong. */
+      const code = (error as { code?: number }).code;
+      throw new PdfPasswordError(code === 2 || Boolean(options?.password));
     }
 
     throw error;

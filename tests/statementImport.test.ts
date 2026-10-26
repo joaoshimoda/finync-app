@@ -1,9 +1,14 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 
+import { parseCsvStatement } from "../lib/invoiceCsv.ts";
 import {
-  getCsvStatementTransaction,
+  applyLearnedNames,
+  getImportNote,
+  getImportSignatureForSource,
+  getOriginalDescriptionFromNote,
   getSuggestedStatementMonth,
+  renameTransaction,
   isCardBillPayment,
   isInternalMovement,
   mapStatementTransaction,
@@ -73,16 +78,73 @@ test("transfers between own accounts and investments wait for review", () => {
 });
 
 test("bank CSVs treat negative amounts as money out", () => {
-  assert.deepEqual(
-    getCsvStatementTransaction({ data: "20/10/2026", valor: "-45,90", descricao: "Uber" }),
+  const { transactions } = parseCsvStatement(
+    ["data,valor,descricao", "20/10/2026,-45.90,Uber", "05/11/2026,5000.00,Salário", ",,"].join("\n"),
+    2026,
+  );
+
+  assert.deepEqual(transactions, [
     { amount: 45.9, date: "2026-10-20", description: "Uber", isCredit: false },
-  );
+    { amount: 5000, date: "2026-11-05", description: "Salário", isCredit: true },
+  ]);
+});
+
+test("renaming keeps the file's name and an empty name restores it", () => {
+  const source = mapStatementTransaction(line("PAG*JOSEFINA LTDA", 12, false), {}, {});
+  const renamed = renameTransaction(source, "Padaria Josefina");
+
+  assert.equal(renamed.description, "Padaria Josefina");
+  assert.equal(renamed.originalDescription, "PAG*JOSEFINA LTDA");
   assert.equal(
-    getCsvStatementTransaction({ data: "05/11/2026", valor: "5000.00", descricao: "Salário" })
-      ?.isCredit,
-    true,
+    renameTransaction(renamed, "Padaria da esquina").originalDescription,
+    "PAG*JOSEFINA LTDA",
   );
-  assert.equal(getCsvStatementTransaction({ data: "", valor: "", descricao: "" }), null);
+
+  const restored = renameTransaction(renamed, "  ");
+  assert.equal(restored.description, "PAG*JOSEFINA LTDA");
+  assert.equal(restored.originalDescription, undefined);
+});
+
+test("the import note carries the original name and is read back", () => {
+  const renamed = renameTransaction(
+    mapStatementTransaction(line("PAG*JOSEFINA LTDA", 12, false), {}, {}),
+    "Padaria Josefina",
+  );
+  const note = getImportNote("extrato.ofx", renamed);
+
+  assert.equal(note, "Importado de extrato.ofx · nome original: PAG*JOSEFINA LTDA");
+  assert.equal(getOriginalDescriptionFromNote(note), "PAG*JOSEFINA LTDA");
+  assert.equal(getImportNote("extrato.ofx", { description: "Uber" }), "Importado de extrato.ofx");
+  assert.equal(getOriginalDescriptionFromNote("Importado de extrato.ofx"), null);
+});
+
+test("names learned from earlier imports are applied to new lines", () => {
+  const [learned, untouched] = applyLearnedNames(
+    [
+      mapStatementTransaction(line("PAG*JOSEFINA LTDA", 12, false), {}, {}),
+      mapStatementTransaction(line("Uber", 20, false), {}, {}),
+    ],
+    { "pag josefina ltda": "Padaria Josefina" },
+  );
+
+  assert.equal(learned.description, "Padaria Josefina");
+  assert.equal(learned.originalDescription, "PAG*JOSEFINA LTDA");
+  assert.equal(untouched.description, "Uber");
+  assert.equal(untouched.originalDescription, undefined);
+});
+
+test("duplicate signatures ignore the name the user typed", () => {
+  const base = {
+    month_start: "2026-10-01",
+    transaction_date: "2026-10-20",
+    description: "Padaria Josefina",
+    amount: 12,
+  };
+
+  assert.equal(
+    getImportSignatureForSource(base, "PAG*JOSEFINA LTDA"),
+    getImportSignatureForSource({ ...base, description: "PAG*JOSEFINA LTDA" }, undefined),
+  );
 });
 
 test("the suggested statement month is where most lines fall", () => {

@@ -1,4 +1,5 @@
 import { CARD_CREDIT_ADJUSTMENT_CATEGORY } from "./cardCredits.ts";
+import { cleanMerchantName, guessCategory } from "./merchantRules.ts";
 import {
   getDateOnlyParts,
   getLocalTodayDateOnly,
@@ -32,6 +33,9 @@ export type StatementTransaction = {
 export type ParsedTransaction = {
   date: string;
   description: string;
+  /* The name as it came in the file, kept once the user renames a line:
+     duplicates are still matched by it and the rename is remembered. */
+  originalDescription?: string;
   amount: number;
   category?: string | null;
   dependentId?: string | null;
@@ -114,8 +118,13 @@ export const ignoredPaymentIndicators = [
   "pagamento recebido",
   "pagamento de fatura",
 ];
+/* "Loja 04/10", "Loja - Parcela 2/4", "Loja (2/4)", "LOJA PARC 02/05". */
 export const installmentPattern =
-  /(?:\s*-\s*Parcela\s*|\s*-\s*|\s*\()?(\d{1,2})\/(\d{1,2})\)?$/i;
+  /(?:\s*[-–]\s*|\s*\(|\s+)?(?:parc(?:ela)?\.?\s*)?(\d{1,2})\/(\d{1,2})\)?\s*$/i;
+/* "Loja Parcela 2 de 5": "de" only counts after the word parcela, so a
+   name ending in "2 de 5" is left alone. */
+const installmentWordsPattern =
+  /(?:\s*[-–]\s*|\s*\(|\s+)parc(?:ela)?\.?\s*(\d{1,2})\s+de\s+(\d{1,2})\)?\s*$/i;
 export const monthLabels = [
   "Janeiro",
   "Fevereiro",
@@ -394,7 +403,10 @@ export function addMonthsToDateOnly(dateOnly: string, offset: number) {
 }
 
 export function parseInstallment(description: string) {
-  const match = description.match(installmentPattern);
+  const pattern = installmentWordsPattern.test(description)
+    ? installmentWordsPattern
+    : installmentPattern;
+  const match = description.match(pattern);
 
   if (!match) {
     return {
@@ -422,7 +434,7 @@ export function parseInstallment(description: string) {
   }
 
   return {
-    cleanDescription: description.replace(installmentPattern, "").trim(),
+    cleanDescription: description.replace(pattern, "").trim(),
     installmentNumber,
     installmentsTotal,
   };
@@ -527,9 +539,12 @@ export function mapCsvRow(
   ];
 }
 
+/* `knownCategories` turns on the offline category guess for lines the user
+   never categorized; only categories they still have are suggested. */
 export function mapPdfTransaction(
   transaction: PdfInvoiceTransaction | StatementTransaction,
   categoryDictionary: Record<string, string>,
+  knownCategories?: Iterable<string>,
 ): ParsedTransaction | null {
   if (shouldIgnoreImportedRow(transaction.description, transaction.isCredit)) {
     return null;
@@ -547,7 +562,10 @@ export function mapPdfTransaction(
     category: isCredit
       ? CARD_CREDIT_ADJUSTMENT_CATEGORY
       : normalizeImportedExpenseCategory(
-          findHistoricalCategory(finalDescription, categoryDictionary),
+          findHistoricalCategory(finalDescription, categoryDictionary) ??
+            (knownCategories
+              ? guessCategory(finalDescription, "expense", knownCategories)
+              : null),
         ),
     dependentId: null,
     type: isCredit ? "credit" : "expense",
@@ -559,6 +577,102 @@ export function mapPdfTransaction(
     owner: "me",
     requiresReview: isAmbiguousPaymentCredit(finalDescription, isCredit),
   };
+}
+
+/* Renamed lines --------------------------------------------------------------- */
+
+const originalNameMarker = " · nome original: ";
+
+/* The file name goes in the notes of every imported line; a renamed line
+   also keeps the bank's name there, so the next import can rename it the
+   same way without any extra column. */
+export function getImportNote(
+  fileName: string,
+  transaction: Pick<ParsedTransaction, "description" | "originalDescription">,
+) {
+  const original = transaction.originalDescription?.trim();
+
+  return original && original !== transaction.description
+    ? `Importado de ${fileName}${originalNameMarker}${original}`
+    : `Importado de ${fileName}`;
+}
+
+export function getOriginalDescriptionFromNote(notes: string | null | undefined) {
+  const markerIndex = notes?.lastIndexOf(originalNameMarker) ?? -1;
+
+  return notes && markerIndex >= 0
+    ? notes.slice(markerIndex + originalNameMarker.length).trim() || null
+    : null;
+}
+
+/* Renames a line by hand, keeping the first name it had in the file. */
+export function renameTransaction<T extends ParsedTransaction>(
+  transaction: T,
+  description: string,
+): T {
+  const original = transaction.originalDescription ?? transaction.description;
+  const nextDescription = description.trim() || original;
+
+  return {
+    ...transaction,
+    description: nextDescription,
+    originalDescription: nextDescription === original ? undefined : original,
+  };
+}
+
+/* Applies the names the user gave the same bank text in earlier imports. */
+export function applyLearnedNames(
+  transactions: ParsedTransaction[],
+  learnedNames: Record<string, string>,
+) {
+  return transactions.map((transaction) => {
+    const learned =
+      learnedNames[normalizeDescriptionForCategory(transaction.description)];
+
+    return learned && learned !== transaction.description
+      ? renameTransaction(transaction, learned)
+      : transaction;
+  });
+}
+
+/* Gives lines the user never renamed a friendlier name ("IFD*IFOOD" ->
+   "iFood"), keeping the bank's text so it can be undone. */
+export function applyCleanNames(transactions: ParsedTransaction[]) {
+  return transactions.map((transaction) => {
+    if (transaction.originalDescription) return transaction;
+    const cleaned = cleanMerchantName(transaction.description);
+    return cleaned ? renameTransaction(transaction, cleaned) : transaction;
+  });
+}
+
+/* Card files disagree on the sign of a purchase: OFX writes it negative,
+   most CSVs positive, a few the other way. Purchases are what an invoice
+   is mostly made of, so the more common direction is taken as a purchase.
+   `tieMeansPositivePurchases` settles an even split the way CSVs usually
+   do; OFX leaves it as written. */
+export function orientCardTransactions<T extends StatementTransaction>(
+  transactions: T[],
+  tieMeansPositivePurchases: boolean,
+) {
+  const positives = transactions.filter((transaction) => transaction.isCredit).length;
+  const negatives = transactions.length - positives;
+  const flip =
+    positives > negatives || (tieMeansPositivePurchases && positives === negatives && positives > 0);
+
+  return flip
+    ? transactions.map((transaction) => ({ ...transaction, isCredit: !transaction.isCredit }))
+    : transactions;
+}
+
+/* The base signature of a line, from the name in the file rather than the
+   one the user typed, so renaming never hides a duplicate. */
+export function getImportSignatureForSource<
+  T extends Parameters<typeof getImportSignature>[0],
+>(transaction: T, originalDescription: string | undefined) {
+  return getImportSignature({
+    ...transaction,
+    description: originalDescription ?? transaction.description,
+  });
 }
 
 export function parseCurrencyInput(value: string) {
@@ -663,43 +777,19 @@ export function isInternalMovement(description: string) {
   return hasIndicator(description, internalMovementIndicators);
 }
 
-/* Bank CSVs are from the account's point of view, the opposite of card
-   CSVs: negative amounts are money out. */
-export function getCsvStatementTransaction(
-  row: CsvRow,
-): StatementTransaction | null {
-  const date = getCsvCell(row, ["date", "data", "data lancamento"], 0).trim();
-  const description = getCsvCell(
-    row,
-    ["title", "description", "descricao", "descrição", "historico", "histórico", "lancamento"],
-    1,
-  ).trim();
-  const amount = getCsvAmountCell(row).trim();
-
-  if (!date || !amount) return null;
-
-  const parsedAmount = parseAmount(amount);
-  if (!parsedAmount.amount) return null;
-
-  return {
-    amount: parsedAmount.amount,
-    date: parseCsvDate(date),
-    description,
-    isCredit: !parsedAmount.isNegative,
-  };
-}
-
 /* Money in becomes income, money out a debit/Pix expense. Card bill
    payments start ignored and internal movements wait for review. */
 export function mapStatementTransaction(
   transaction: StatementTransaction,
   expenseCategoryDictionary: Record<string, string>,
   incomeCategoryDictionary: Record<string, string>,
+  knownCategories?: Iterable<string>,
 ): ParsedTransaction {
   const description = transaction.description.trim() || "Sem descrição";
   const isCredit = transaction.isCredit;
   const isBillPayment = !isCredit && isCardBillPayment(description);
   const isInternal = !isBillPayment && isInternalMovement(description);
+  const known = knownCategories ? Array.from(knownCategories) : null;
 
   return {
     date: transaction.date,
@@ -707,9 +797,11 @@ export function mapStatementTransaction(
     amount: transaction.amount,
     category: isCredit
       ? (findHistoricalCategory(description, incomeCategoryDictionary) ??
+        (known ? guessCategory(description, "income", known) : null) ??
         (hasIndicator(description, salaryIndicators) ? "Salário" : "Outras Receitas"))
       : normalizeImportedExpenseCategory(
-          findHistoricalCategory(description, expenseCategoryDictionary),
+          findHistoricalCategory(description, expenseCategoryDictionary) ??
+            (known ? guessCategory(description, "expense", known) : null),
         ),
     dependentId: null,
     type: isCredit ? "credit" : "expense",

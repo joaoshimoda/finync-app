@@ -1,12 +1,14 @@
 "use client";
 
-import { useMemo, useState, type ReactNode } from "react";
+import { useMemo, useRef, useState, type ReactNode } from "react";
 import { AnimatePresence, motion } from "framer-motion";
 import {
   AlertTriangle,
+  ArrowDownUp,
   Check,
   FileWarning,
   Loader2,
+  PenLine,
   RotateCcw,
   Split,
   X,
@@ -24,6 +26,7 @@ import {
 import { AnimatedNumber } from "@/components/finance/AnimatedNumber";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
+import { Input } from "@/components/ui/input";
 import {
   Select,
   SelectContent,
@@ -49,16 +52,34 @@ type RowFilter =
   | "installments"
   | "credits"
   | "dependents"
+  | "renamed"
   | "skipped";
+
+type RowSort = "date" | "amount" | "name";
 
 const NO_CATEGORY = "__no_category__";
 const ME = "__me__";
 
+const sortOptions: Array<{ id: RowSort; label: string }> = [
+  { id: "date", label: "Por data" },
+  { id: "amount", label: "Maior valor" },
+  { id: "name", label: "Nome (A–Z)" },
+];
+
 const pdfBankLabels: Record<PdfInvoiceBank, string> = {
+  bb: "Banco do Brasil",
   bradesco: "Bradesco",
+  btg: "BTG Pactual",
+  c6: "C6 Bank",
+  caixa: "Caixa",
   generic: "Formato genérico",
   inter: "Banco Inter",
+  itau: "Itaú",
+  mercadopago: "Mercado Pago",
   nubank: "Nubank",
+  picpay: "PicPay",
+  santander: "Santander",
+  xp: "XP",
 };
 
 function matchesFilter(row: RowState, filter: RowFilter) {
@@ -78,6 +99,8 @@ function matchesFilter(row: RowState, filter: RowFilter) {
       return transaction.type === "credit";
     case "dependents":
       return transaction.owner === "dependent";
+    case "renamed":
+      return Boolean(transaction.originalDescription);
     case "skipped":
       return row.isLocked;
     default:
@@ -85,11 +108,121 @@ function matchesFilter(row: RowState, filter: RowFilter) {
   }
 }
 
+/* "qua., 05 de out." from a date-only string, without time zone shifts. */
+function formatDayHeading(dateOnly: string) {
+  const [year, month, day] = dateOnly.split("-").map(Number);
+
+  const label = new Date(year, month - 1, day).toLocaleDateString("pt-BR", {
+    weekday: "short",
+    day: "2-digit",
+    month: "short",
+  });
+
+  return label.charAt(0).toLocaleUpperCase("pt-BR") + label.slice(1);
+}
+
 function Badge({ tone, children }: { tone: string; children: ReactNode }) {
   return (
-    <span className={cn("shrink-0 rounded-full px-2 py-0.5 text-[10px] font-medium", tone)}>
+    <span className={cn("shrink-0 rounded-full px-2 py-0.5 text-[11px] font-medium", tone)}>
       {children}
     </span>
+  );
+}
+
+/* Signed value of a line for totals: what it adds to the invoice, or to
+   the account balance on a statement. */
+function getSignedAmount(row: RowState, isAccount: boolean) {
+  const isCredit = row.transaction.type === "credit";
+  return (isCredit === isAccount ? 1 : -1) * row.transaction.amount;
+}
+
+/* The line's name; a click turns it into a field. Renaming offers to apply
+   the same name to the other lines with the same bank text. */
+function EditableName({ row, flow }: { row: RowState; flow: InvoiceImport }) {
+  const { transaction, index } = row;
+  const [draft, setDraft] = useState<string | null>(null);
+  const cancelledRef = useRef(false);
+  const isAccount = flow.mode === "account";
+
+  function commit() {
+    if (draft === null) return;
+    const name = draft.trim();
+    setDraft(null);
+
+    if (cancelledRef.current) {
+      cancelledRef.current = false;
+      return;
+    }
+    if (!name || name === transaction.description) return;
+
+    const similar = flow.getSimilarIndexes(index);
+    flow.renameRows([index], name);
+
+    if (similar.length) {
+      toast(`Renomear também ${similar.length} ${similar.length === 1 ? "linha igual" : "linhas iguais"}?`, {
+        description: `“${transaction.originalDescription ?? transaction.description}” → “${name}”`,
+        action: {
+          label: "Renomear",
+          onClick: () => flow.renameRows(similar, name),
+        },
+      });
+    }
+  }
+
+  if (draft !== null) {
+    return (
+      <Input
+        autoFocus
+        value={draft}
+        aria-label="Nome do lançamento"
+        onChange={(event) => setDraft(event.target.value)}
+        onFocus={(event) => event.currentTarget.select()}
+        onBlur={commit}
+        onKeyDown={(event) => {
+          if (event.key === "Enter") event.currentTarget.blur();
+          if (event.key === "Escape") {
+            cancelledRef.current = true;
+            event.currentTarget.blur();
+          }
+        }}
+        className="h-9 border-emerald-400/40 bg-zinc-950 text-[15px] font-medium text-zinc-50"
+      />
+    );
+  }
+
+  return (
+    <div className="min-w-0">
+      <button
+        type="button"
+        disabled={row.isLocked}
+        onClick={() => setDraft(transaction.description)}
+        title={row.isLocked ? transaction.description : "Clique para renomear"}
+        className="group/name flex max-w-full items-center gap-1.5 rounded-md text-left disabled:cursor-default"
+      >
+        <span className="truncate text-[15px] font-medium text-zinc-50">
+          {transaction.description}
+        </span>
+        {!row.isLocked && (
+          <PenLine className="size-3.5 shrink-0 text-zinc-600 opacity-0 transition-opacity group-hover/name:opacity-100 group-focus-visible/name:opacity-100 max-lg:opacity-100" />
+        )}
+      </button>
+      {transaction.originalDescription && (
+        <p className="mt-0.5 flex min-w-0 items-center gap-1.5 text-xs text-zinc-500">
+          <span className="truncate" title={transaction.originalDescription}>
+            {isAccount ? "No extrato" : "Na fatura"}: {transaction.originalDescription}
+          </span>
+          {!row.isLocked && (
+            <button
+              type="button"
+              onClick={() => flow.renameRows([index], "")}
+              className="shrink-0 font-medium text-zinc-400 underline-offset-2 hover:text-zinc-100 hover:underline"
+            >
+              Desfazer
+            </button>
+          )}
+        </p>
+      )}
+    </div>
   );
 }
 
@@ -99,12 +232,17 @@ function ReviewRow({
   selected,
   onToggle,
   onSplit,
+  onEdit,
+  showDate,
 }: {
   row: RowState;
   flow: InvoiceImport;
   selected: boolean;
   onToggle: () => void;
   onSplit: () => void;
+  onEdit: () => void;
+  /* Off when the list is grouped under day headings. */
+  showDate: boolean;
 }) {
   const formatValue = usePrivateCurrency();
   const { transaction, index } = row;
@@ -153,10 +291,10 @@ function ReviewRow({
       exit={{ opacity: 0 }}
       transition={{ duration: 0.2, ease: dashboardEase }}
       className={cn(
-        "grid grid-cols-[auto_minmax(0,1fr)_auto] gap-x-3 gap-y-2 px-3 py-3 transition-colors sm:px-4 lg:grid-cols-[auto_3rem_minmax(0,1fr)_10rem_8.5rem_6.5rem_auto] lg:items-center",
-        row.isLocked && "opacity-50",
-        row.isReviewPending && "bg-amber-400/[0.035]",
-        selected && "bg-emerald-400/[0.05]",
+        "grid grid-cols-[auto_minmax(0,1fr)_auto] items-start gap-x-3 px-3 py-3.5 transition-colors sm:px-4",
+        row.isLocked && "opacity-55",
+        row.isReviewPending && "bg-amber-400/[0.04]",
+        selected && "bg-emerald-400/[0.06]",
       )}
     >
       <Checkbox
@@ -164,88 +302,72 @@ function ReviewRow({
         checked={selected}
         disabled={row.isLocked}
         onCheckedChange={onToggle}
-        className="mt-0.5 border-zinc-600 lg:mt-0"
+        className="col-[1/2] row-[1/2] mt-1 border-zinc-600"
       />
 
-      <span className="hidden text-xs tabular-nums text-zinc-500 lg:block">
-        {formatPreviewDate(transaction.date)}
-      </span>
-
-      <div className="min-w-0">
-        <div className="flex min-w-0 items-center gap-1.5">
-          <p
-            className="truncate text-sm font-medium text-zinc-100"
-            title={transaction.description}
-          >
-            {transaction.description}
-          </p>
+      <div className="col-[2/3] row-[1/2] min-w-0 space-y-2">
+        <div className="flex min-w-0 items-start gap-2">
+          <div className="min-w-0 flex-1">
+            <EditableName row={row} flow={flow} />
+          </div>
           {transaction.installmentsTotal > 1 && !isCredit && (
-            <Badge tone="bg-violet-500/10 text-violet-300">
+            <Badge tone="mt-0.5 bg-violet-500/10 text-violet-300">
               {transaction.installmentNumber}/{transaction.installmentsTotal}
             </Badge>
           )}
         </div>
-        <div className="mt-1 flex flex-wrap items-center gap-1.5 text-xs text-zinc-500">
-          <span className="tabular-nums lg:hidden">{formatPreviewDate(transaction.date)}</span>
-          {row.isDuplicate && <Badge tone="bg-zinc-800 text-zinc-300">Já importada</Badge>}
-          {row.isPartialDuplicate && (
-            <Badge tone="bg-zinc-800 text-zinc-300">Parte já importada</Badge>
-          )}
-          {row.isPossibleDuplicate && !row.isApproved && (
-            <Badge tone="bg-orange-500/10 text-orange-300">Parecida com uma existente</Badge>
-          )}
-          {transaction.requiresReview && !row.isApproved && !row.isIgnored && (
-            <Badge tone="bg-amber-500/10 text-amber-300">
-              {transaction.reviewReason ?? "Pagamento? Confira"}
-            </Badge>
-          )}
-          {row.isApproved && <Badge tone="bg-emerald-500/10 text-emerald-300">Aprovada</Badge>}
-          {row.isIgnored && (
-            <Badge tone="bg-zinc-800 text-zinc-400">
-              Ignorada
-              {transaction.reviewReason && !transaction.requiresReview
-                ? ` · ${transaction.reviewReason}`
-                : ""}
-            </Badge>
-          )}
-          {isCredit &&
-            (isAccount ? (
-              <Badge tone="bg-emerald-500/10 text-emerald-300">Entrada</Badge>
-            ) : (
-              <Badge tone="bg-sky-500/10 text-sky-300">Estorno</Badge>
-            ))}
-          {futureCount > 0 && !isCredit && (
-            <label className="flex items-center gap-1.5">
-              <Checkbox
-                className="size-3.5 border-zinc-600"
-                disabled={row.isLocked}
-                checked={transaction.projectFutureInstallments}
-                onCheckedChange={(checked) =>
-                  flow.setProjectInstallments(index, checked === true)
-                }
-              />
-              Lançar +{futureCount} {futureCount === 1 ? "parcela futura" : "parcelas futuras"}
-            </label>
-          )}
-          {transaction.referenceMonthOffset > 0 && (
-            <span>Fatura {formatInvoiceMonthLabel(transaction.invoiceMonthStart)}</span>
-          )}
-        </div>
+
+        {(showDate ||
+          row.isDuplicate ||
+          row.isPartialDuplicate ||
+          (row.isPossibleDuplicate && !row.isApproved) ||
+          (transaction.requiresReview && !row.isApproved && !row.isIgnored) ||
+          row.isApproved ||
+          row.isIgnored ||
+          isCredit ||
+          transaction.referenceMonthOffset > 0) && (
+          <div className="flex flex-wrap items-center gap-1.5 text-xs text-zinc-500">
+            {showDate && (
+              <span className="tabular-nums">{formatPreviewDate(transaction.date)}</span>
+            )}
+            {row.isDuplicate && <Badge tone="bg-zinc-800 text-zinc-300">Já importada</Badge>}
+            {row.isPartialDuplicate && (
+              <Badge tone="bg-zinc-800 text-zinc-300">Parte já importada</Badge>
+            )}
+            {row.isPossibleDuplicate && !row.isApproved && (
+              <Badge tone="bg-orange-500/10 text-orange-300">Parecida com uma existente</Badge>
+            )}
+            {transaction.requiresReview && !row.isApproved && !row.isIgnored && (
+              <Badge tone="bg-amber-500/10 text-amber-300">
+                {transaction.reviewReason ?? "Pagamento? Confira"}
+              </Badge>
+            )}
+            {row.isApproved && <Badge tone="bg-emerald-500/10 text-emerald-300">Aprovada</Badge>}
+            {row.isIgnored && (
+              <Badge tone="bg-zinc-800 text-zinc-400">
+                Ignorada
+                {transaction.reviewReason && !transaction.requiresReview
+                  ? ` · ${transaction.reviewReason}`
+                  : ""}
+              </Badge>
+            )}
+            {isCredit &&
+              (isAccount ? (
+                <Badge tone="bg-emerald-500/10 text-emerald-300">Entrada</Badge>
+              ) : (
+                <Badge tone="bg-sky-500/10 text-sky-300">Estorno</Badge>
+              ))}
+            {transaction.referenceMonthOffset > 0 && (
+              <span>Fatura {formatInvoiceMonthLabel(transaction.invoiceMonthStart)}</span>
+            )}
+          </div>
+        )}
       </div>
 
-      <p
-        className={cn(
-          "text-right text-sm font-semibold tabular-nums lg:hidden",
-          amountClassName,
-        )}
-      >
-        {amountPrefix}
-        {formatValue(transaction.amount)}
-      </p>
-
-      <div className="col-span-2 col-start-2 flex flex-wrap items-center gap-2 lg:contents">
+      {/* Its own row under the name, so the controls get the full width. */}
+      <div className="col-[2/4] row-[2/3] mt-2.5 flex flex-wrap items-center gap-2 lg:col-[2/3]">
         {isCredit && !isAccount ? (
-          <span className="truncate text-xs text-zinc-500 lg:px-1">
+          <span className="flex h-9 items-center rounded-lg border border-white/[0.06] px-2.5 text-xs text-zinc-500">
             {CARD_CREDIT_ADJUSTMENT_CATEGORY}
           </span>
         ) : (
@@ -257,8 +379,9 @@ function ReviewRow({
             <SelectTrigger
               aria-label="Categoria"
               className={cn(
-                "h-8 w-40 border-white/[0.08] bg-zinc-900/60 px-2.5 text-xs text-zinc-100",
-                normalizeImportedExpenseCategory(transaction.category ?? null) === "Outros" &&
+                "h-9 w-44 border-white/[0.08] bg-zinc-900/60 px-2.5 text-xs text-zinc-100",
+                !isCredit &&
+                  normalizeImportedExpenseCategory(transaction.category ?? null) === "Outros" &&
                   "text-zinc-400",
               )}
             >
@@ -275,15 +398,13 @@ function ReviewRow({
           </Select>
         )}
 
-        {isCredit ? (
-          <span className="hidden lg:block" />
-        ) : (
+        {!isCredit && (
           <button
             type="button"
             onClick={onSplit}
             disabled={row.isLocked}
             className={cn(
-              "flex h-8 max-w-[8.5rem] items-center gap-1.5 rounded-lg border px-2.5 text-xs transition-colors disabled:pointer-events-none",
+              "flex h-9 max-w-[10rem] items-center gap-1.5 rounded-lg border px-2.5 text-xs transition-colors disabled:pointer-events-none",
               transaction.owner === "dependent"
                 ? "border-amber-400/30 bg-amber-400/[0.06] text-amber-200"
                 : "border-white/[0.08] text-zinc-400 hover:text-zinc-100",
@@ -294,17 +415,27 @@ function ReviewRow({
           </button>
         )}
 
-        <p
-          className={cn(
-            "hidden text-right text-sm font-semibold tabular-nums lg:block",
-            amountClassName,
-          )}
-        >
+        {futureCount > 0 && !isCredit && (
+          <label className="flex h-9 items-center gap-1.5 text-xs text-zinc-400">
+            <Checkbox
+              className="size-3.5 border-zinc-600"
+              disabled={row.isLocked}
+              checked={transaction.projectFutureInstallments}
+              onCheckedChange={(checked) =>
+                flow.setProjectInstallments(index, checked === true)
+              }
+            />
+            Lançar +{futureCount} {futureCount === 1 ? "parcela futura" : "parcelas futuras"}
+          </label>
+        )}
+      </div>
+
+      <div className="col-[3/4] row-[1/2] flex flex-col items-end gap-2 lg:row-[1/3]">
+        <p className={cn("text-base font-semibold tabular-nums sm:text-lg", amountClassName)}>
           {amountPrefix}
           {formatValue(transaction.amount)}
         </p>
-
-        <div className="ml-auto flex items-center gap-1 lg:ml-0 lg:justify-end">
+        <div className="flex items-center gap-0.5">
           {row.isReviewPending && (
             <Button
               type="button"
@@ -315,6 +446,19 @@ function ReviewRow({
             >
               <Check className="size-3.5" />
               Manter
+            </Button>
+          )}
+          {!row.isLocked && (
+            <Button
+              type="button"
+              variant="ghost"
+              size="icon"
+              onClick={onEdit}
+              aria-label={`Editar ${transaction.description}`}
+              title="Editar nome, data, valor e mais"
+              className="size-8 text-zinc-500 hover:text-zinc-100"
+            >
+              <PenLine className="size-4" />
             </Button>
           )}
           {row.isIgnored ? (
@@ -335,6 +479,7 @@ function ReviewRow({
               size="icon"
               onClick={() => flow.setReviewStatus([index], "ignored")}
               aria-label={`Ignorar ${transaction.description}`}
+              title="Deixar fora da importação"
               className="size-8 text-zinc-500 hover:bg-rose-500/10 hover:text-rose-300"
             >
               <X className="size-4" />
@@ -349,10 +494,14 @@ function ReviewRow({
 export function ImportReview({
   flow,
   onSplit,
+  onEdit,
+  onRename,
   onReviewPdf,
 }: {
   flow: InvoiceImport;
   onSplit: (index: number) => void;
+  onEdit: (index: number) => void;
+  onRename: (indexes: number[]) => void;
   onReviewPdf: () => void;
 }) {
   const formatValue = usePrivateCurrency();
@@ -364,6 +513,7 @@ export function ImportReview({
     ? summary.creditsAmount - summary.expensesAmount
     : summary.totalAmount;
   const [filter, setFilter] = useState<RowFilter>("all");
+  const [sort, setSort] = useState<RowSort>("date");
   const [query, setQuery] = useState("");
   const [selected, setSelected] = useState<number[]>([]);
 
@@ -374,18 +524,49 @@ export function ImportReview({
     { id: "installments", label: "Parceladas", count: rows.filter((row) => matchesFilter(row, "installments")).length },
     { id: "credits", label: isAccount ? "Entradas" : "Estornos", count: rows.filter((row) => matchesFilter(row, "credits")).length },
     { id: "dependents", label: "Dependentes", count: rows.filter((row) => matchesFilter(row, "dependents")).length },
+    { id: "renamed", label: "Renomeadas", count: rows.filter((row) => matchesFilter(row, "renamed")).length },
     { id: "skipped", label: "Fora da importação", count: rows.filter((row) => row.isLocked).length },
   ];
 
   const visibleRows = useMemo(() => {
     const normalizedQuery = query.trim().toLocaleLowerCase("pt-BR");
-    return rows.filter(
+    const matching = rows.filter(
       (row) =>
         matchesFilter(row, filter) &&
         (!normalizedQuery ||
-          row.transaction.description.toLocaleLowerCase("pt-BR").includes(normalizedQuery)),
+          [row.transaction.description, row.transaction.originalDescription ?? ""].some(
+            (text) => text.toLocaleLowerCase("pt-BR").includes(normalizedQuery),
+          )),
     );
-  }, [filter, query, rows]);
+
+    return [...matching].sort((left, right) => {
+      if (sort === "amount") return right.transaction.amount - left.transaction.amount;
+      if (sort === "name") {
+        return left.transaction.description.localeCompare(right.transaction.description, "pt-BR");
+      }
+      return (
+        left.transaction.date.localeCompare(right.transaction.date) || left.index - right.index
+      );
+    });
+  }, [filter, query, rows, sort]);
+
+  /* By date, lines are grouped under one heading per day. */
+  const groups = useMemo(() => {
+    if (sort !== "date") return [{ key: "all", date: null, rows: visibleRows }];
+
+    const byDate = new Map<string, RowState[]>();
+    visibleRows.forEach((row) => {
+      const list = byDate.get(row.transaction.date) ?? [];
+      list.push(row);
+      byDate.set(row.transaction.date, list);
+    });
+
+    return Array.from(byDate.entries()).map(([date, dayRows]) => ({
+      key: date,
+      date,
+      rows: dayRows,
+    }));
+  }, [sort, visibleRows]);
 
   /* Selection is index based; drop anything that is no longer editable. */
   const editable = new Set(rows.filter((row) => !row.isLocked).map((row) => row.index));
@@ -395,14 +576,7 @@ export function ImportReview({
     visibleEditable.length > 0 && visibleEditable.every((index) => effectiveSelected.includes(index));
   const selectedTotal = rows
     .filter((row) => effectiveSelected.includes(row.index))
-    .reduce(
-      (sum, row) =>
-        sum +
-        ((row.transaction.type === "credit") === isAccount
-          ? row.transaction.amount
-          : -row.transaction.amount),
-      0,
-    );
+    .reduce((sum, row) => sum + getSignedAmount(row, isAccount), 0);
 
   const blockers = [
     summary.pendingReviewCount > 0 &&
@@ -488,7 +662,7 @@ export function ImportReview({
                   </FilterChip>
                 ))}
             </div>
-            <div className="flex items-center gap-3">
+            <div className="flex items-center gap-2 sm:gap-3">
               <Checkbox
                 aria-label="Selecionar todas as linhas visíveis"
                 checked={allVisibleSelected}
@@ -506,38 +680,81 @@ export function ImportReview({
                 value={query}
                 onChange={setQuery}
                 placeholder={isAccount ? "Buscar lançamento" : "Buscar compra"}
-                className="flex-1"
+                className="min-w-0 flex-1"
               />
-              <span className="hidden shrink-0 text-xs text-zinc-500 sm:block">
-                {visibleRows.length} de {rows.length}
-              </span>
+              <Select value={sort} onValueChange={(value) => setSort(value as RowSort)}>
+                <SelectTrigger
+                  aria-label="Ordenar linhas"
+                  className="h-9 w-auto shrink-0 gap-1.5 border-white/[0.08] bg-zinc-900/60 px-2.5 text-xs text-zinc-300"
+                >
+                  <ArrowDownUp className="size-3.5 text-zinc-500" />
+                  <span className="hidden sm:inline">
+                    <SelectValue />
+                  </span>
+                </SelectTrigger>
+                <SelectContent>
+                  {sortOptions.map((option) => (
+                    <SelectItem key={option.id} value={option.id}>
+                      {option.label}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
             </div>
+            <p className="text-xs text-zinc-500">
+              {visibleRows.length} de {rows.length} · toque no nome para renomear
+            </p>
           </div>
 
           {visibleRows.length ? (
-            <ul className="divide-y divide-white/[0.04]">
-              <AnimatePresence initial={false}>
-                {visibleRows.map((row) => (
-                  <ReviewRow
-                    key={`${row.index}-${row.transaction.description}`}
-                    row={row}
-                    flow={flow}
-                    selected={effectiveSelected.includes(row.index)}
-                    onToggle={() =>
-                      setSelected((current) =>
-                        current.includes(row.index)
-                          ? current.filter((index) => index !== row.index)
-                          : [...current, row.index],
-                      )
-                    }
-                    onSplit={() => {
-                      setSelected([]);
-                      onSplit(row.index);
-                    }}
-                  />
-                ))}
-              </AnimatePresence>
-            </ul>
+            <div>
+              {groups.map((group) => {
+                const dayTotal = group.rows
+                  .filter((row) => !row.isLocked)
+                  .reduce((sum, row) => sum + getSignedAmount(row, isAccount), 0);
+
+                return (
+                  <section key={group.key} aria-label={group.date ? formatDayHeading(group.date) : undefined}>
+                    {group.date && (
+                      <h3 className="flex items-center justify-between gap-3 border-b border-white/[0.04] bg-white/[0.02] px-3 py-2 text-xs font-medium text-zinc-400 sm:px-4">
+                        <span>{formatDayHeading(group.date)}</span>
+                        <span className="tabular-nums text-zinc-500">
+                          {group.rows.length} ·{" "}
+                          {/* Statements show the day's net; invoices only flag a net refund. */}
+                          {(isAccount ? dayTotal > 0 : false) ? "+" : dayTotal < 0 ? "−" : ""}
+                          {formatValue(Math.abs(dayTotal))}
+                        </span>
+                      </h3>
+                    )}
+                    <ul className="divide-y divide-white/[0.04]">
+                      <AnimatePresence initial={false}>
+                        {group.rows.map((row) => (
+                          <ReviewRow
+                            key={`${row.index}-${row.transaction.originalDescription ?? row.transaction.description}`}
+                            row={row}
+                            flow={flow}
+                            selected={effectiveSelected.includes(row.index)}
+                            onToggle={() =>
+                              setSelected((current) =>
+                                current.includes(row.index)
+                                  ? current.filter((index) => index !== row.index)
+                                  : [...current, row.index],
+                              )
+                            }
+                            onSplit={() => {
+                              setSelected([]);
+                              onSplit(row.index);
+                            }}
+                            onEdit={() => onEdit(row.index)}
+                            showDate={!group.date}
+                          />
+                        ))}
+                      </AnimatePresence>
+                    </ul>
+                  </section>
+                );
+              })}
+            </div>
           ) : (
             <p className="px-6 py-12 text-center text-sm text-zinc-500">
               Nenhuma linha com esse filtro.
@@ -700,6 +917,15 @@ export function ImportReview({
                 </p>
                 <p className="text-xs tabular-nums text-zinc-500">{formatValue(selectedTotal)}</p>
               </div>
+              <Button
+                type="button"
+                variant="ghost"
+                onClick={() => onRename(effectiveSelected)}
+                className="h-9 gap-1.5 text-zinc-300 hover:text-zinc-50"
+              >
+                <PenLine className="size-4" />
+                Renomear
+              </Button>
               <Select
                 value=""
                 onValueChange={(value) => {

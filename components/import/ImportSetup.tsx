@@ -1,5 +1,6 @@
 "use client";
 
+import { useState } from "react";
 import Link from "next/link";
 import { motion } from "framer-motion";
 import { useDropzone } from "react-dropzone";
@@ -12,6 +13,7 @@ import {
   FileText,
   Landmark,
   Loader2,
+  LockKeyhole,
   ScanText,
   ShieldCheck,
   UploadCloud,
@@ -23,6 +25,7 @@ import {
   dashboardReveal,
 } from "@/components/dashboard/shared";
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
 import type { ImportMode } from "@/lib/invoiceImport";
 import { cn } from "@/lib/utils";
 
@@ -39,7 +42,7 @@ const tipsByMode: Record<ImportMode, Array<typeof noDuplicatesTip>> = {
     {
       icon: FileText,
       title: "PDF da fatura",
-      text: "Nubank, Inter e Bradesco são reconhecidos automaticamente.",
+      text: "Funciona com a maioria dos bancos, inclusive PDF com senha.",
     },
     {
       icon: ScanText,
@@ -92,6 +95,86 @@ const modeOptions: Array<{
     text: "Pix, débito e receitas",
   },
 ];
+
+/* Locked invoices: many banks use digits of the CPF as the password. It
+   is only used to open the file here and is never saved. */
+function PdfPasswordForm({
+  fileName,
+  incorrect,
+  isBusy,
+  onSubmit,
+  onCancel,
+}: {
+  fileName: string;
+  incorrect: boolean;
+  isBusy: boolean;
+  onSubmit: (password: string) => void;
+  onCancel: () => void;
+}) {
+  const [password, setPassword] = useState("");
+
+  return (
+    <motion.form
+      initial={{ opacity: 0, y: 8 }}
+      animate={{ opacity: 1, y: 0 }}
+      onSubmit={(event) => {
+        event.preventDefault();
+        onSubmit(password);
+      }}
+      className={cn(dashboardPanelClassName, "flex flex-col gap-3 p-4 sm:p-5")}
+    >
+      <div className="flex items-start gap-3">
+        <span className="flex size-9 shrink-0 items-center justify-center rounded-xl bg-amber-400/10 text-amber-300">
+          <LockKeyhole className="size-4" />
+        </span>
+        <div className="min-w-0">
+          <p className="text-sm font-semibold text-zinc-100">Este PDF tem senha</p>
+          <p className="truncate text-xs text-zinc-500">{fileName}</p>
+        </div>
+      </div>
+      <p className="text-xs leading-5 text-zinc-400">
+        Muitos bancos usam os primeiros dígitos do seu CPF. A senha só abre o
+        arquivo aqui no aparelho e não é salva.
+      </p>
+      <div className="flex flex-col gap-2 sm:flex-row">
+        <Input
+          autoFocus
+          type="password"
+          autoComplete="off"
+          value={password}
+          onChange={(event) => setPassword(event.target.value)}
+          placeholder="Senha do PDF"
+          aria-invalid={incorrect}
+          className="h-10 border-white/[0.08] bg-zinc-900 text-zinc-100"
+        />
+        <div className="flex gap-2">
+          <Button
+            type="button"
+            variant="ghost"
+            onClick={onCancel}
+            disabled={isBusy}
+            className="h-10 flex-1 text-zinc-400 hover:text-zinc-100 sm:flex-none"
+          >
+            Cancelar
+          </Button>
+          <Button
+            type="submit"
+            disabled={!password || isBusy}
+            className="h-10 flex-1 gap-2 bg-emerald-400 px-5 font-semibold text-zinc-950 hover:bg-emerald-300 sm:flex-none"
+          >
+            {isBusy && <Loader2 className="size-4 animate-spin" />}
+            Abrir
+          </Button>
+        </div>
+      </div>
+      {incorrect && (
+        <p role="alert" className="text-xs text-rose-300">
+          Senha incorreta. Confira e tente de novo.
+        </p>
+      )}
+    </motion.form>
+  );
+}
 
 function StepLabel({ number, title }: { number: number; title: string }) {
   return (
@@ -380,6 +463,17 @@ export function ImportSetup({ flow }: { flow: InvoiceImport }) {
             </p>
           )}
         </div>
+
+        {flow.pdfPasswordRequest && (
+          <PdfPasswordForm
+            key={`${flow.pdfPasswordRequest.file.name}-${flow.pdfPasswordRequest.incorrect}`}
+            fileName={flow.pdfPasswordRequest.file.name}
+            incorrect={flow.pdfPasswordRequest.incorrect}
+            isBusy={isParsingFile}
+            onSubmit={flow.submitPdfPassword}
+            onCancel={flow.cancelPdfPassword}
+          />
+        )}
 
         <ul className="grid gap-2 sm:grid-cols-2">
           {tips.map((tip) => {

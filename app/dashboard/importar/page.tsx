@@ -8,7 +8,12 @@ import {
   dashboardReveal,
   dashboardStagger,
 } from "@/components/dashboard/shared";
-import { PdfReviewDialog, SplitDialog } from "@/components/import/ImportDialogs";
+import {
+  EditRowDialog,
+  PdfReviewDialog,
+  RenameDialog,
+  SplitDialog,
+} from "@/components/import/ImportDialogs";
 import { ImportReview } from "@/components/import/ImportReview";
 import { ImportSetup } from "@/components/import/ImportSetup";
 import { ImportSuccess } from "@/components/import/ImportSuccess";
@@ -21,6 +26,8 @@ const steps = ["Arquivo", "Revisão", "Pronto"];
 export default function ImportarPage() {
   const flow = useInvoiceImport();
   const [splitIndex, setSplitIndex] = useState<number | null>(null);
+  const [editIndex, setEditIndex] = useState<number | null>(null);
+  const [renameIndexes, setRenameIndexes] = useState<number[] | null>(null);
   const [pdfLineId, setPdfLineId] = useState<string | null>(null);
 
   const step = flow.hasPreview ? 1 : flow.lastImportSummary ? 2 : 0;
@@ -110,6 +117,8 @@ export default function ImportarPage() {
           <ImportReview
             flow={flow}
             onSplit={setSplitIndex}
+            onEdit={setEditIndex}
+            onRename={setRenameIndexes}
             onReviewPdf={() => setPdfLineId(flow.pdfAudit?.rejectedLines[0]?.id ?? null)}
           />
         ) : flow.lastImportSummary ? (
@@ -123,6 +132,17 @@ export default function ImportarPage() {
       </motion.div>
 
       <SplitDialog flow={flow} index={splitIndex} onClose={() => setSplitIndex(null)} />
+      <EditRowDialog
+        flow={flow}
+        index={editIndex}
+        onClose={() => setEditIndex(null)}
+        onSplit={setSplitIndex}
+      />
+      <RenameDialog
+        flow={flow}
+        indexes={renameIndexes}
+        onClose={() => setRenameIndexes(null)}
+      />
       <PdfReviewDialog flow={flow} lineId={pdfLineId} onChangeLine={setPdfLineId} />
     </MotionConfig>
   );

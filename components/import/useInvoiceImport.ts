@@ -1,7 +1,6 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import Papa from "papaparse";
 import { toast } from "sonner";
 
 import {
@@ -19,24 +18,27 @@ import {
   addOccurrenceSignatures,
   getOccurrenceSignatureSet,
 } from "@/lib/importOccurrences";
+import { parseCsvStatement } from "@/lib/invoiceCsv";
 import {
   addMonthsToDateOnly,
+  applyCleanNames,
+  applyLearnedNames,
   formatInvoiceMonthLabel,
   getSuggestedStatementMonth,
-  getCsvStatementTransaction,
   getCrossMonthImportSignature,
-  getImportSignature,
+  getImportNote,
+  getImportSignatureForSource,
   getLooseImportSignature,
   getMonthStartFromReference,
+  getOriginalDescriptionFromNote,
   getReferenceMonthOptions,
   getRowsForImport,
-  mapCsvRow,
   mapPdfTransaction,
   mapStatementTransaction,
   normalizeDescriptionForCategory,
   normalizeImportedExpenseCategory,
-  normalizeKey,
-  type CsvRow,
+  orientCardTransactions,
+  renameTransaction,
   type ExistingImportTransaction,
   type ImportMode,
   type ImportResultSummary,
@@ -47,7 +49,11 @@ import {
   type StatementTransaction,
 } from "@/lib/invoiceImport";
 import { decodeOfxBytes, parseOfx } from "@/lib/invoiceOfx";
-import { extractPdfInvoice, type PdfOcrProgress } from "@/lib/invoicePdf";
+import {
+  extractPdfInvoice,
+  PdfPasswordError,
+  type PdfOcrProgress,
+} from "@/lib/invoicePdf";
 import { parseMoneyInput } from "@/lib/moneyInput";
 import { getSessionUser, supabase } from "@/lib/supabaseClient";
 import { useFinanceStore } from "@/store/useFinanceStore";
@@ -84,6 +90,13 @@ export function useInvoiceImport() {
   >({});
   const [historicalIncomeCategoryMap, setHistoricalIncomeCategoryMap] =
     useState<Record<string, string>>({});
+  /* A locked PDF waiting for its password. */
+  const [pdfPasswordRequest, setPdfPasswordRequest] = useState<{
+    file: File;
+    incorrect: boolean;
+  } | null>(null);
+  /* Bank text -> the name the user gave it in an earlier import. */
+  const [learnedNames, setLearnedNames] = useState<Record<string, string>>({});
   const [fileName, setFileName] = useState("");
   const [parseError, setParseError] = useState("");
   const [isParsingFile, setIsParsingFile] = useState(false);
@@ -123,7 +136,7 @@ export function useInvoiceImport() {
 
       const { data, error } = await supabase
         .from("transactions")
-        .select("description, category, type, created_at, month_start, day")
+        .select("description, category, type, notes, created_at, month_start, day")
         .eq("user_id", user.id)
         .not("category", "is", null)
         .order("month_start", { ascending: false })
@@ -141,6 +154,7 @@ export function useInvoiceImport() {
 
       const nextCategoryMap: Record<string, string> = {};
       const nextIncomeCategoryMap: Record<string, string> = {};
+      const nextLearnedNames: Record<string, string> = {};
 
       (data ?? []).forEach((transaction) => {
         const isIncome = transaction.type === "income";
@@ -154,17 +168,28 @@ export function useInvoiceImport() {
               ? transaction.category.trim()
               : normalizeImportedExpenseCategory(transaction.category)
             : "";
-        const key = normalizeDescriptionForCategory(description);
         const target = isIncome ? nextIncomeCategoryMap : nextCategoryMap;
+        const originalDescription = getOriginalDescriptionFromNote(
+          typeof transaction.notes === "string" ? transaction.notes : null,
+        );
+        const originalKey = originalDescription
+          ? normalizeDescriptionForCategory(originalDescription)
+          : "";
 
-        if (key && category && !target[key]) {
-          target[key] = category;
+        /* A renamed line teaches its category under both names. */
+        [normalizeDescriptionForCategory(description), originalKey].forEach((key) => {
+          if (key && category && !target[key]) target[key] = category;
+        });
+
+        if (originalKey && description && !nextLearnedNames[originalKey]) {
+          nextLearnedNames[originalKey] = description;
         }
       });
 
       if (isMounted) {
         setHistoricalCategoryMap(nextCategoryMap);
         setHistoricalIncomeCategoryMap(nextIncomeCategoryMap);
+        setLearnedNames(nextLearnedNames);
       }
     }
 
@@ -227,6 +252,13 @@ export function useInvoiceImport() {
       ? "Lendo seu extrato..."
       : "Lendo sua fatura...";
 
+  /* Categories the user has, so the offline guess never invents one. While
+     they load, the guess falls back to the default list. */
+  const knownCategories = useMemo(
+    () => (categories.length ? categories.map((category) => category.label) : undefined),
+    [categories],
+  );
+
   /* Card invoices and bank statements read the same lines differently. */
   const mapStatementRows = useCallback(
     (transactions: StatementTransaction[], targetMode: ImportMode) =>
@@ -236,24 +268,33 @@ export function useInvoiceImport() {
               transaction,
               historicalCategoryMap,
               historicalIncomeCategoryMap,
+              knownCategories,
             ),
           )
         : transactions
             .map((transaction) =>
-              mapPdfTransaction(transaction, historicalCategoryMap),
+              mapPdfTransaction(transaction, historicalCategoryMap, knownCategories),
             )
             .filter((transaction): transaction is ParsedTransaction =>
               Boolean(transaction),
             ),
-    [historicalCategoryMap, historicalIncomeCategoryMap],
+    [historicalCategoryMap, historicalIncomeCategoryMap, knownCategories],
+  );
+
+  /* Names the user gave before win; the rest get a cleaner name. */
+  const loadRows = useCallback(
+    (rows: ParsedTransaction[]) =>
+      setParsedData(applyCleanNames(applyLearnedNames(rows, learnedNames))),
+    [learnedNames],
   );
 
   const readFile = useCallback(
-    async (file: File) => {
+    async (file: File, options?: { pdfPassword?: string }) => {
       setParseError("");
       setLastImportSummary(null);
       setFileName(file.name);
       setPdfAudit(null);
+      setPdfPasswordRequest(null);
 
       const isPdf =
         file.type === "application/pdf" ||
@@ -275,17 +316,12 @@ export function useInvoiceImport() {
         try {
           const result = await extractPdfInvoice(file, effectiveReferenceMonth, {
             onProgress: setOcrProgress,
+            password: options?.pdfPassword,
             signal: abortController.signal,
           });
-          const rows = result.transactions
-            .map((transaction) =>
-              mapPdfTransaction(transaction, historicalCategoryMap),
-            )
-            .filter((transaction): transaction is ParsedTransaction =>
-              Boolean(transaction),
-            );
+          const rows = mapStatementRows(result.transactions, "card");
 
-          setParsedData(rows);
+          loadRows(rows);
           setPdfAudit({
             bank: result.bank,
             ocrConfidence: result.ocrConfidence,
@@ -307,6 +343,13 @@ export function useInvoiceImport() {
           }
         } catch (error) {
           setParsedData([]);
+
+          /* Many banks lock the invoice with part of the CPF; ask for it. */
+          if (error instanceof PdfPasswordError) {
+            setPdfPasswordRequest({ file, incorrect: error.incorrect });
+            return;
+          }
+
           setParseError(
             error instanceof DOMException && error.name === "AbortError"
               ? "Leitura do PDF cancelada."
@@ -353,9 +396,14 @@ export function useInvoiceImport() {
             );
           }
 
-          const rows = mapStatementRows(result.transactions, fileMode);
+          const rows = mapStatementRows(
+            fileMode === "card"
+              ? orientCardTransactions(result.transactions, false)
+              : result.transactions,
+            fileMode,
+          );
 
-          setParsedData(rows);
+          loadRows(rows);
 
           if (!rows.length) {
             setParseError("O OFX foi lido, mas não encontramos transações.");
@@ -374,50 +422,52 @@ export function useInvoiceImport() {
         return;
       }
 
-      Papa.parse<CsvRow>(file, {
-        header: true,
-        skipEmptyLines: true,
-        delimitersToGuess: [",", ";", "\t", "|"],
-        transformHeader: (header) => normalizeKey(header),
-        complete: (result) => {
-          const rows =
-            mode === "account"
-              ? mapStatementRows(
-                  result.data.flatMap((row) => {
-                    const transaction = getCsvStatementTransaction(row);
-                    return transaction ? [transaction] : [];
-                  }),
-                  "account",
-                )
-              : result.data.flatMap((row) =>
-                  mapCsvRow(row, historicalCategoryMap),
-                );
+      try {
+        /* Read as bytes so files saved in Windows-1252 keep their accents. */
+        const { transactions, hasExplicitDirection } = parseCsvStatement(
+          decodeOfxBytes(await file.arrayBuffer()),
+          getDateOnlyParts(effectiveReferenceMonth).year,
+        );
+        const rows = mapStatementRows(
+          mode === "card" && !hasExplicitDirection
+            ? orientCardTransactions(transactions, true)
+            : transactions,
+          mode,
+        );
 
-          setParsedData(rows);
+        loadRows(rows);
 
-          if (!rows.length) {
-            setParseError("Não encontramos transações válidas nesse arquivo.");
-          }
-        },
-        error: () => {
-          setParsedData([]);
+        if (!rows.length) {
           setParseError(
-            "Não foi possível ler o CSV. Verifique o arquivo e tente novamente.",
+            "Não encontramos transações nesse arquivo. Confira se ele tem colunas de data e valor.",
           );
-        },
-      });
+        }
+      } catch {
+        setParsedData([]);
+        setParseError(
+          "Não foi possível ler o CSV. Verifique o arquivo e tente novamente.",
+        );
+      }
     },
-    [
-      cards.length,
-      effectiveReferenceMonth,
-      historicalCategoryMap,
-      mapStatementRows,
-      mode,
-    ],
+    [cards.length, effectiveReferenceMonth, loadRows, mapStatementRows, mode],
   );
 
   const cancelParsing = useCallback(() => {
     pdfAbortControllerRef.current?.abort();
+  }, []);
+
+  /* The password stays only in memory, for this one read. */
+  const submitPdfPassword = useCallback(
+    (password: string) => {
+      if (pdfPasswordRequest && password) {
+        void readFile(pdfPasswordRequest.file, { pdfPassword: password });
+      }
+    },
+    [pdfPasswordRequest, readFile],
+  );
+  const cancelPdfPassword = useCallback(() => {
+    setPdfPasswordRequest(null);
+    setFileName("");
   }, []);
 
   const previewRows = useMemo(() => {
@@ -479,7 +529,7 @@ export function useInvoiceImport() {
                   : expenseCategory,
                 installment_number: 1,
                 installments_total: 1,
-                notes: `Importado de ${fileName}`,
+                notes: getImportNote(fileName, transaction),
               }
             : {
                 ...sharedFields,
@@ -494,18 +544,22 @@ export function useInvoiceImport() {
                 installment_number: transaction.installmentNumber,
                 installments_total: transaction.installmentsTotal,
                 notes: isCredit
-                  ? `${CARD_CREDIT_ADJUSTMENT_NOTE} Importado de ${fileName}`
-                  : `Importado de ${fileName}`,
+                  ? `${CARD_CREDIT_ADJUSTMENT_NOTE} ${getImportNote(fileName, transaction)}`
+                  : getImportNote(fileName, transaction),
               };
 
         return {
           ...preparedTransaction,
-          import_signature: getImportSignature(preparedTransaction),
+          import_signature: getImportSignatureForSource(
+            preparedTransaction,
+            transaction.originalDescription,
+          ),
         };
       });
     });
 
-    return addOccurrenceSignatures(baseRows, getImportSignature);
+    /* The base signature already uses the name from the file. */
+    return addOccurrenceSignatures(baseRows, (row) => row.import_signature);
   }, [
     dependents,
     effectiveReferenceMonth,
@@ -574,13 +628,23 @@ export function useInvoiceImport() {
         if (error) throw error;
 
         if (isMounted) {
-          const existingRows = (data ?? []) as ExistingImportTransaction[];
-          const previouslyImportedRows = existingRows.filter((row) =>
+          const fetchedRows = (data ?? []) as ExistingImportTransaction[];
+          /* Renamed lines are compared under the name they had in the file
+             as well as the one they were saved with. */
+          const existingRows = fetchedRows.flatMap((row) => {
+            const original = getOriginalDescriptionFromNote(row.notes);
+            return original ? [row, { ...row, description: original }] : [row];
+          });
+          const previouslyImportedRows = fetchedRows.filter((row) =>
             row.notes?.includes("Importado de"),
           );
           const occurrenceSignatures = getOccurrenceSignatureSet(
             previouslyImportedRows,
-            getImportSignature,
+            (row) =>
+              getImportSignatureForSource(
+                row,
+                getOriginalDescriptionFromNote(row.notes) ?? undefined,
+              ),
           );
 
           setExistingImportSignatures(
@@ -652,13 +716,19 @@ export function useInvoiceImport() {
         possibleDuplicateCount: 0,
       };
       const signature = transaction.import_signature;
-      const looseSignature = getLooseImportSignature(transaction);
-      const crossMonthSignature = getCrossMonthImportSignature(transaction);
+      const originalDescription =
+        parsedData[transaction.sourceIndex]?.originalDescription;
+      const comparable = originalDescription
+        ? [transaction, { ...transaction, description: originalDescription }]
+        : [transaction];
       const isDuplicate = existingImportSignatures.has(signature);
       const isPossibleDuplicate =
         !isDuplicate &&
-        (existingLooseImportSignatures.has(looseSignature) ||
-          existingCrossMonthImportSignatures.has(crossMonthSignature));
+        comparable.some(
+          (row) =>
+            existingLooseImportSignatures.has(getLooseImportSignature(row)) ||
+            existingCrossMonthImportSignatures.has(getCrossMonthImportSignature(row)),
+        );
 
       if (isDuplicate) {
         sourceStat.duplicateCount += 1;
@@ -703,6 +773,7 @@ export function useInvoiceImport() {
     existingCrossMonthImportSignatures,
     existingImportSignatures,
     existingLooseImportSignatures,
+    parsedData,
     preparedImportRows,
   ]);
 
@@ -873,13 +944,16 @@ export function useInvoiceImport() {
     (index: number) => {
       const source = parsedData[index];
       if (!source) return [];
-      const key = normalizeDescriptionForCategory(source.description);
+      /* Matched by the bank's text, so it still works after a rename. */
+      const getKey = (row: ParsedTransaction) =>
+        normalizeDescriptionForCategory(row.originalDescription ?? row.description);
+      const key = getKey(source);
 
       return parsedData.flatMap((row, rowIndex) =>
         rowIndex !== index &&
         row.type === source.type &&
         row.reviewStatus !== "ignored" &&
-        normalizeDescriptionForCategory(row.description) === key
+        getKey(row) === key
           ? [rowIndex]
           : [],
       );
@@ -911,6 +985,56 @@ export function useInvoiceImport() {
     (index: number, value: boolean) =>
       updateRows([index], (row) => ({ ...row, projectFutureInstallments: value })),
     [updateRows],
+  );
+
+  /* An empty name goes back to the one in the file. */
+  const renameRows = useCallback(
+    (indexes: number[], description: string) =>
+      updateRows(indexes, (row) => renameTransaction(row, description)),
+    [updateRows],
+  );
+
+  /* Fixes what the file got wrong: name, date, value, kind, category and
+     installments. A card refund carries no category or installments. */
+  const editRow = useCallback(
+    (
+      index: number,
+      patch: {
+        description: string;
+        date: string;
+        amount: number;
+        type: ParsedTransaction["type"];
+        category: string | null;
+        installmentNumber: number;
+        installmentsTotal: number;
+      },
+    ) =>
+      updateRows([index], (row) => {
+        const isCardRefund = patch.type === "credit" && mode === "card";
+        const isSingle = isCardRefund || mode === "account";
+        const installmentsTotal = isSingle ? 1 : Math.max(patch.installmentsTotal, 1);
+        const installmentNumber = isSingle
+          ? 1
+          : Math.min(Math.max(patch.installmentNumber, 1), installmentsTotal);
+
+        return {
+          ...renameTransaction(row, patch.description),
+          date: patch.date,
+          amount: patch.amount,
+          type: patch.type,
+          category: isCardRefund ? CARD_CREDIT_ADJUSTMENT_CATEGORY : patch.category,
+          installmentNumber,
+          installmentsTotal,
+          projectFutureInstallments:
+            installmentNumber < installmentsTotal &&
+            (row.installmentsTotal === installmentsTotal
+              ? row.projectFutureInstallments
+              : true),
+          dependentId: isCardRefund ? null : row.dependentId,
+          owner: isCardRefund ? "me" : row.owner,
+        };
+      }),
+    [mode, updateRows],
   );
 
   /* Splits one line into the user's part and a dependent's part. */
@@ -1182,6 +1306,9 @@ export function useInvoiceImport() {
     ocrProgressLabel,
     readFile,
     cancelParsing,
+    pdfPasswordRequest,
+    submitPdfPassword,
+    cancelPdfPassword,
     pdfAudit,
     rows,
     summary,
@@ -1196,6 +1323,8 @@ export function useInvoiceImport() {
     setOwner,
     setReviewStatus,
     setProjectInstallments,
+    renameRows,
+    editRow,
     splitRow,
     updateRejectedPdfLine,
     discardRejectedPdfLine,
