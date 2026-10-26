@@ -14,7 +14,6 @@ import { ImportSetup } from "@/components/import/ImportSetup";
 import { ImportSuccess } from "@/components/import/ImportSuccess";
 import { useInvoiceImport } from "@/components/import/useInvoiceImport";
 import { Button } from "@/components/ui/button";
-import { formatInvoiceMonthLabel } from "@/lib/invoiceImport";
 import { cn } from "@/lib/utils";
 
 const steps = ["Arquivo", "Revisão", "Pronto"];
@@ -44,12 +43,14 @@ export default function ImportarPage() {
               Importação
             </p>
             <h1 className="mt-1.5 text-2xl font-semibold tracking-[-0.03em] text-zinc-50 sm:text-3xl">
-              Importar fatura
+              {flow.mode === "account" ? "Importar extrato" : "Importar fatura"}
             </h1>
             <p className="mt-1 truncate text-sm text-zinc-400">
               {flow.hasPreview
-                ? `${flow.fileName} · ${flow.selectedCard?.name ?? "Cartão"} · ${formatInvoiceMonthLabel(flow.referenceMonth).toLocaleLowerCase("pt-BR")}`
-                : "Traga o PDF ou CSV do cartão, revise e salve de uma vez."}
+                ? `${flow.fileName} · ${flow.importTargetLabel}`
+                : flow.mode === "account"
+                  ? "Traga o OFX ou CSV da conta, revise e salve de uma vez."
+                  : "Traga o PDF, OFX ou CSV do cartão, revise e salve de uma vez."}
             </p>
           </div>
 

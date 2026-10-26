@@ -11,10 +11,24 @@ import type {
   PdfRejectedInvoiceLine,
 } from "./invoicePdf.ts";
 
-/* Pure helpers for importing a card invoice from CSV or PDF: parsing rows,
-   installments, categories from history and the signatures used to spot
-   duplicates. Kept free of React and Supabase so they can be tested. */
+/* Pure helpers for importing a card invoice (CSV, PDF or OFX) or a bank
+   account statement (OFX or CSV): parsing rows, installments, categories
+   from history and the signatures used to spot duplicates. Kept free of
+   React and Supabase so they can be tested. */
 
+/* "card" imports an invoice into a card; "account" imports a bank
+   statement, where entries land in the month of their own date. */
+export type ImportMode = "card" | "account";
+
+/* One line of a statement or invoice, already read from the file. */
+export type StatementTransaction = {
+  amount: number;
+  date: string;
+  description: string;
+  isCredit: boolean;
+};
+
+/* In "card" mode a credit is a refund; in "account" mode it is money in. */
 export type ParsedTransaction = {
   date: string;
   description: string;
@@ -29,6 +43,8 @@ export type ParsedTransaction = {
   groupId?: string | null;
   owner: "me" | "dependent";
   requiresReview?: boolean;
+  /* Why the line was flagged or left out, shown on its badge. */
+  reviewReason?: string;
   reviewStatus?: "approved" | "ignored";
 };
 
@@ -48,6 +64,7 @@ export type PdfImportAudit = {
   usedOcr: boolean;
 };
 export type ImportResultSummary = {
+  mode: ImportMode;
   cardName: string;
   creditsCount: number;
   ignoredDuplicateCount: number;
@@ -72,12 +89,12 @@ export type ExistingImportTransaction = {
 export type PreparedImportTransaction = {
   sourceIndex: number;
   import_signature: string;
-  card_id: string;
+  card_id: string | null;
   dependent_id: string | null;
   group_id: string | null;
   month_start: string;
   transaction_date: string;
-  type: "card";
+  type: "card" | "income" | "fixed";
   description: string;
   category: string;
   amount: number;
@@ -511,7 +528,7 @@ export function mapCsvRow(
 }
 
 export function mapPdfTransaction(
-  transaction: PdfInvoiceTransaction,
+  transaction: PdfInvoiceTransaction | StatementTransaction,
   categoryDictionary: Record<string, string>,
 ): ParsedTransaction | null {
   if (shouldIgnoreImportedRow(transaction.description, transaction.isCredit)) {
@@ -596,4 +613,145 @@ export function getRowsForImport(
       referenceMonthOffset: index,
     };
   });
+}
+
+/* Bank statements ---------------------------------------------------------- */
+
+/* Paying the card bill moves money that the invoice import already counts,
+   purchase by purchase. Importing it as well would count it twice. */
+const cardBillPaymentIndicators = [
+  "pagamento de fatura",
+  "pagamento fatura",
+  "pagto fatura",
+  "pgto fatura",
+  "pag fatura",
+  "fatura cartao",
+  "fatura do cartao",
+  "pagamento cartao",
+  "pagamento de cartao",
+  "pgto cartao",
+  "cartao de credito",
+];
+/* Money moved between the user's own accounts or investments: neither an
+   expense nor income, so the user decides. */
+const internalMovementIndicators = [
+  "transferencia entre contas",
+  "mesma titularidade",
+  "aplicacao",
+  "resgate",
+  "rdb",
+  "cdb",
+  "lci",
+  "lca",
+  "poupanca",
+  "tesouro direto",
+  "investimento",
+];
+const salaryIndicators = ["salario", "folha de pagamento", "proventos"];
+
+function hasIndicator(description: string, indicators: string[]) {
+  const text = ` ${normalizeDescriptionForCategory(description)} `;
+
+  return indicators.some((indicator) => text.includes(` ${indicator} `));
+}
+
+export function isCardBillPayment(description: string) {
+  return hasIndicator(description, cardBillPaymentIndicators);
+}
+
+export function isInternalMovement(description: string) {
+  return hasIndicator(description, internalMovementIndicators);
+}
+
+/* Bank CSVs are from the account's point of view, the opposite of card
+   CSVs: negative amounts are money out. */
+export function getCsvStatementTransaction(
+  row: CsvRow,
+): StatementTransaction | null {
+  const date = getCsvCell(row, ["date", "data", "data lancamento"], 0).trim();
+  const description = getCsvCell(
+    row,
+    ["title", "description", "descricao", "descrição", "historico", "histórico", "lancamento"],
+    1,
+  ).trim();
+  const amount = getCsvAmountCell(row).trim();
+
+  if (!date || !amount) return null;
+
+  const parsedAmount = parseAmount(amount);
+  if (!parsedAmount.amount) return null;
+
+  return {
+    amount: parsedAmount.amount,
+    date: parseCsvDate(date),
+    description,
+    isCredit: !parsedAmount.isNegative,
+  };
+}
+
+/* Money in becomes income, money out a debit/Pix expense. Card bill
+   payments start ignored and internal movements wait for review. */
+export function mapStatementTransaction(
+  transaction: StatementTransaction,
+  expenseCategoryDictionary: Record<string, string>,
+  incomeCategoryDictionary: Record<string, string>,
+): ParsedTransaction {
+  const description = transaction.description.trim() || "Sem descrição";
+  const isCredit = transaction.isCredit;
+  const isBillPayment = !isCredit && isCardBillPayment(description);
+  const isInternal = !isBillPayment && isInternalMovement(description);
+
+  return {
+    date: transaction.date,
+    description,
+    amount: transaction.amount,
+    category: isCredit
+      ? (findHistoricalCategory(description, incomeCategoryDictionary) ??
+        (hasIndicator(description, salaryIndicators) ? "Salário" : "Outras Receitas"))
+      : normalizeImportedExpenseCategory(
+          findHistoricalCategory(description, expenseCategoryDictionary),
+        ),
+    dependentId: null,
+    type: isCredit ? "credit" : "expense",
+    projectFutureInstallments: false,
+    referenceMonthOffset: 0,
+    installmentNumber: 1,
+    installmentsTotal: 1,
+    owner: "me",
+    requiresReview: isInternal,
+    reviewReason: isBillPayment
+      ? "Pagamento de fatura"
+      : isInternal
+        ? "Transferência ou investimento? Confira"
+        : undefined,
+    reviewStatus: isBillPayment ? "ignored" : undefined,
+  };
+}
+
+/* A statement goes entirely into the month the user picks. Until they pick
+   one, suggest the month most of its lines fall in; on a tie, the later
+   one, since a statement exported mid-cycle usually ends in the month it
+   is about. */
+export function getSuggestedStatementMonth(dates: string[]) {
+  const counts = new Map<string, number>();
+
+  dates.forEach((date) => {
+    const monthStart = getMonthStartFromReference(date);
+    counts.set(monthStart, (counts.get(monthStart) ?? 0) + 1);
+  });
+
+  let suggestion: string | null = null;
+  let bestCount = 0;
+
+  Array.from(counts.keys())
+    .sort()
+    .forEach((monthStart) => {
+      const count = counts.get(monthStart) ?? 0;
+      if (count >= bestCount) {
+        suggestion = monthStart;
+        bestCount = count;
+      }
+    });
+
+  return suggestion;
 }

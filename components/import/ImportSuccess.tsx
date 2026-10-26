@@ -20,10 +20,13 @@ export function ImportSuccess({
   summary: ImportResultSummary;
   onImportAnother: () => void;
 }) {
+  const isAccount = summary.mode === "account";
   const stats = [
     { label: "Importados", value: summary.importedCount, tone: "text-emerald-300" },
     { label: "Duplicados ignorados", value: summary.ignoredDuplicateCount, tone: "text-zinc-100" },
-    { label: "Estornos", value: summary.creditsCount, tone: "text-sky-300" },
+    isAccount
+      ? { label: "Entradas", value: summary.creditsCount, tone: "text-emerald-300" }
+      : { label: "Estornos", value: summary.creditsCount, tone: "text-sky-300" },
     { label: "Revisados por você", value: summary.reviewedCount, tone: "text-zinc-100" },
   ];
 
@@ -48,7 +51,7 @@ export function ImportSuccess({
         <Check className="size-8" strokeWidth={2.5} />
       </motion.span>
       <h2 className="relative mt-6 text-2xl font-semibold tracking-[-0.02em] text-zinc-50">
-        Fatura importada
+        {isAccount ? "Extrato importado" : "Fatura importada"}
       </h2>
       <p className="relative mt-1.5 text-sm text-zinc-400">
         {summary.cardName} · {summary.invoiceMonthLabel.toLocaleLowerCase("pt-BR")}
@@ -73,8 +76,8 @@ export function ImportSuccess({
           asChild
           className="h-11 gap-2 bg-emerald-400 px-6 font-semibold text-zinc-950 hover:bg-emerald-300"
         >
-          <Link href="/dashboard/cards">
-            Ver fatura
+          <Link href={isAccount ? "/dashboard/transactions" : "/dashboard/cards"}>
+            {isAccount ? "Ver lançamentos" : "Ver fatura"}
             <ArrowRight className="size-4" />
           </Link>
         </Button>
@@ -85,7 +88,7 @@ export function ImportSuccess({
           className="h-11 gap-2 border-white/[0.08] bg-transparent px-5 text-zinc-300 hover:bg-white/[0.06] hover:text-zinc-50"
         >
           <UploadCloud className="size-4" />
-          Importar outra fatura
+          {isAccount ? "Importar outro extrato" : "Importar outra fatura"}
         </Button>
       </div>
     </motion.section>

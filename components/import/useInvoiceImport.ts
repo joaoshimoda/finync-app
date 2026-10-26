@@ -22,6 +22,8 @@ import {
 import {
   addMonthsToDateOnly,
   formatInvoiceMonthLabel,
+  getSuggestedStatementMonth,
+  getCsvStatementTransaction,
   getCrossMonthImportSignature,
   getImportSignature,
   getLooseImportSignature,
@@ -30,17 +32,21 @@ import {
   getRowsForImport,
   mapCsvRow,
   mapPdfTransaction,
+  mapStatementTransaction,
   normalizeDescriptionForCategory,
   normalizeImportedExpenseCategory,
   normalizeKey,
   type CsvRow,
   type ExistingImportTransaction,
+  type ImportMode,
   type ImportResultSummary,
   type ParsedTransaction,
   type PdfImportAudit,
   type PdfReviewLine,
   type PreparedImportTransaction,
+  type StatementTransaction,
 } from "@/lib/invoiceImport";
+import { decodeOfxBytes, parseOfx } from "@/lib/invoiceOfx";
 import { extractPdfInvoice, type PdfOcrProgress } from "@/lib/invoicePdf";
 import { parseMoneyInput } from "@/lib/moneyInput";
 import { getSessionUser, supabase } from "@/lib/supabaseClient";
@@ -59,9 +65,10 @@ export type RowState = {
   isLocked: boolean;
 };
 
-/* State and rules of the invoice import: reading CSV/PDF, the preview the
-   user edits, duplicate detection against what is already saved and the
-   final insert. The page only renders what this returns. */
+/* State and rules of the import, for a card invoice (CSV/PDF/OFX) or a
+   bank statement (OFX/CSV): reading the file, the preview the user edits,
+   duplicate detection against what is already saved and the final insert.
+   The page only renders what this returns. */
 export function useInvoiceImport() {
   const cards = useFinanceStore((state) => state.cards);
   const dependents = useFinanceStore((state) => state.dependents);
@@ -70,10 +77,13 @@ export function useInvoiceImport() {
   const fetchDependents = useFinanceStore((state) => state.fetchDependents);
   const fetchCategories = useFinanceStore((state) => state.fetchCategories);
 
+  const [mode, setMode] = useState<ImportMode>("card");
   const [parsedData, setParsedData] = useState<ParsedTransaction[]>([]);
   const [historicalCategoryMap, setHistoricalCategoryMap] = useState<
     Record<string, string>
   >({});
+  const [historicalIncomeCategoryMap, setHistoricalIncomeCategoryMap] =
+    useState<Record<string, string>>({});
   const [fileName, setFileName] = useState("");
   const [parseError, setParseError] = useState("");
   const [isParsingFile, setIsParsingFile] = useState(false);
@@ -93,7 +103,7 @@ export function useInvoiceImport() {
   const [isCheckingDuplicates, setIsCheckingDuplicates] = useState(false);
   const [lastImportSummary, setLastImportSummary] =
     useState<ImportResultSummary | null>(null);
-  const referenceMonthOptions = useMemo(() => getReferenceMonthOptions(), []);
+  const baseReferenceMonthOptions = useMemo(() => getReferenceMonthOptions(), []);
   const [referenceMonth, setReferenceMonth] = useState("");
   const [selectedCardId, setSelectedCardId] = useState("");
 
@@ -113,7 +123,7 @@ export function useInvoiceImport() {
 
       const { data, error } = await supabase
         .from("transactions")
-        .select("description, category, created_at, month_start, day")
+        .select("description, category, type, created_at, month_start, day")
         .eq("user_id", user.id)
         .not("category", "is", null)
         .order("month_start", { ascending: false })
@@ -129,29 +139,32 @@ export function useInvoiceImport() {
         return;
       }
 
-      const nextCategoryMap = (data ?? []).reduce<Record<string, string>>(
-        (acc, transaction) => {
-          const description =
-            typeof transaction.description === "string"
-              ? transaction.description
-              : "";
-          const category =
-            typeof transaction.category === "string"
-              ? normalizeImportedExpenseCategory(transaction.category)
-              : "";
-          const key = normalizeDescriptionForCategory(description);
+      const nextCategoryMap: Record<string, string> = {};
+      const nextIncomeCategoryMap: Record<string, string> = {};
 
-          if (key && category && !acc[key]) {
-            acc[key] = category;
-          }
+      (data ?? []).forEach((transaction) => {
+        const isIncome = transaction.type === "income";
+        const description =
+          typeof transaction.description === "string"
+            ? transaction.description
+            : "";
+        const category =
+          typeof transaction.category === "string"
+            ? isIncome
+              ? transaction.category.trim()
+              : normalizeImportedExpenseCategory(transaction.category)
+            : "";
+        const key = normalizeDescriptionForCategory(description);
+        const target = isIncome ? nextIncomeCategoryMap : nextCategoryMap;
 
-          return acc;
-        },
-        {},
-      );
+        if (key && category && !target[key]) {
+          target[key] = category;
+        }
+      });
 
       if (isMounted) {
         setHistoricalCategoryMap(nextCategoryMap);
+        setHistoricalIncomeCategoryMap(nextIncomeCategoryMap);
       }
     }
 
@@ -166,14 +179,35 @@ export function useInvoiceImport() {
   const effectiveSelectedCard = cards.find(
     (card) => card.id === effectiveSelectedCardId,
   );
+  /* Until the user picks a month: a card suggests its current invoice, a
+     statement the month most of its lines fall in. */
+  const suggestedStatementMonth = useMemo(
+    () => getSuggestedStatementMonth(parsedData.map((row) => row.date)),
+    [parsedData],
+  );
   const effectiveReferenceMonth =
     referenceMonth ||
-    (effectiveSelectedCard
-      ? getCardInvoiceMonthStart(
-          getLocalTodayDateOnly(),
-          effectiveSelectedCard.closingDay,
-        )
-      : getMonthStartFromReference(getLocalTodayDateOnly()));
+    (mode === "account"
+      ? (suggestedStatementMonth ??
+        getMonthStartFromReference(getLocalTodayDateOnly()))
+      : effectiveSelectedCard
+        ? getCardInvoiceMonthStart(
+            getLocalTodayDateOnly(),
+            effectiveSelectedCard.closingDay,
+          )
+        : getMonthStartFromReference(getLocalTodayDateOnly()));
+  /* An older statement can suggest a month outside the default window. */
+  const referenceMonthOptions = baseReferenceMonthOptions.some(
+    (option) => option.value === effectiveReferenceMonth,
+  )
+    ? baseReferenceMonthOptions
+    : [
+        ...baseReferenceMonthOptions,
+        {
+          value: effectiveReferenceMonth,
+          label: formatInvoiceMonthLabel(effectiveReferenceMonth),
+        },
+      ].sort((left, right) => left.value.localeCompare(right.value));
   const ocrProgressPercent = ocrProgress?.totalPages
     ? Math.round(
         ((ocrProgress.page -
@@ -189,7 +223,30 @@ export function useInvoiceImport() {
       : ocrProgress.stage === "rendering"
         ? `Preparando página ${ocrProgress.page} de ${ocrProgress.totalPages}...`
         : `Reconhecendo página ${ocrProgress.page} de ${ocrProgress.totalPages}...`
-    : "Lendo sua fatura...";
+    : mode === "account"
+      ? "Lendo seu extrato..."
+      : "Lendo sua fatura...";
+
+  /* Card invoices and bank statements read the same lines differently. */
+  const mapStatementRows = useCallback(
+    (transactions: StatementTransaction[], targetMode: ImportMode) =>
+      targetMode === "account"
+        ? transactions.map((transaction) =>
+            mapStatementTransaction(
+              transaction,
+              historicalCategoryMap,
+              historicalIncomeCategoryMap,
+            ),
+          )
+        : transactions
+            .map((transaction) =>
+              mapPdfTransaction(transaction, historicalCategoryMap),
+            )
+            .filter((transaction): transaction is ParsedTransaction =>
+              Boolean(transaction),
+            ),
+    [historicalCategoryMap, historicalIncomeCategoryMap],
+  );
 
   const readFile = useCallback(
     async (file: File) => {
@@ -201,6 +258,14 @@ export function useInvoiceImport() {
       const isPdf =
         file.type === "application/pdf" ||
         file.name.toLowerCase().endsWith(".pdf");
+
+      if (isPdf && mode === "account") {
+        setParsedData([]);
+        setParseError(
+          "Para o extrato da conta, use o arquivo OFX ou CSV que o banco exporta.",
+        );
+        return;
+      }
 
       if (isPdf) {
         setIsParsingFile(true);
@@ -237,7 +302,7 @@ export function useInvoiceImport() {
 
           if (!rows.length && !result.rejectedLines.length) {
             setParseError(
-              "O PDF foi lido, mas não encontramos transações. Confira o mês da fatura ou tente o CSV do banco.",
+              "O PDF foi lido, mas não encontramos transações. Confira o mês da fatura ou tente o OFX ou CSV do banco.",
             );
           }
         } catch (error) {
@@ -258,15 +323,75 @@ export function useInvoiceImport() {
         return;
       }
 
+      const isOfx =
+        file.type === "application/x-ofx" ||
+        /\.(ofx|qfx)$/i.test(file.name);
+
+      if (isOfx) {
+        setIsParsingFile(true);
+
+        try {
+          const result = parseOfx(decodeOfxBytes(await file.arrayBuffer()));
+          /* The OFX says whether it is a card or an account statement, so
+             it overrides the mode picked before the upload. */
+          const fileMode: ImportMode = result.kind === "card" ? "card" : "account";
+
+          if (fileMode === "card" && !cards.length) {
+            setParsedData([]);
+            setParseError(
+              "Esse OFX é de uma fatura de cartão. Cadastre o cartão antes de importar.",
+            );
+            return;
+          }
+
+          if (fileMode !== mode) {
+            setMode(fileMode);
+            toast.info(
+              fileMode === "account"
+                ? "Esse arquivo é um extrato da conta. Mudamos para importar extrato."
+                : "Esse arquivo é uma fatura de cartão. Mudamos para importar fatura.",
+            );
+          }
+
+          const rows = mapStatementRows(result.transactions, fileMode);
+
+          setParsedData(rows);
+
+          if (!rows.length) {
+            setParseError("O OFX foi lido, mas não encontramos transações.");
+          }
+        } catch (error) {
+          setParsedData([]);
+          setParseError(
+            error instanceof Error
+              ? error.message
+              : "Não foi possível ler o OFX. Verifique o arquivo e tente novamente.",
+          );
+        } finally {
+          setIsParsingFile(false);
+        }
+
+        return;
+      }
+
       Papa.parse<CsvRow>(file, {
         header: true,
         skipEmptyLines: true,
         delimitersToGuess: [",", ";", "\t", "|"],
         transformHeader: (header) => normalizeKey(header),
         complete: (result) => {
-          const rows = result.data.flatMap((row) =>
-            mapCsvRow(row, historicalCategoryMap),
-          );
+          const rows =
+            mode === "account"
+              ? mapStatementRows(
+                  result.data.flatMap((row) => {
+                    const transaction = getCsvStatementTransaction(row);
+                    return transaction ? [transaction] : [];
+                  }),
+                  "account",
+                )
+              : result.data.flatMap((row) =>
+                  mapCsvRow(row, historicalCategoryMap),
+                );
 
           setParsedData(rows);
 
@@ -282,7 +407,13 @@ export function useInvoiceImport() {
         },
       });
     },
-    [effectiveReferenceMonth, historicalCategoryMap],
+    [
+      cards.length,
+      effectiveReferenceMonth,
+      historicalCategoryMap,
+      mapStatementRows,
+      mode,
+    ],
   );
 
   const cancelParsing = useCallback(() => {
@@ -313,39 +444,59 @@ export function useInvoiceImport() {
           : null;
         const owner = dependent?.name ?? "eu";
 
+        const isCredit = transaction.type === "credit";
+        const expenseCategory = normalizeImportedExpenseCategory(
+          transaction.category ?? null,
+        );
+        const sharedFields = {
+          sourceIndex,
+          dependent_id: transaction.dependentId ?? null,
+          transaction_date: transaction.date,
+          description: transaction.description,
+          amount: transaction.amount,
+          day: getDateOnlyParts(transaction.date).day,
+          status: "CONFIRMADO" as const,
+          owner,
+          recurring: false as const,
+          direct_subscription: false as const,
+          split_with: [dependent?.id ?? "eu"],
+        };
+        /* Both land in the month the user picked: the invoice's, or the
+           one the whole statement belongs to. */
         const preparedTransaction: Omit<
           PreparedImportTransaction,
           "import_signature"
-        > = {
-          sourceIndex,
-          card_id: effectiveSelectedCardId,
-          dependent_id: transaction.dependentId ?? null,
-          group_id: transaction.groupId ?? null,
-          month_start: addMonthsToDateOnly(
-            monthStart,
-            transaction.referenceMonthOffset,
-          ),
-          transaction_date: transaction.date,
-          type: "card",
-          description: transaction.description,
-          category:
-            transaction.type === "credit"
-              ? CARD_CREDIT_ADJUSTMENT_CATEGORY
-              : normalizeImportedExpenseCategory(transaction.category ?? null),
-          amount: transaction.amount,
-          day: getDateOnlyParts(transaction.date).day,
-          status: "CONFIRMADO",
-          owner,
-          installment_number: transaction.installmentNumber,
-          installments_total: transaction.installmentsTotal,
-          notes:
-            transaction.type === "credit"
-              ? `${CARD_CREDIT_ADJUSTMENT_NOTE} Importado de ${fileName}`
-              : `Importado de ${fileName}`,
-          recurring: false,
-          direct_subscription: false,
-          split_with: [dependent?.id ?? "eu"],
-        };
+        > =
+          mode === "account"
+            ? {
+                ...sharedFields,
+                card_id: null,
+                group_id: null,
+                month_start: monthStart,
+                type: isCredit ? "income" : "fixed",
+                category: isCredit
+                  ? transaction.category?.trim() || "Outras Receitas"
+                  : expenseCategory,
+                installment_number: 1,
+                installments_total: 1,
+                notes: `Importado de ${fileName}`,
+              }
+            : {
+                ...sharedFields,
+                card_id: effectiveSelectedCardId,
+                group_id: transaction.groupId ?? null,
+                month_start: addMonthsToDateOnly(
+                  monthStart,
+                  transaction.referenceMonthOffset,
+                ),
+                type: "card",
+                category: isCredit ? CARD_CREDIT_ADJUSTMENT_CATEGORY : expenseCategory,
+                installment_number: transaction.installmentNumber,
+                installments_total: transaction.installmentsTotal,
+                notes: isCredit
+                  ? `${CARD_CREDIT_ADJUSTMENT_NOTE} Importado de ${fileName}`
+                  : `Importado de ${fileName}`,
+              };
 
         return {
           ...preparedTransaction,
@@ -360,6 +511,7 @@ export function useInvoiceImport() {
     effectiveReferenceMonth,
     effectiveSelectedCardId,
     fileName,
+    mode,
     parsedData,
   ]);
 
@@ -367,7 +519,10 @@ export function useInvoiceImport() {
     let isMounted = true;
 
     async function fetchExistingImportSignatures() {
-      if (!preparedImportRows.length || !effectiveSelectedCardId) {
+      if (
+        !preparedImportRows.length ||
+        (mode === "card" && !effectiveSelectedCardId)
+      ) {
         if (isMounted) {
           setExistingImportSignatures(new Set());
           setExistingLooseImportSignatures(new Set());
@@ -405,14 +560,16 @@ export function useInvoiceImport() {
             ]),
           ),
         );
-        const { data, error } = await supabase
+        const baseQuery = supabase
           .from("transactions")
           .select(
             "import_signature, month_start, transaction_date, day, description, amount, installment_number, installments_total, dependent_id, notes",
           )
           .eq("user_id", user.id)
-          .eq("card_id", effectiveSelectedCardId)
           .in("month_start", invoiceMonthsWithAdjacent);
+        const { data, error } = await (mode === "account"
+          ? baseQuery.is("card_id", null).in("type", ["income", "fixed"])
+          : baseQuery.eq("card_id", effectiveSelectedCardId));
 
         if (error) throw error;
 
@@ -469,7 +626,7 @@ export function useInvoiceImport() {
     return () => {
       isMounted = false;
     };
-  }, [effectiveSelectedCardId, preparedImportRows]);
+  }, [effectiveSelectedCardId, mode, preparedImportRows]);
 
   const importDuplicateState = useMemo(() => {
     const importableRows: PreparedImportTransaction[] = [];
@@ -653,6 +810,32 @@ export function useInvoiceImport() {
     );
   }, [categories, historicalCategoryMap, parsedData]);
 
+  const incomeCategoryOptions = useMemo(() => {
+    const categoryLabels = new Set(
+      categories
+        .filter((category) => category.kind === "income")
+        .map((category) => category.label),
+    );
+
+    Object.values(historicalIncomeCategoryMap).forEach((category) => {
+      categoryLabels.add(category);
+    });
+
+    if (mode === "account") {
+      parsedData.forEach((transaction) => {
+        if (transaction.category && transaction.type === "credit") {
+          categoryLabels.add(transaction.category);
+        }
+      });
+    }
+
+    categoryLabels.add("Outras Receitas");
+
+    return Array.from(categoryLabels).sort((left, right) =>
+      left.localeCompare(right, "pt-BR"),
+    );
+  }, [categories, historicalIncomeCategoryMap, mode, parsedData]);
+
   /* Editing ---------------------------------------------------------------- */
 
   const updateRows = useCallback(
@@ -665,12 +848,24 @@ export function useInvoiceImport() {
     [],
   );
 
+  /* Card refunds keep their fixed category. On a statement, income takes
+     only income categories and debits only expense ones, so a bulk edit
+     over mixed rows changes just the side the category belongs to. */
   const setCategory = useCallback(
-    (indexes: number[], category: string | null) =>
-      updateRows(indexes, (row) =>
-        row.type === "credit" ? row : { ...row, category },
-      ),
-    [updateRows],
+    (indexes: number[], category: string | null) => {
+      const isIncomeCategory =
+        category !== null && incomeCategoryOptions.includes(category);
+
+      updateRows(indexes, (row) => {
+        if (row.type === "credit" && mode === "card") return row;
+        if (category !== null && (row.type === "credit") !== isIncomeCategory) {
+          return row;
+        }
+
+        return { ...row, category };
+      });
+    },
+    [incomeCategoryOptions, mode, updateRows],
   );
 
   /* Other expense rows with the same merchant, to offer the same category. */
@@ -682,7 +877,7 @@ export function useInvoiceImport() {
 
       return parsedData.flatMap((row, rowIndex) =>
         rowIndex !== index &&
-        row.type !== "credit" &&
+        row.type === source.type &&
         row.reviewStatus !== "ignored" &&
         normalizeDescriptionForCategory(row.description) === key
           ? [rowIndex]
@@ -833,11 +1028,17 @@ export function useInvoiceImport() {
   }, []);
 
   const selectedCardName = effectiveSelectedCard?.name ?? "Cartão";
+  const referenceMonthLabel = formatInvoiceMonthLabel(effectiveReferenceMonth);
+  /* "Nubank · fatura de novembro / 2026" or "Extrato da conta · lançado em outubro / 2026". */
+  const importTargetLabel =
+    mode === "account"
+      ? `Extrato da conta · lançado em ${referenceMonthLabel.toLocaleLowerCase("pt-BR")}`
+      : `${selectedCardName} · fatura de ${referenceMonthLabel.toLocaleLowerCase("pt-BR")}`;
 
   const handleImport = useCallback(async () => {
     if (!parsedData.length) return;
 
-    if (!effectiveSelectedCardId) {
+    if (mode === "card" && !effectiveSelectedCardId) {
       toast.error("Selecione um cartão para importar a fatura.");
       return;
     }
@@ -878,7 +1079,11 @@ export function useInvoiceImport() {
       const duplicateCount = importDuplicateState.duplicateCount;
 
       if (!uniqueData.length) {
-        toast.info("Todos os lançamentos dessa fatura já existem.");
+        toast.info(
+          mode === "account"
+            ? "Todos os lançamentos desse extrato já existem."
+            : "Todos os lançamentos dessa fatura já existem.",
+        );
         return;
       }
 
@@ -897,11 +1102,12 @@ export function useInvoiceImport() {
       const ignoredDuplicateCount = duplicateCount + databaseIgnoredCount;
 
       setLastImportSummary({
-        cardName: selectedCardName,
+        mode,
+        cardName: mode === "account" ? "Extrato da conta" : selectedCardName,
         creditsCount: summary.creditsCount,
         ignoredDuplicateCount,
         importedCount,
-        invoiceMonthLabel: formatInvoiceMonthLabel(effectiveReferenceMonth),
+        invoiceMonthLabel: referenceMonthLabel,
         possibleDuplicateCount: summary.possibleDuplicateCount,
         reviewedCount: rows.filter(
           (row) => row.isApproved && (row.transaction.requiresReview || row.isPossibleDuplicate),
@@ -924,28 +1130,41 @@ export function useInvoiceImport() {
       void reportAppError(error, {
         source: "SUPABASE",
         severity: "CRITICAL",
-        context: { operation: "Importar fatura" },
+        context: {
+          operation: mode === "account" ? "Importar extrato" : "Importar fatura",
+        },
       });
       toast.error("Não foi possível importar as transações.");
     } finally {
       setIsSubmitting(false);
     }
   }, [
-    effectiveReferenceMonth,
     effectiveSelectedCardId,
     importDuplicateState,
+    mode,
     parsedData.length,
     resetImport,
     rows,
+    referenceMonthLabel,
     selectedCardName,
     summary.creditsCount,
     summary.possibleDuplicateCount,
   ]);
 
   return {
+    mode,
+    /* Switching discards the file and month picked for the other mode. */
+    setMode: (nextMode: ImportMode) => {
+      if (nextMode === mode) return;
+      setMode(nextMode);
+      setReferenceMonth("");
+      resetImport();
+    },
+    importTargetLabel,
     cards,
     dependents,
     categoryOptions,
+    incomeCategoryOptions,
     referenceMonthOptions,
     selectedCard: effectiveSelectedCard ?? null,
     selectedCardId: effectiveSelectedCardId,

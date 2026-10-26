@@ -109,12 +109,22 @@ function ReviewRow({
   const formatValue = usePrivateCurrency();
   const { transaction, index } = row;
   const isCredit = transaction.type === "credit";
+  const isAccount = flow.mode === "account";
+  /* Card refunds keep a fixed category; statement income picks one. */
+  const categoryOptions = isCredit ? flow.incomeCategoryOptions : flow.categoryOptions;
   const ownerName =
     transaction.owner === "dependent" && transaction.dependentId
       ? (flow.dependents.find((item) => item.id === transaction.dependentId)?.name ??
         "Dependente")
       : "Você";
   const futureCount = transaction.installmentsTotal - transaction.installmentNumber;
+  /* A card refund lowers the invoice; statement income adds to the balance. */
+  const amountPrefix = isCredit ? (isAccount ? "+" : "−") : "";
+  const amountClassName = isCredit
+    ? isAccount
+      ? "text-emerald-300"
+      : "text-sky-300"
+    : "text-zinc-50";
 
   function changeCategory(value: string) {
     const category = value === NO_CATEGORY ? null : value;
@@ -122,7 +132,10 @@ function ReviewRow({
 
     const similar = flow.getSimilarIndexes(index);
     if (category && similar.length) {
-      toast(`Aplicar “${category}” a ${similar.length} ${similar.length === 1 ? "compra igual" : "compras iguais"}?`, {
+      const noun = isAccount
+        ? similar.length === 1 ? "lançamento igual" : "lançamentos iguais"
+        : similar.length === 1 ? "compra igual" : "compras iguais";
+      toast(`Aplicar “${category}” a ${similar.length} ${noun}?`, {
         description: transaction.description,
         action: {
           label: "Aplicar",
@@ -182,11 +195,25 @@ function ReviewRow({
             <Badge tone="bg-orange-500/10 text-orange-300">Parecida com uma existente</Badge>
           )}
           {transaction.requiresReview && !row.isApproved && !row.isIgnored && (
-            <Badge tone="bg-amber-500/10 text-amber-300">Pagamento? Confira</Badge>
+            <Badge tone="bg-amber-500/10 text-amber-300">
+              {transaction.reviewReason ?? "Pagamento? Confira"}
+            </Badge>
           )}
           {row.isApproved && <Badge tone="bg-emerald-500/10 text-emerald-300">Aprovada</Badge>}
-          {row.isIgnored && <Badge tone="bg-zinc-800 text-zinc-400">Ignorada</Badge>}
-          {isCredit && <Badge tone="bg-sky-500/10 text-sky-300">Estorno</Badge>}
+          {row.isIgnored && (
+            <Badge tone="bg-zinc-800 text-zinc-400">
+              Ignorada
+              {transaction.reviewReason && !transaction.requiresReview
+                ? ` · ${transaction.reviewReason}`
+                : ""}
+            </Badge>
+          )}
+          {isCredit &&
+            (isAccount ? (
+              <Badge tone="bg-emerald-500/10 text-emerald-300">Entrada</Badge>
+            ) : (
+              <Badge tone="bg-sky-500/10 text-sky-300">Estorno</Badge>
+            ))}
           {futureCount > 0 && !isCredit && (
             <label className="flex items-center gap-1.5">
               <Checkbox
@@ -209,15 +236,15 @@ function ReviewRow({
       <p
         className={cn(
           "text-right text-sm font-semibold tabular-nums lg:hidden",
-          isCredit ? "text-sky-300" : "text-zinc-50",
+          amountClassName,
         )}
       >
-        {isCredit ? "−" : ""}
+        {amountPrefix}
         {formatValue(transaction.amount)}
       </p>
 
       <div className="col-span-2 col-start-2 flex flex-wrap items-center gap-2 lg:contents">
-        {isCredit ? (
+        {isCredit && !isAccount ? (
           <span className="truncate text-xs text-zinc-500 lg:px-1">
             {CARD_CREDIT_ADJUSTMENT_CATEGORY}
           </span>
@@ -239,7 +266,7 @@ function ReviewRow({
             </SelectTrigger>
             <SelectContent>
               <SelectItem value={NO_CATEGORY}>Sem categoria</SelectItem>
-              {flow.categoryOptions.map((category) => (
+              {categoryOptions.map((category) => (
                 <SelectItem key={category} value={category}>
                   {category}
                 </SelectItem>
@@ -270,10 +297,10 @@ function ReviewRow({
         <p
           className={cn(
             "hidden text-right text-sm font-semibold tabular-nums lg:block",
-            isCredit ? "text-sky-300" : "text-zinc-50",
+            amountClassName,
           )}
         >
-          {isCredit ? "−" : ""}
+          {amountPrefix}
           {formatValue(transaction.amount)}
         </p>
 
@@ -330,6 +357,12 @@ export function ImportReview({
 }) {
   const formatValue = usePrivateCurrency();
   const { rows, summary, pdfAudit } = flow;
+  const isAccount = flow.mode === "account";
+  /* An invoice totals what is owed; a statement, what is left after the
+     money in and out. */
+  const displayTotal = isAccount
+    ? summary.creditsAmount - summary.expensesAmount
+    : summary.totalAmount;
   const [filter, setFilter] = useState<RowFilter>("all");
   const [query, setQuery] = useState("");
   const [selected, setSelected] = useState<number[]>([]);
@@ -339,7 +372,7 @@ export function ImportReview({
     { id: "review", label: "Para revisar", count: summary.pendingReviewCount },
     { id: "uncategorized", label: "Sem categoria", count: summary.uncategorizedCount },
     { id: "installments", label: "Parceladas", count: rows.filter((row) => matchesFilter(row, "installments")).length },
-    { id: "credits", label: "Estornos", count: rows.filter((row) => matchesFilter(row, "credits")).length },
+    { id: "credits", label: isAccount ? "Entradas" : "Estornos", count: rows.filter((row) => matchesFilter(row, "credits")).length },
     { id: "dependents", label: "Dependentes", count: rows.filter((row) => matchesFilter(row, "dependents")).length },
     { id: "skipped", label: "Fora da importação", count: rows.filter((row) => row.isLocked).length },
   ];
@@ -364,7 +397,10 @@ export function ImportReview({
     .filter((row) => effectiveSelected.includes(row.index))
     .reduce(
       (sum, row) =>
-        sum + (row.transaction.type === "credit" ? -row.transaction.amount : row.transaction.amount),
+        sum +
+        ((row.transaction.type === "credit") === isAccount
+          ? row.transaction.amount
+          : -row.transaction.amount),
       0,
     );
 
@@ -396,8 +432,11 @@ export function ImportReview({
                 <li className="flex flex-wrap items-center justify-between gap-2">
                   <span>
                     {summary.pendingReviewCount}{" "}
-                    {summary.pendingReviewCount === 1 ? "linha parece" : "linhas parecem"} pagamento
-                    de fatura ou algo já lançado. Mantenha ou ignore cada uma.
+                    {summary.pendingReviewCount === 1 ? "linha parece" : "linhas parecem"}{" "}
+                    {isAccount
+                      ? "transferência, investimento ou algo já lançado."
+                      : "pagamento de fatura ou algo já lançado."}{" "}
+                    Mantenha ou ignore cada uma.
                   </span>
                   <button
                     type="button"
@@ -466,7 +505,7 @@ export function ImportReview({
               <SearchField
                 value={query}
                 onChange={setQuery}
-                placeholder="Buscar compra"
+                placeholder={isAccount ? "Buscar lançamento" : "Buscar compra"}
                 className="flex-1"
               />
               <span className="hidden shrink-0 text-xs text-zinc-500 sm:block">
@@ -512,23 +551,30 @@ export function ImportReview({
           variants={dashboardReveal}
           className={cn(dashboardPanelClassName, "p-5")}
         >
-          <p className="text-xs text-zinc-500">Total a importar</p>
+          <p className="text-xs text-zinc-500">
+            {isAccount ? "Saldo do extrato" : "Total a importar"}
+          </p>
           <AnimatedNumber
-            value={summary.totalAmount}
+            value={displayTotal}
             format={formatValue}
             className="mt-1 block text-3xl font-semibold tracking-[-0.03em] tabular-nums text-zinc-50"
           />
           <dl className="mt-4 grid grid-cols-2 gap-x-4 gap-y-3 text-sm">
             <div>
-              <dt className="text-xs text-zinc-500">Compras</dt>
+              <dt className="text-xs text-zinc-500">{isAccount ? "Saídas" : "Compras"}</dt>
               <dd className="font-medium tabular-nums text-zinc-100">
                 {formatValue(summary.expensesAmount)}
               </dd>
             </div>
             <div>
-              <dt className="text-xs text-zinc-500">Estornos</dt>
-              <dd className="font-medium tabular-nums text-sky-300">
-                {summary.creditsAmount > 0 ? "−" : ""}
+              <dt className="text-xs text-zinc-500">{isAccount ? "Entradas" : "Estornos"}</dt>
+              <dd
+                className={cn(
+                  "font-medium tabular-nums",
+                  isAccount ? "text-emerald-300" : "text-sky-300",
+                )}
+              >
+                {summary.creditsAmount > 0 ? (isAccount ? "+" : "−") : ""}
                 {formatValue(summary.creditsAmount)}
               </dd>
             </div>
@@ -551,6 +597,30 @@ export function ImportReview({
               </dd>
             </div>
           </dl>
+          {isAccount && (
+            <label className="mt-4 flex items-center justify-between gap-3 border-t border-white/[0.06] pt-3 text-xs text-zinc-500">
+              Lançar em
+              <Select
+                value={flow.referenceMonth}
+                onValueChange={flow.setReferenceMonth}
+                disabled={flow.isSubmitting}
+              >
+                <SelectTrigger
+                  aria-label="Mês em que o extrato será lançado"
+                  className="h-8 w-44 border-white/[0.08] bg-zinc-900/60 px-2.5 text-xs text-zinc-100"
+                >
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  {flow.referenceMonthOptions.map((option) => (
+                    <SelectItem key={option.value} value={option.value}>
+                      {option.label}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </label>
+          )}
           {pdfAudit && (
             <p className="mt-4 border-t border-white/[0.06] pt-3 text-xs leading-5 text-zinc-500">
               {pdfBankLabels[pdfAudit.bank]} · {pdfAudit.totalPages}{" "}
@@ -564,7 +634,7 @@ export function ImportReview({
         {summary.byCategory.length > 0 && (
           <AnalyticsPanel
             title="Por categoria"
-            description="Compras que vão entrar"
+            description={isAccount ? "Saídas que vão entrar" : "Compras que vão entrar"}
             className="hidden md:flex"
           >
             <ul className="space-y-3">
@@ -647,6 +717,13 @@ export function ImportReview({
                       {category}
                     </SelectItem>
                   ))}
+                  {/* Applied only to the selected income rows. */}
+                  {isAccount &&
+                    flow.incomeCategoryOptions.map((category) => (
+                      <SelectItem key={`income-${category}`} value={category}>
+                        {category} (receita)
+                      </SelectItem>
+                    ))}
                 </SelectContent>
               </Select>
               <Select
@@ -703,11 +780,10 @@ export function ImportReview({
               <div className="min-w-0 flex-1">
                 <p className="text-sm font-medium text-zinc-100">
                   {summary.newCount} {summary.newCount === 1 ? "lançamento" : "lançamentos"} ·{" "}
-                  <span className="tabular-nums">{formatValue(summary.totalAmount)}</span>
+                  <span className="tabular-nums">{formatValue(displayTotal)}</span>
                 </p>
                 <p className={cn("truncate text-xs", blockers.length ? "text-amber-300" : "text-zinc-500")}>
-                  {blockers[0] ??
-                    `${flow.selectedCard?.name ?? "Cartão"} · fatura de ${formatInvoiceMonthLabel(flow.referenceMonth).toLocaleLowerCase("pt-BR")}`}
+                  {blockers[0] ?? flow.importTargetLabel}
                 </p>
               </div>
               <div className="flex gap-2">
@@ -726,7 +802,7 @@ export function ImportReview({
                   disabled={
                     flow.isSubmitting ||
                     flow.isCheckingDuplicates ||
-                    !flow.selectedCardId ||
+                    (flow.mode === "card" && !flow.selectedCardId) ||
                     summary.pendingReviewCount > 0 ||
                     summary.newCount === 0
                   }
