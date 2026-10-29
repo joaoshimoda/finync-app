@@ -15,7 +15,8 @@
     "supabase:login": "supabase login",
     "db:types": "node scripts/generate-supabase-types.mjs",
     "db:types:check": "node scripts/generate-supabase-types.mjs --check",
-    "security:audit": "npm audit --audit-level=high"
+    "security:audit": "npm audit --audit-level=high",
+    "publish:portfolio": "node scripts/publish-portfolio.mjs"
   },
   "dependencies": {
     "@base-ui/react": "^1.7.0",
